@@ -78,6 +78,24 @@ pipelineRouter.post(
   }
 );
 
+import { renderTimelineVideo } from '../services/videoRenderer';
+
+function generateJobFolderName(projectName: string, jobId: string): string {
+  const safeName = (projectName || 'project')
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '')
+    .slice(0, 35);
+
+  const now = new Date();
+  const pad = (n: number) => String(n).padStart(2, '0');
+  const timeStr = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}_${pad(now.getHours())}-${pad(now.getMinutes())}-${pad(now.getSeconds())}`;
+  const shortId = jobId.slice(0, 6);
+
+  return `${safeName || 'project'}_${timeStr}_${shortId}`;
+}
+
 // ── GET /api/pipeline/status/:jobId ──────────────────────────────────────────
 pipelineRouter.get('/status/:jobId', (req: Request, res: Response) => {
   const job = jobsStore.findById(req.params.jobId!);
@@ -93,6 +111,25 @@ pipelineRouter.get('/timeline/:jobId', (req: Request, res: Response) => {
   res.json({ timeline: job.timelineJson });
 });
 
+// ── GET /api/pipeline/video/:jobId ───────────────────────────────────────────
+pipelineRouter.get('/video/:jobId', (req: Request, res: Response) => {
+  const job = jobsStore.findById(req.params.jobId!);
+  if (!job) return res.status(404).json({ error: 'Job not found' });
+
+  let videoPath = job.outputPath;
+  if (videoPath && videoPath.endsWith('.json')) {
+    videoPath = path.join(path.dirname(videoPath), 'final_video.mp4');
+  }
+
+  if (!videoPath || !fs.existsSync(videoPath)) {
+    return res.status(404).json({ error: 'Rendered video file not ready yet' });
+  }
+
+  res.setHeader('Content-Type', 'video/mp4');
+  res.setHeader('Content-Disposition', `inline; filename="${path.basename(videoPath)}"`);
+  fs.createReadStream(videoPath).pipe(res);
+});
+
 // ── Main Pipeline ─────────────────────────────────────────────────────────────
 async function runPipeline(params: {
   jobId: string;
@@ -101,12 +138,13 @@ async function runPipeline(params: {
   clipLibraryRoot: string;
 }) {
   const { jobId, project, voiceoverFiles, clipLibraryRoot } = params;
-  const jobOutputDir = path.join(OUTPUT_DIR, jobId);
+  const folderName = generateJobFolderName(project.name, jobId);
+  const jobOutputDir = path.join(OUTPUT_DIR, folderName);
   fs.mkdirSync(jobOutputDir, { recursive: true });
 
   const step = (name: string) => {
     jobsStore.update(jobId, { step: name });
-    console.log(`[Job ${jobId}] ▶ ${name}`);
+    console.log(`[Job ${jobId}] ▶ ${name} (Folder: ${folderName})`);
   };
 
   // ── 1. Audio Assembly ────────────────────────────────────────────────────
@@ -119,14 +157,23 @@ async function runPipeline(params: {
   const alignments = await alignAudio(masterPath);
   jobsStore.update(jobId, { beatAlignments: alignments });
 
-  // ── 3. AI Script Planning (one batch call) ────────────────────────────────
-  // Replaces fixed 5-word/2s cuts + per-beat clip matching.
-  // gpt-4o sees the full script and returns: smart beats, mediaType (video/image),
-  // local clip picks, stock queries — all in one shot.
+  // ── 3. AI Script Planning (with Auto-Transcription Fallback) ─────────────
   step('ai_planning');
 
+  let effectiveScript = (project.scriptText || '').trim();
+  if (!effectiveScript && alignments.length > 0 && alignments[0]?.text !== 'Full Narration Track') {
+    effectiveScript = alignments.map((a) => a.text).join(' ').trim();
+    console.log(`[Job ${jobId}] 🎙️ Script was omitted — auto-transcribed from Whisper audio (${effectiveScript.split(' ').length} words)`);
+  }
+
+  if (!effectiveScript || effectiveScript === 'Full Narration Track') {
+    throw new Error(
+      'No script text was provided. To run without typing a script, please add a free GROQ_API_KEY or OPENAI_API_KEY in your .env for Whisper transcription, or paste your script in the dashboard.'
+    );
+  }
+
   const clipFilenames = clipsStore.forProject(project.id).map((c) => c.filename);
-  const plan = await planScriptWithAI(project.scriptText, clipFilenames, project.name);
+  const plan = await planScriptWithAI(effectiveScript, clipFilenames, project.name);
 
   // ── 4. Snap beat timings to Whisper word boundaries ───────────────────────
   step('timing_alignment');
@@ -169,59 +216,70 @@ async function runPipeline(params: {
         }
       }
 
-      // 2. Stock video (primary query)
-      if (!resolvedPath && beat.stockVideoQuery) {
-        const video = await findStockFootage(beat.stockVideoQuery);
+      // 2. Multi-tier Stock video search (Pexels, Pixabay, Coverr, Mixkit)
+      if (!resolvedPath && (beat.stockVideoQuery || beat.backupVideoQuery)) {
+        const video = await findStockFootage(beat.stockVideoQuery || '', beat.backupVideoQuery);
         if (video) {
           const dest = path.join(stockDir, `video_${i}.mp4`);
           try {
             await downloadStockVideo(video, dest);
             resolvedPath = dest;
-            console.log(`  📹 Stock video: ${beat.stockVideoQuery}`);
+            console.log(`  📹 Real Stock Video [${video.source}]: ${video.title.slice(0, 40)}`);
           } catch { /* fall through */ }
         }
       }
 
-      // 3. Retry stock video with broader (first 2 words) query
-      if (!resolvedPath && beat.stockVideoQuery) {
-        const broaderQuery = beat.stockVideoQuery.split(' ').slice(0, 2).join(' ');
-        const video = await findStockFootage(broaderQuery, true);
-        if (video) {
-          const dest = path.join(stockDir, `video_${i}_retry.mp4`);
-          try {
-            await downloadStockVideo(video, dest);
-            resolvedPath = dest;
-            console.log(`  📹 Retry video: ${broaderQuery}`);
-          } catch { /* fall through */ }
-        }
-      }
-
-      // 4. Fall back to Pexels photo
+      // 3. Fall back to real authentic photograph only if no video exists
       if (!resolvedPath) {
         const photoQuery = beat.stockPhotoQuery || beat.stockVideoQuery || beat.text.slice(0, 40);
-        console.log(`  🔄 Video not found — trying photo: ${photoQuery}`);
+        console.log(`  🔄 Video not found — trying real photography: ${photoQuery}`);
         const photo = await findStockPhoto(photoQuery);
         if (photo) {
           const dest = path.join(stockDir, `photo_${i}.jpg`);
           try {
             await downloadStockPhoto(photo, dest);
             resolvedPath = dest;
-            (beat as any).mediaType = 'image'; // promote to image so renderer applies Ken Burns
-            console.log(`  📷 Fallback photo: ${photoQuery}`);
+            (beat as any).mediaType = 'image';
+            console.log(`  📷 Real Photo: ${photoQuery}`);
           } catch { /* fall through */ }
         }
       }
     } else {
-      // Image beat — straight to Pexels Photos
-      const photoQuery = beat.stockPhotoQuery || beat.text.slice(0, 40);
-      const photo = await findStockPhoto(photoQuery);
-      if (photo) {
-        const dest = path.join(stockDir, `photo_${i}.jpg`);
-        try {
-          await downloadStockPhoto(photo, dest);
-          resolvedPath = dest;
-          console.log(`  📷 Photo: ${photoQuery}`);
-        } catch { /* fall through */ }
+      // 1. Local clip from library
+      if (beat.clipFilename) {
+        const localPath = path.join(clipLibraryRoot, beat.clipFilename);
+        if (fs.existsSync(localPath)) {
+          resolvedPath = localPath;
+          console.log(`  ✅ Local clip: ${beat.clipFilename}`);
+        }
+      }
+
+      // 2. High-res real stock photo search
+      if (!resolvedPath) {
+        const photoQuery = beat.stockPhotoQuery || beat.text.slice(0, 40);
+        const photo = await findStockPhoto(photoQuery);
+        if (photo) {
+          const dest = path.join(stockDir, `photo_${i}.jpg`);
+          try {
+            await downloadStockPhoto(photo, dest);
+            resolvedPath = dest;
+            console.log(`  📷 Real Photo: ${photoQuery}`);
+          } catch { /* fall through */ }
+        }
+      }
+
+      // 3. Fallback to stock video if photo fails
+      if (!resolvedPath && (beat.stockVideoQuery || beat.backupVideoQuery)) {
+        const video = await findStockFootage(beat.stockVideoQuery || beat.stockPhotoQuery || '', beat.backupVideoQuery);
+        if (video) {
+          const dest = path.join(stockDir, `video_${i}.mp4`);
+          try {
+            await downloadStockVideo(video, dest);
+            resolvedPath = dest;
+            (beat as any).mediaType = 'video';
+            console.log(`  📹 Fallback Stock Video: ${video.title.slice(0, 40)}`);
+          } catch { /* fall through */ }
+        }
       }
     }
 
@@ -231,10 +289,10 @@ async function runPipeline(params: {
   // ── 6. Build Timeline JSON ─────────────────────────────────────────────────
   step('building_timeline');
 
-  const outputPath = path.join(jobOutputDir, 'render_output.mp4');
+  const finalVideoPath = path.join(jobOutputDir, 'final_video.mp4');
   const timeline = buildTimeline({
     masterAudioPath: masterPath,
-    outputPath,
+    outputPath: finalVideoPath,
     timedBeats,
     alignments,
     chapterTimings: timingMap,
@@ -246,13 +304,23 @@ async function runPipeline(params: {
 
   jobsStore.update(jobId, {
     timelineJson: timeline,
-    status: 'completed',
-    step: 'render_plan',
+    step: 'rendering_video',
     outputPath: timelineJsonPath,
+  });
+
+  // ── 7. Automated FFmpeg Video Rendering ────────────────────────────────────
+  step('rendering_video');
+  console.log(`[Job ${jobId}] 🎬 Automating full video render with FFmpeg...`);
+  await renderTimelineVideo(timelineJsonPath, finalVideoPath);
+
+  jobsStore.update(jobId, {
+    status: 'completed',
+    step: 'completed',
+    outputPath: finalVideoPath,
   });
 
   const imageCount = timedBeats.filter((b) => b.mediaType === 'image').length;
   const videoCount = timedBeats.filter((b) => b.mediaType === 'video').length;
-  console.log(`[Job ${jobId}] ✅ Done — ${videoCount} video beats, ${imageCount} image beats`);
-  console.log(`[Job ${jobId}] 📋 Timeline: ${timelineJsonPath}`);
+  console.log(`[Job ${jobId}] ✅ Video Complete! (${videoCount} video shots, ${imageCount} photo shots)`);
+  console.log(`[Job ${jobId}] 📁 Final Video: ${finalVideoPath}`);
 }

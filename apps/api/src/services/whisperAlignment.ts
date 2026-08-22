@@ -20,24 +20,27 @@ export interface SegmentAlignment {
 }
 
 /**
- * Audio alignment service.
+ * Audio alignment & Speech-to-Text service.
  * Priority:
- * 1. Groq Whisper API (GROQ_API_KEY) — Free, 10x faster
- * 2. OpenAI Whisper API (OPENAI_API_KEY) — Official OpenAI API
- * 3. Fallback Estimator — Computes estimated timestamps from duration if no API key set
+ * 1. OpenRouter Whisper API (OPENROUTER_API_KEY) — openai/whisper-1 or configured WHISPER_MODEL
+ * 2. OpenAI Whisper API (OPENAI_API_KEY) — official OpenAI endpoint
+ * 3. Groq Whisper API (GROQ_API_KEY) — Groq cloud endpoint
+ * 4. Fallback Estimator — Computes estimated timestamps from duration if no API key set
  */
 export async function alignAudio(
   masterAudioPath: string
 ): Promise<SegmentAlignment[]> {
-  const groqKey = process.env.GROQ_API_KEY;
+  const openrouterKey = process.env.OPENROUTER_API_KEY;
   const openaiKey = process.env.OPENAI_API_KEY;
+  const groqKey = process.env.GROQ_API_KEY;
 
-  if (groqKey) {
-    console.log('🎙️ Running audio alignment via Groq Whisper API (Free)...');
+  if (openrouterKey) {
+    console.log('🎙️ Running audio transcription via OpenRouter Whisper STT...');
+    const model = process.env.WHISPER_MODEL || 'openai/whisper-1';
     return alignWithApi(
-      'https://api.groq.com/openai/v1/audio/transcriptions',
-      groqKey,
-      'whisper-large-v3',
+      'https://openrouter.ai/api/v1/audio/transcriptions',
+      openrouterKey,
+      model,
       masterAudioPath
     );
   }
@@ -52,12 +55,22 @@ export async function alignAudio(
     );
   }
 
-  console.log('⚠️ No GROQ_API_KEY or OPENAI_API_KEY set. Generating duration-based fallback timing map...');
+  if (groqKey) {
+    console.log('🎙️ Running audio alignment via Groq Whisper API...');
+    return alignWithApi(
+      'https://api.groq.com/openai/v1/audio/transcriptions',
+      groqKey,
+      'whisper-large-v3',
+      masterAudioPath
+    );
+  }
+
+  console.log('⚠️ No OPENROUTER_API_KEY, OPENAI_API_KEY, or GROQ_API_KEY set. Generating duration-based fallback timing map...');
   return fallbackAlignment(masterAudioPath);
 }
 
 /**
- * Send audio to OpenAI-compatible Whisper endpoint (Groq or OpenAI).
+ * Send audio to OpenAI/OpenRouter-compatible Whisper endpoint.
  */
 async function alignWithApi(
   endpoint: string,
@@ -66,6 +79,10 @@ async function alignWithApi(
   audioPath: string
 ): Promise<SegmentAlignment[]> {
   const audioBuffer = fs.readFileSync(audioPath);
+  let duration = 60;
+  try {
+    duration = await getAudioDuration(audioPath);
+  } catch {}
 
   const form = new FormData();
   form.append('file', audioBuffer, {
@@ -77,9 +94,16 @@ async function alignWithApi(
   form.append('timestamp_granularities[]', 'word');
   form.append('timestamp_granularities[]', 'segment');
 
+  const headers: Record<string, string> = {
+    Authorization: `Bearer ${apiKey}`,
+    'HTTP-Referer': 'https://bloketuber.app',
+    'X-Title': 'BlokeTuber',
+    ...form.getHeaders(),
+  };
+
   const response = await fetch(endpoint, {
     method: 'POST',
-    headers: Object.assign({ Authorization: `Bearer ${apiKey}` }, form.getHeaders()),
+    headers,
     body: form.getBuffer() as any,
   });
 
@@ -91,20 +115,46 @@ async function alignWithApi(
 
   const raw = (await response.json()) as any;
 
-  const segments: SegmentAlignment[] = (raw.segments || []).map((seg: any) => ({
-    text: seg.text,
-    start: seg.start,
-    end: seg.end,
-    words: (raw.words || seg.words || [])
-      .filter((w: any) => w.start >= seg.start && w.end <= seg.end + 0.1)
-      .map((w: any) => ({
-        word: w.word,
-        start: w.start,
-        end: w.end,
-      })),
-  }));
+  // 1. If verbose_json with segments was returned
+  if (Array.isArray(raw.segments) && raw.segments.length > 0) {
+    return raw.segments.map((seg: any) => ({
+      text: seg.text || '',
+      start: typeof seg.start === 'number' ? seg.start : 0,
+      end: typeof seg.end === 'number' ? seg.end : duration,
+      words: (raw.words || seg.words || [])
+        .filter((w: any) => w.start >= seg.start && w.end <= seg.end + 0.2)
+        .map((w: any) => ({
+          word: w.word || '',
+          start: w.start,
+          end: w.end,
+        })),
+    }));
+  }
 
-  return segments;
+  // 2. If standard text response was returned (e.g. OpenRouter normalized JSON)
+  const fullText = String(raw.text || '').trim();
+  if (fullText) {
+    const words = fullText.split(/\s+/).filter(Boolean);
+    const wordCount = Math.max(1, words.length);
+    const wordDuration = duration / wordCount;
+
+    const wordTimestamps: WordTimestamp[] = words.map((w, i) => ({
+      word: w,
+      start: Number((i * wordDuration).toFixed(3)),
+      end: Number(((i + 1) * wordDuration).toFixed(3)),
+    }));
+
+    return [
+      {
+        text: fullText,
+        start: 0,
+        end: Number(duration.toFixed(3)),
+        words: wordTimestamps,
+      },
+    ];
+  }
+
+  return fallbackAlignment(audioPath);
 }
 
 /**

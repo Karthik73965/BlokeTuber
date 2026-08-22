@@ -9,9 +9,10 @@ type PipelineStep =
   | 'idle'
   | 'audio_assembly'
   | 'alignment'
-  | 'script_parsing'
-  | 'clip_matching'
+  | 'ai_planning'
+  | 'media_resolution'
   | 'building_timeline'
+  | 'rendering_video'
   | 'completed'
   | 'error';
 
@@ -25,20 +26,22 @@ interface JobStatus {
 
 const STEP_LABELS: Record<string, string> = {
   audio_assembly: 'Stitching audio chapters…',
-  alignment: 'Running Whisper alignment…',
-  script_parsing: 'Parsing script into beats…',
-  clip_matching: 'AI clip matching…',
-  building_timeline: 'Building timeline JSON…',
-  completed: 'Timeline ready!',
+  alignment: 'Whisper audio transcription…',
+  ai_planning: 'AI Director directing scenes…',
+  media_resolution: 'Sourcing 4K photos & videos…',
+  building_timeline: 'Building timeline…',
+  rendering_video: 'Rendering final MP4 with FFmpeg…',
+  completed: 'Video render ready!',
   error: 'Pipeline error',
 };
 
 const STEP_ORDER = [
   'audio_assembly',
   'alignment',
-  'script_parsing',
-  'clip_matching',
+  'ai_planning',
+  'media_resolution',
   'building_timeline',
+  'rendering_video',
   'completed',
 ];
 
@@ -158,16 +161,15 @@ export default function Dashboard() {
   const handleStart = async () => {
     setError(null);
     if (!projectName.trim()) return setError('Enter a project name');
-    if (!scriptText.trim()) return setError('Paste your script text');
     if (voiceovers.length === 0) return setError('Upload at least one voiceover file');
 
     setLoading(true);
     try {
-      // Step A: Create project
+      // Step A: Create project (scriptText is optional)
       const projRes = await fetch(`${API_URL}/api/projects`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: projectName, scriptText }),
+        body: JSON.stringify({ name: projectName, scriptText: scriptText.trim() }),
       });
       const projData = await projRes.json();
       if (!projRes.ok) throw new Error(projData.error || 'Failed to create project');
@@ -219,6 +221,14 @@ export default function Dashboard() {
     a.click();
   };
 
+  const downloadVideo = () => {
+    if (!jobId) return;
+    const a = document.createElement('a');
+    a.href = `${API_URL}/api/pipeline/video/${jobId}`;
+    a.download = `final_video_${jobId.slice(0, 8)}.mp4`;
+    a.click();
+  };
+
   const isDone = jobStatus && jobStatus.status === 'completed';
   const isError = jobStatus && jobStatus.status === 'error';
 
@@ -242,18 +252,18 @@ export default function Dashboard() {
         {/* Hero */}
         <section className={styles.hero}>
           <h2 className={styles.heroTitle}>
-            Script in. <span className={styles.goldText}>Video out.</span>
+            Voiceover in. <span className={styles.goldText}>Video out.</span>
           </h2>
           <p className={styles.heroSub}>
-            Feed it your script, chapter voiceovers, and clip library.
-            Get a near-final MP4 — in minutes, not hours.
+            Drop your chapter voiceovers. Whisper transcribes, the AI Director plans high-retention pacing,
+            and the pipeline automatically renders your finished MP4 video!
           </p>
           <div className={styles.heroPills}>
-            <span className={styles.pill}>🎙 Whisper Alignment</span>
-            <span className={styles.pill}>🤖 AI Clip Matching</span>
-            <span className={styles.pill}>🎥 Ken Burns Zoom</span>
-            <span className={styles.pill}>💰 Number Callouts</span>
-            <span className={styles.pill}>📦 Stock Footage</span>
+            <span className={styles.pill}>🎙 Whisper Auto-Transcribe</span>
+            <span className={styles.pill}>🤖 Adaptive Pacing (&lt; 4.5s)</span>
+            <span className={styles.pill}>📷 4K/5K Photo-First</span>
+            <span className={styles.pill}>🎥 Cinematic Ken Burns</span>
+            <span className={styles.pill}>⚡ Auto-Render MP4</span>
           </div>
         </section>
 
@@ -278,14 +288,44 @@ export default function Dashboard() {
             {isDone && (
               <div className={styles.doneBox}>
                 <div>
-                  <strong>✅ Timeline ready!</strong>
-                  <p>Download the <code>timeline.json</code> and run the local render script to generate your MP4.</p>
+                  <strong style={{ fontSize: '1.2em', color: '#10b981' }}>✅ Your Video is Rendered & Ready!</strong>
+                  <p style={{ marginTop: 4, color: '#94a3b8' }}>
+                    Preview your generated video below or download the final MP4.
+                  </p>
                 </div>
-                <button className={styles.btnGold} onClick={downloadTimeline}>
-                  ⬇️ Download timeline.json
-                </button>
-                <div className={styles.renderCmd}>
-                  <code>tsx apps/api/scripts/render.ts timeline.json output.mp4</code>
+
+                <video
+                  controls
+                  src={`${API_URL}/api/pipeline/video/${jobId}`}
+                  style={{
+                    width: '100%',
+                    maxHeight: 440,
+                    borderRadius: 12,
+                    marginTop: 14,
+                    marginBottom: 16,
+                    backgroundColor: '#09090b',
+                    border: '1px solid #27272a',
+                  }}
+                />
+
+                <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+                  <button className={styles.btnGold} onClick={downloadVideo} style={{ flex: 1, minWidth: 220 }}>
+                    🎬 Download Final Video (.mp4)
+                  </button>
+                  <button
+                    onClick={downloadTimeline}
+                    style={{
+                      padding: '10px 18px',
+                      borderRadius: 8,
+                      background: 'rgba(255,255,255,0.06)',
+                      border: '1px solid rgba(255,255,255,0.15)',
+                      color: '#e2e8f0',
+                      cursor: 'pointer',
+                      fontSize: '0.9em',
+                    }}
+                  >
+                    ⬇️ Download timeline.json
+                  </button>
                 </div>
               </div>
             )}
@@ -307,19 +347,19 @@ export default function Dashboard() {
               />
             </section>
 
-            {/* Script */}
+            {/* Script (Optional) */}
             <section className={styles.card}>
-              <h3 className={styles.cardTitle}>Script</h3>
+              <h3 className={styles.cardTitle}>Script <span style={{ fontSize: '0.85em', color: '#94a3b8', fontWeight: 'normal' }}>(Optional)</span></h3>
               <p className={styles.cardHint}>
-                Paste your full script. Separate chapters with blank lines or Markdown headings (## Chapter Name).
+                Paste your script, or leave blank — Whisper will automatically transcribe your voiceover audio directly.
               </p>
               <textarea
                 id="script-text"
                 className={styles.textarea}
-                placeholder={"## Chapter 1\n\nIn a tiny town in rural Alabama, there's a house that sold for just $2,000..."}
+                placeholder={"(Optional) Paste script here, or leave blank to auto-transcribe directly from uploaded voiceovers..."}
                 value={scriptText}
                 onChange={(e) => setScriptText(e.target.value)}
-                rows={10}
+                rows={6}
               />
             </section>
 

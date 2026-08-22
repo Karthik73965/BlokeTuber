@@ -17,13 +17,13 @@ projectsRouter.get('/', (_req: Request, res: Response) => {
 projectsRouter.post('/', (req: Request, res: Response) => {
   try {
     const { name, scriptText } = req.body;
-    if (!name || !scriptText) {
-      return res.status(400).json({ error: 'name and scriptText are required' });
+    if (!name || !name.trim()) {
+      return res.status(400).json({ error: 'Project name is required' });
     }
     const project = projectsStore.create({
       id: uuidv4(),
-      name,
-      scriptText,
+      name: name.trim(),
+      scriptText: (scriptText || '').trim(),
       status: 'draft',
     });
     res.json({ project });
