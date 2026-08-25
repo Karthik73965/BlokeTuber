@@ -191,6 +191,7 @@ async function runPipeline(params: {
 
   const numberCallouts: Array<{ beatIndex: number; texts: string[] }> = [];
   const timedBeats: TimedPlannedBeat[] = [];
+  const usedMediaUrls = new Set<string>();
 
   for (let i = 0; i < timedBeatsRaw.length; i++) {
     const beat = timedBeatsRaw[i]!;
@@ -216,9 +217,9 @@ async function runPipeline(params: {
         }
       }
 
-      // 2. Multi-tier Stock video search (Pexels, Pixabay, Coverr, Mixkit)
+      // 2. Multi-tier Stock video search (Pexels, Pixabay, Coverr, Mixkit) with uniqueness tracking
       if (!resolvedPath && (beat.stockVideoQuery || beat.backupVideoQuery)) {
-        const video = await findStockFootage(beat.stockVideoQuery || '', beat.backupVideoQuery);
+        const video = await findStockFootage(beat.stockVideoQuery || '', beat.backupVideoQuery, usedMediaUrls);
         if (video) {
           const dest = path.join(stockDir, `video_${i}.mp4`);
           try {
@@ -233,7 +234,7 @@ async function runPipeline(params: {
       if (!resolvedPath) {
         const photoQuery = beat.stockPhotoQuery || beat.stockVideoQuery || beat.text.slice(0, 40);
         console.log(`  🔄 Video not found — trying real photography: ${photoQuery}`);
-        const photo = await findStockPhoto(photoQuery);
+        const photo = await findStockPhoto(photoQuery, usedMediaUrls);
         if (photo) {
           const dest = path.join(stockDir, `photo_${i}.jpg`);
           try {
@@ -254,10 +255,10 @@ async function runPipeline(params: {
         }
       }
 
-      // 2. High-res real stock photo search
+      // 2. High-res real stock photo search with uniqueness tracking
       if (!resolvedPath) {
         const photoQuery = beat.stockPhotoQuery || beat.text.slice(0, 40);
-        const photo = await findStockPhoto(photoQuery);
+        const photo = await findStockPhoto(photoQuery, usedMediaUrls);
         if (photo) {
           const dest = path.join(stockDir, `photo_${i}.jpg`);
           try {
@@ -270,7 +271,7 @@ async function runPipeline(params: {
 
       // 3. Fallback to stock video if photo fails
       if (!resolvedPath && (beat.stockVideoQuery || beat.backupVideoQuery)) {
-        const video = await findStockFootage(beat.stockVideoQuery || beat.stockPhotoQuery || '', beat.backupVideoQuery);
+        const video = await findStockFootage(beat.stockVideoQuery || beat.stockPhotoQuery || '', beat.backupVideoQuery, usedMediaUrls);
         if (video) {
           const dest = path.join(stockDir, `video_${i}.mp4`);
           try {

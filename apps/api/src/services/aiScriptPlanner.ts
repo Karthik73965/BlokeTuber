@@ -43,6 +43,13 @@ export interface PlannedBeat {
 
   // Director reasoning
   reason: string;
+
+  // Text overlay callout for this beat
+  callout?: {
+    type: 'lower_third' | 'center_title';
+    line1: string; // primary bold text (name, date, stat, location)
+    line2?: string; // subtitle (lower_third only) e.g. 'Suspect', 'Officer on Scene', 'Location'
+  } | null;
 }
 
 export interface AIPlannerResult {
@@ -98,35 +105,82 @@ export async function planScriptWithAI(
     );
   }
 
-  const systemPrompt = `You are an elite YouTube documentary director and cinematography supervisor (Channel Context: ${projectContext || 'American Documentary / Real Estate / Investigative'}).
+  const systemPrompt = `You are an award-winning investigative documentary director and visual photojournalist (Specializing in Gritty Realism, Human Hardship, Homelessness, Off-Grid Survival, and Industrial Americana — like Vice, Vox, BBC Eye, and Magnates Media).
 
-Your mission is to direct the voiceover script into a master visual timeline with HIGH-RETENTION PACING (2.0s – 3.8s per beat) using PHOTO-FIRST ARCHITECTURE (80%+ High-Res Real Photos with Multi-Directional Ken Burns).
+Your mission is to direct the voiceover script into a master visual timeline with HIGH-RETENTION PACING (2.0s – 3.8s per beat) using PHOTO-FIRST ARCHITECTURE (80%+ High-Res Real Photos).
 
-CRITICAL DIRECTING RULES:
+CRITICAL DIRECTING & PHOTOJOURNALISM RULES:
 
-1. STRICT DURATION & HIGH-RETENTION PACING:
+1. GRITTY PHOTOJOURNALISM & RAW REALISM (STRICT VISUAL IDENTITY):
+   - We are telling REAL, RAW stories about poverty, makeshift survival, homelessness, and hardship.
+   - ABSOLUTE NEGATIVE RULE: NEVER generate queries for clean modern apartments, luxury houses, bright studio stock, corporate offices, or smiling models.
+   - ALWAYS use physical, photographic descriptors in every "stockPhotoQuery":
+     * Include physical textures: "weathered", "makeshift", "rusted", "scrap wood", "corrugated metal", "gravel", "worn", "industrial", "rundown", "overcast", "dusk".
+   - CONCRETE REAL-WORLD QUERY EXAMPLES:
+     * Script: "Todd lived 17 years without a home." -> stockPhotoQuery: "weathered homeless man portrait industrial street dusk gritty"
+     * Script: "A bicycle." -> stockPhotoQuery: "worn rusty bicycle parked gravel dirt path"
+     * Script: "A cart." -> stockPhotoQuery: "makeshift wooden push cart scrap hauling industrial"
+     * Script: "A bed." -> stockPhotoQuery: "weathered wooden pallet mattress makeshift shelter interior"
+     * Script: "Water." -> stockPhotoQuery: "plastic water jugs campsite outdoor survival makeshift"
+     * Script: "Discarded materials became walls and doors." -> stockPhotoQuery: "scrap wood planks rusted corrugated metal sheets pile"
+     * Script: "He built a house on the railroad tracks." -> stockPhotoQuery: "makeshift wooden shack freight railroad tracks industrial"
+     * Script: "The freight cars rolling past." -> stockPhotoQuery: "freight train cargo wagons industrial railway tracks"
+     * Script: "This is Seneca Road on the edge of Eugene, Oregon." -> stockPhotoQuery: "overcast industrial road railway yard perimeter dusk"
+     * Script: "The total cost was $2,000." -> stockPhotoQuery: "crumpled dollar bills worn working hands close up gritty"
+
+2. STRICT DURATION & HIGH-RETENTION PACING:
    - TARGET SHOT DURATION: 2.0s to 3.8s.
    - HARD MAXIMUM: NO SHOT MAY EVER EXCEED 4.5 SECONDS.
-   - If a sentence is long (e.g. 6 to 10 seconds), YOU MUST BREAK IT INTO 2 OR 3 SEPARATE VISUAL SHOTS with different camera angles/subjects!
+   - If a sentence is long (e.g. 6 to 10 seconds), BREAK IT INTO 2 OR 3 SEPARATE VISUAL SHOTS with different camera angles/subjects!
 
-2. PHOTO-FIRST MEDIA SELECTION (80%+ REAL HIGH-RES PHOTOGRAPHY):
-   - Default to mediaType="image" for 80%+ of all beats!
-   - Why: High-Res 4K/5K Real Photography with multi-directional Ken Burns (slow zoom, slow pan) provides 10x crisper sharpness, editorial depth, and semantic precision than generic stock video.
-   - Always provide a physical, high-resolution photo query in stockPhotoQuery:
-     * "Todd lived 17 years without a home" -> mediaType: "image", stockPhotoQuery: "man walking industrial street dusk portrait"
-     * "A bed" -> mediaType: "image", stockPhotoQuery: "rustic wooden bed cabin interior"
-     * "Water" -> mediaType: "image", stockPhotoQuery: "clean water glass running tap"
-     * "A bicycle" -> mediaType: "image", stockPhotoQuery: "vintage bicycle road close up"
-     * "A cart" -> mediaType: "image", stockPhotoQuery: "wooden push cart hauling yard"
-     * "The house sits inside Seneca Camp" -> mediaType: "image", stockPhotoQuery: "small makeshift wooden house rail yard"
-     * "Railroad tracks and warehouses" -> mediaType: "image", stockPhotoQuery: "freight railroad tracks industrial warehouse dusk"
-   - Reserve mediaType="video" ONLY for wide drone flyovers or major vehicle/crowd motion (<= 20% of beats).
+3. PHOTO-FIRST MEDIA SELECTION (80%+ REAL HIGH-RES PHOTOGRAPHY):
+   - Default to mediaType="image" for 80%+ of all beats! High-res 4K/5K photography with continuous camera motion provides 10x crisper sharpness, emotional weight, and photographic authenticity.
+   - Reserve mediaType="video" ONLY for wide drone flyovers or major heavy vehicle motion (<= 20% of beats).
 
-3. SPEED-RUN / MONTAGE SEQUENCES (FAST 0.8s – 2.0s CUTS):
-   - Whenever the script lists items (e.g. "A bed. Water.", "A bicycle. A cart.", "Walls, windows, doors"):
-   - SPEED-RUN and cut on every individual item with mediaType="image"!
+4. SPEED-RUN / MONTAGE SEQUENCES (FAST 1.0s – 2.5s CUTS ON LISTS):
+   - Whenever the script lists items (e.g. "generators, fireplaces, propane heaters, a working washing machine, a treadmill" or "A bed. Water. A bicycle. A cart."):
+   - YOU MUST BREAK THE LIST INTO INDIVIDUAL BEATS for each item and provide a distinct, specific physical photo query for each item:
+     * "generators" -> stockPhotoQuery: "portable gas generator rustic wood cabin outdoor"
+     * "fireplaces" -> stockPhotoQuery: "stone brick fireplace burning wood cabin interior"
+     * "propane heaters" -> stockPhotoQuery: "portable propane tank heater campsite"
+     * "a working washing machine" -> stockPhotoQuery: "vintage laundry washing machine rustic outdoor shack"
+     * "a treadmill" -> stockPhotoQuery: "treadmill fitness equipment inside rustic wooden shed"
 
-4. 100% SCRIPT INTEGRITY:
+5. HIGH-RETENTION TEXT CALLOUT OVERLAYS (AI Auto-Detect from Narration):
+   To maintain strong YouTube/documentary visual pacing, you MUST actively generate a 'callout' on approximately 40%–50% of beats (every key milestone, fact, person, evidence, date, number, location, or charge):
+   
+   CATEGORIES TO ALWAYS HIGHLIGHT:
+   1. NAMED PERSONS & PROFILES → type: "lower_third", line1: person's full name, line2: contextual role
+      * "Steven Irwin built this" -> callout: { type: "lower_third", line1: "Steven Irwin", line2: "Cabin Builder" }
+      * "Neighbors spot Steve back on the hillside" -> callout: { type: "lower_third", line1: "Steve", line2: "Repeat Suspect" }
+      * "Suarez, on scene that day" -> callout: { type: "lower_third", line1: "Officer Suarez", line2: "Responding Officer" }
+   
+   2. DATES & TIMELINES → type: "center_title", line1: the exact date or milestone
+      * "April 2024. Neighbors spot Steve..." -> callout: { type: "center_title", line1: "April 2024" }
+      * "Then October 2024. A fourth arrest." -> callout: { type: "center_title", line1: "October 2024" }
+      * "six months earlier" -> callout: { type: "center_title", line1: "6 Months Earlier" }
+   
+   3. KEY STATS, FINANCIALS & COUNTS → type: "center_title", line1: the punchy stat
+      * "bail at thirty-five thousand dollars" -> callout: { type: "center_title", line1: "$35,000 Bail" }
+      * "his third arrest since October" -> callout: { type: "center_title", line1: "3rd Arrest" }
+      * "Todd lived 17 years without a home" -> callout: { type: "center_title", line1: "17 Years Homeless" }
+      * "The total cost was $2,000" -> callout: { type: "center_title", line1: "$2,000 Total Cost" }
+   
+   4. DRAMATIC CHARGES, KEY EVIDENCE & CRUCIAL ACTIONS → type: "lower_third" or "center_title"
+      * "charged him with second-degree identity theft" -> callout: { type: "lower_third", line1: "Identity Theft", line2: "2nd-Degree Charge" }
+      * "heavy machinery again" -> callout: { type: "lower_third", line1: "Heavy Machinery", line2: "Illegal Excavation" }
+      * "Police found multiple stolen identification cards" -> callout: { type: "lower_third", line1: "Stolen ID Cards", line2: "Evidence Recovered" }
+      * "generators, fireplaces, propane heaters" -> callout: { type: "lower_third", line1: "Full Electrical Grid", line2: "Underground Encampment" }
+   
+   5. LOCATIONS & CRIME SCENES → type: "lower_third", line1: location name, line2: "Location"
+      * "Up on Beacon Hill" -> callout: { type: "lower_third", line1: "Beacon Hill", line2: "Seattle, WA" }
+      * "Dr. José Rizal Park" -> callout: { type: "lower_third", line1: "Dr. José Rizal Park", line2: "Park Location" }
+      * "Seneca Road on the edge of Eugene, Oregon" -> callout: { type: "lower_third", line1: "Seneca Road", line2: "Eugene, Oregon" }
+   
+   - If a beat is purely connective filler (e.g. "and then", "but if you walk"), set callout: null.
+   - Target: 8 to 14 high-impact callouts per 1-minute video!
+
+6. 100% SCRIPT INTEGRITY:
    - Every single word from the script must appear in order across the beats without skipping anything.
 
 Available local clips (if any match, assign to clipFilename):
@@ -141,11 +195,16 @@ Respond ONLY with a valid JSON object in this EXACT format:
       "text": "<exact spoken text of this beat>",
       "mediaType": "image" | "video",
       "clipFilename": "<exact filename from available list OR null>",
-      "stockPhotoQuery": "<physical high-res real photo search query>",
-      "stockVideoQuery": "<2-3 word video query OR null>",
-      "backupVideoQuery": "<alternative query OR null>",
+      "stockPhotoQuery": "<physical gritty high-res real photo search query>",
+      "stockVideoQuery": "<2-3 word gritty video query OR null>",
+      "backupVideoQuery": "<alternative gritty query OR null>",
       "cameraStyle": "zoom_in" | "zoom_out" | "pan_left" | "pan_right" | "fast_cut",
-      "reason": "<director reason>"
+      "reason": "<director reason>",
+      "callout": {
+        "type": "lower_third" | "center_title" | null,
+        "line1": "<primary bold text>",
+        "line2": "<subtitle text, lower_third only>"
+      }
     }
   ]
 }`;
@@ -218,6 +277,11 @@ Respond ONLY with a valid JSON object in this EXACT format:
     stockPhotoQuery: b.stockPhotoQuery || b.stockVideoQuery || b.text,
     cameraStyle: b.cameraStyle || 'zoom_in',
     reason: String(b.reason || ''),
+    callout: b.callout?.type ? {
+      type: b.callout.type as 'lower_third' | 'center_title',
+      line1: String(b.callout.line1 || '').trim(),
+      line2: b.callout.line2 ? String(b.callout.line2).trim() : undefined,
+    } : null,
   }));
 
   console.log(
@@ -320,10 +384,21 @@ export function mapPlannedBeatsToTiming(
       `  ✂️ Pacing Auto-Split: Beat "${timedBeat.text.slice(0, 30)}..." (${duration.toFixed(1)}s) -> split into ${numSubBeats} shots (~${subDuration.toFixed(1)}s each)`
     );
 
+    const angleModifiers = [
+      '',
+      'close up detail texture',
+      'wide angle perspective',
+      'dramatic mood atmosphere',
+    ];
+
     for (let s = 0; s < numSubBeats; s++) {
       const subStart = timedBeat.startTime + s * subDuration;
       const subEnd = s === numSubBeats - 1 ? timedBeat.endTime : timedBeat.startTime + (s + 1) * subDuration;
       const vector = cameraVectors[(globalIndex + s) % cameraVectors.length] || 'zoom_in';
+      const modifier = angleModifiers[s % angleModifiers.length];
+      const subPhotoQuery = modifier && timedBeat.stockPhotoQuery
+        ? `${timedBeat.stockPhotoQuery} ${modifier}`
+        : timedBeat.stockPhotoQuery;
 
       finalTimed.push({
         ...timedBeat,
@@ -332,6 +407,9 @@ export function mapPlannedBeatsToTiming(
         endTime: Number(subEnd.toFixed(3)),
         mediaType: 'image', // Photo-first for dynamic sub-shots
         cameraStyle: vector,
+        stockPhotoQuery: subPhotoQuery,
+        // Only trigger the callout on the first sub-shot of the sentence
+        callout: s === 0 ? timedBeat.callout : null,
       });
     }
   }

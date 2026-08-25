@@ -28,6 +28,15 @@ export interface TimelineClip {
 
   // Overlays
   numberOverlays: NumberOverlay[];
+
+  // Text callout overlay
+  callout?: {
+    type: 'lower_third' | 'center_title';
+    line1: string;
+    line2?: string;
+    startTime?: number;
+    endTime?: number;
+  } | null;
 }
 
 export interface NumberOverlay {
@@ -146,6 +155,28 @@ export function buildTimeline(params: {
       }
     }
 
+    // Resolve exact word-level timing for AI text callouts
+    let clipCallout: TimelineClip['callout'] = null;
+    const rawCallout = (beat as any).callout;
+    if (rawCallout && rawCallout.line1) {
+      const clipDuration = Math.max(0.5, beat.endTime - beat.startTime);
+      let startOffset = 0.05;
+      const phraseTs = findPhraseTimestamp(rawCallout.line1, alignments);
+      if (phraseTs && phraseTs.start >= beat.startTime - 0.2 && phraseTs.start <= beat.endTime + 0.2) {
+        startOffset = Math.max(0.05, phraseTs.start - beat.startTime);
+      }
+      const holdDuration = 2.2;
+      const endOffset = Math.min(clipDuration - 0.05, Math.max(startOffset + 0.8, startOffset + holdDuration));
+
+      clipCallout = {
+        type: rawCallout.type,
+        line1: rawCallout.line1,
+        line2: rawCallout.line2,
+        startTime: Number(startOffset.toFixed(2)),
+        endTime: Number(endOffset.toFixed(2)),
+      };
+    }
+
     const isImage = beat.mediaType === 'image';
 
     return {
@@ -156,12 +187,12 @@ export function buildTimeline(params: {
       endTime: beat.endTime,
       mediaType: beat.mediaType,
       clipPath: beat.resolvedPath,
-      // Images always get Ken Burns zoom-in; videos keep it off (clean cuts)
+      // Images get smooth fluid motion
       kenBurns: isImage,
-      // Images and videos both use sharp cuts to maintain fast energy
       transitionType: 'cut',
       transitionDuration: 0,
       numberOverlays,
+      callout: clipCallout,
     };
   });
 
