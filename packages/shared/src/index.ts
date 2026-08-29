@@ -63,6 +63,27 @@ export interface Clip {
 }
 
 export type CalloutType =
+  | 'newspaper_headline'
+  | 'redacted_dossier'
+  | 'polaroid_snapshot'
+  | 'typewriter_paper'
+  | 'marker_circle'
+  | 'wiretap_intercept'
+  | 'editorial_lower_third'
+  | 'police_crime_sheet'
+  | 'odometer_stat'
+  | 'map_pingeotag'
+  | 'editorial_quote'
+  | 'social_tweet_card'
+  | 'reddit_thread_card'
+  | 'caution_tape_banner'
+  | 'archival_evidence_tag'
+  | 'split_milestone_card'
+  | 'karaoke_captions'
+  | 'fullscreen_chapter_title'
+  | 'court_transcript_card'
+  | 'forensic_data_card'
+  // Backward-compatible legacy aliases
   | 'stat_callout'
   | 'lower_third'
   | 'location_badge'
@@ -71,6 +92,10 @@ export type CalloutType =
   | 'chapter_header'
   | 'highlight_pill'
   | 'split_title'
+  | 'ticker_bar'
+  | 'corner_tag'
+  | 'full_screen_title'
+  | 'breaking_news'
   | 'center_title';
 
 export type CalloutThemeColor = 'gold' | 'amber' | 'cyan' | 'crimson' | 'emerald' | 'slate' | 'white';
@@ -92,6 +117,7 @@ export interface TimelineClip {
   startTime: number;
   endTime: number;
   clipPath: string | null;
+  mediaType?: 'video' | 'image';
   stockSource?: string;
   stockUrl?: string;
   kenBurns: boolean;

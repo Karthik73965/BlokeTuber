@@ -1,7 +1,7 @@
 #!/usr/bin/env tsx
 import path from 'path';
 import fs from 'fs';
-import { renderTimelineVideo } from '../src/services/videoRenderer';
+import { renderTimelineVideo } from '../src/services/remotionRenderer';
 
 const timelineJsonPath = process.argv[2];
 if (!timelineJsonPath) {

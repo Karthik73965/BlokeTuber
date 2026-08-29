@@ -78,7 +78,7 @@ pipelineRouter.post(
   }
 );
 
-import { renderTimelineVideo } from '../services/videoRenderer';
+import { renderTimelineVideo } from '../services/remotionRenderer';
 
 function generateJobFolderName(projectName: string, jobId: string): string {
   const safeName = (projectName || 'project')
@@ -154,6 +154,23 @@ pipelineRouter.get('/chapter-video/:projectId/:chapterId', (req: Request, res: R
   res.setHeader('Content-Type', 'video/mp4');
   res.setHeader('Content-Disposition', `inline; filename="chapter_${chapter.chapterIndex}.mp4"`);
   fs.createReadStream(videoPath).pipe(res);
+});
+
+// ── GET /api/pipeline/chapter-timeline/:projectId/:chapterId ─────────────────
+pipelineRouter.get('/chapter-timeline/:projectId/:chapterId', (req: Request, res: Response) => {
+  const projectId = req.params.projectId!;
+  const chapterId = req.params.chapterId!;
+  const chapter = chaptersStore.findById(projectId, chapterId);
+  if (!chapter) return res.status(404).json({ error: 'Chapter not found' });
+
+  if (chapter.jobId) {
+    const job = jobsStore.findById(chapter.jobId);
+    if (job?.timelineJson) {
+      return res.json({ timeline: job.timelineJson });
+    }
+  }
+
+  return res.status(404).json({ error: 'Chapter timeline not available yet' });
 });
 
 // ── POST /api/pipeline/start-chapter ──────────────────────────────────────────

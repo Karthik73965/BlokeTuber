@@ -2,6 +2,8 @@
 
 import { useState, useCallback, useRef, useEffect } from 'react';
 import styles from './dashboard.module.css';
+import { Timeline } from '@repo/shared';
+import { RemotionPreviewModal } from './components/RemotionPreviewModal';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
 
@@ -68,7 +70,7 @@ const STEP_LABELS: Record<string, string> = {
   timing_alignment: '04. Snap Word Timings & Boundaries',
   media_resolution: '05. 4K Stock Sourcing & Deduplication',
   building_timeline: '06. Timeline Assembly & Overlay Sync',
-  rendering_video: '07. FFmpeg 8 Animated Overlays Render',
+  rendering_video: '07. Remotion React Video Engine Render',
   completed: '08. Video Render Ready!',
   error: 'Pipeline Error',
 };
@@ -98,10 +100,8 @@ function StepIndicator({ current }: { current: PipelineStep }) {
               isActive ? styles.stepActive : '',
             ].join(' ')}
           >
-            <div className={styles.stepDot}>
-              {isDone ? '✓' : idx + 1}
-            </div>
-            <span className={styles.stepLabel}>{STEP_LABELS[step] || step}</span>
+            <span className={styles.stepNum}>{idx + 1}</span>
+            <span>{STEP_LABELS[step]}</span>
           </div>
         );
       })}
@@ -179,15 +179,40 @@ export default function Dashboard() {
   const [newProjectName, setNewProjectName] = useState('');
   const [newProjectDesc, setNewProjectDesc] = useState('');
   const [clipLibraryRoot, setClipLibraryRoot] = useState('');
+  const [showVault, setShowVault] = useState(false);
+  const [isStitching, setIsStitching] = useState(false);
+  const [stitchedVideoUrl, setStitchedVideoUrl] = useState<string | null>(null);
+  const [previewData, setPreviewData] = useState<{ timeline: Timeline; title: string } | null>(null);
+  const [loadingPreviewId, setLoadingPreviewId] = useState<string | null>(null);
+
+  const handleOpenRemotionPreview = async (chapter: Chapter) => {
+    if (!selectedProjectId) return;
+    setLoadingPreviewId(chapter.id);
+    try {
+      const res = await fetch(`${API_URL}/api/pipeline/chapter-timeline/${selectedProjectId}/${chapter.id}`);
+      if (res.ok) {
+        const data = await res.json();
+        if (data.timeline) {
+          setPreviewData({
+            timeline: data.timeline,
+            title: `Chapter ${chapter.chapterIndex}: ${chapter.title}`,
+          });
+        }
+      } else {
+        alert('Timeline is not yet available for this chapter.');
+      }
+    } catch (err) {
+      console.error('Failed to load timeline for preview:', err);
+    } finally {
+      setLoadingPreviewId(null);
+    }
+  };
 
   // Chapter Runner State
   const [chapterVoiceovers, setChapterVoiceovers] = useState<Record<string, File[]>>({});
   const [chapterScripts, setChapterScripts] = useState<Record<string, string>>({});
   const [jobStatuses, setJobStatuses] = useState<Record<string, JobStatus>>({});
   const [elapsedSeconds, setElapsedSeconds] = useState<Record<string, number>>({});
-  const [isStitching, setIsStitching] = useState(false);
-  const [stitchedVideoUrl, setStitchedVideoUrl] = useState<string | null>(null);
-  const [showVault, setShowVault] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const pollTimers = useRef<Record<string, any>>({});
@@ -755,14 +780,24 @@ export default function Dashboard() {
                           <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: '12px', color: '#34d399', fontWeight: 700 }}>
                             ✓ CHAPTER {chapter.chapterIndex} RENDER COMPLETE
                           </span>
-                          <a
-                            href={chapterVideoUrl}
-                            download={`Chapter_${chapter.chapterIndex}_${selectedProject.name}.mp4`}
-                            className={styles.btnMonoCyan}
-                            style={{ textDecoration: 'none', padding: '4px 10px', fontSize: '11px' }}
-                          >
-                            ⬇️ DOWNLOAD MP4
-                          </a>
+                          <div style={{ display: 'flex', gap: '8px' }}>
+                            <button
+                              className={styles.btnMonoCyan}
+                              style={{ padding: '4px 10px', fontSize: '11px', cursor: 'pointer' }}
+                              onClick={() => handleOpenRemotionPreview(chapter)}
+                              disabled={loadingPreviewId === chapter.id}
+                            >
+                              {loadingPreviewId === chapter.id ? '⌛ LOADING...' : '👁️ REMOTION PREVIEW'}
+                            </button>
+                            <a
+                              href={chapterVideoUrl}
+                              download={`Chapter_${chapter.chapterIndex}_${selectedProject.name}.mp4`}
+                              className={styles.btnMonoCyan}
+                              style={{ textDecoration: 'none', padding: '4px 10px', fontSize: '11px' }}
+                            >
+                              ⬇️ DOWNLOAD MP4
+                            </a>
+                          </div>
                         </div>
                         <video
                           src={chapterVideoUrl}
@@ -810,6 +845,15 @@ export default function Dashboard() {
               })}
             </div>
           </>
+        )}
+
+        {/* Remotion Live Scrubbing & Animation Preview Modal */}
+        {previewData && (
+          <RemotionPreviewModal
+            timeline={previewData.timeline}
+            title={previewData.title}
+            onClose={() => setPreviewData(null)}
+          />
         )}
       </main>
     </div>
