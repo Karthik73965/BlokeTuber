@@ -27,40 +27,9 @@ const STORE_DIR = path.join(
 );
 fs.mkdirSync(STORE_DIR, { recursive: true });
 
-// ── Types ────────────────────────────────────────────────────────────────────
+import { Chapter, UsedMediaItem, Project, Clip, RenderJob } from '@repo/shared';
 
-export interface Project {
-  id: string;
-  name: string;
-  scriptText: string;
-  status: 'draft' | 'processing' | 'completed' | 'error';
-  createdAt: string;
-  updatedAt: string;
-}
-
-export interface Clip {
-  id: string;
-  projectId: string;
-  filename: string;
-  localPath: string;
-  tags: string[];
-  durationSeconds?: number;
-  createdAt: string;
-}
-
-export interface RenderJob {
-  id: string;
-  projectId: string;
-  status: 'queued' | 'running' | 'completed' | 'error';
-  step: string;
-  timelineJson?: any;
-  chapterTimingMap?: any;
-  beatAlignments?: any;
-  errorMessage?: string;
-  outputPath?: string;
-  createdAt: string;
-  updatedAt: string;
-}
+export type { Chapter, UsedMediaItem, Project, Clip, RenderJob };
 
 // ── File helpers ──────────────────────────────────────────────────────────────
 
@@ -79,6 +48,33 @@ function writeStore<T>(name: string, data: T[]): void {
   fs.writeFileSync(file, JSON.stringify(data, null, 2));
 }
 
+// ── Store Migration Shim ──────────────────────────────────────────────────────
+
+function migrateStore(): void {
+  const projects = readStore<any>('projects');
+  let changed = false;
+  const migrated = projects.map((p) => {
+    let modified = false;
+    const chapters = Array.isArray(p.chapters) ? p.chapters : [];
+    const usedMedia = Array.isArray(p.usedMedia) ? p.usedMedia : [];
+    if (!Array.isArray(p.chapters) || !Array.isArray(p.usedMedia)) {
+      modified = true;
+      changed = true;
+    }
+    return {
+      ...p,
+      chapters,
+      usedMedia,
+    };
+  });
+
+  if (changed) {
+    writeStore('projects', migrated);
+  }
+}
+
+migrateStore();
+
 // ── Projects ──────────────────────────────────────────────────────────────────
 
 export const projectsStore = {
@@ -88,9 +84,15 @@ export const projectsStore = {
   findById(id: string): Project | undefined {
     return this.all().find((p) => p.id === id);
   },
-  create(data: Omit<Project, 'createdAt' | 'updatedAt'>): Project {
+  create(data: Omit<Project, 'createdAt' | 'updatedAt' | 'chapters' | 'usedMedia'> & { chapters?: Chapter[]; usedMedia?: UsedMediaItem[] }): Project {
     const now = new Date().toISOString();
-    const project: Project = { ...data, createdAt: now, updatedAt: now };
+    const project: Project = {
+      ...data,
+      chapters: data.chapters || [],
+      usedMedia: data.usedMedia || [],
+      createdAt: now,
+      updatedAt: now,
+    };
     const all = this.all();
     all.push(project);
     writeStore('projects', all);
@@ -106,6 +108,80 @@ export const projectsStore = {
   },
   delete(id: string): void {
     writeStore('projects', this.all().filter((p) => p.id !== id));
+  },
+  addUsedMedia(projectId: string, items: UsedMediaItem[]): void {
+    if (!items.length) return;
+    const project = this.findById(projectId);
+    if (!project) return;
+
+    const existingMap = new Map<string, UsedMediaItem>();
+    for (const item of project.usedMedia || []) {
+      existingMap.set(item.url || item.id, item);
+    }
+    for (const item of items) {
+      existingMap.set(item.url || item.id, item);
+    }
+
+    this.update(projectId, { usedMedia: Array.from(existingMap.values()) });
+  },
+  getUsedMedia(projectId: string): UsedMediaItem[] {
+    const project = this.findById(projectId);
+    return project?.usedMedia || [];
+  },
+};
+
+// ── Chapters ──────────────────────────────────────────────────────────────────
+
+export const chaptersStore = {
+  forProject(projectId: string): Chapter[] {
+    const project = projectsStore.findById(projectId);
+    return project?.chapters || [];
+  },
+  findById(projectId: string, chapterId: string): Chapter | undefined {
+    const chapters = this.forProject(projectId);
+    return chapters.find((c) => c.id === chapterId);
+  },
+  create(projectId: string, data: Partial<Omit<Chapter, 'id' | 'projectId' | 'createdAt' | 'updatedAt'>> & { id?: string }): Chapter | null {
+    const project = projectsStore.findById(projectId);
+    if (!project) return null;
+
+    const now = new Date().toISOString();
+    const chapterId = data.id || `ch_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+    const newChapter: Chapter = {
+      id: chapterId,
+      projectId,
+      chapterIndex: typeof data.chapterIndex === 'number' ? data.chapterIndex : (project.chapters?.length || 0) + 1,
+      title: data.title || `Chapter ${(project.chapters?.length || 0) + 1}`,
+      scriptText: data.scriptText || '',
+      voiceoverFileName: data.voiceoverFileName,
+      status: data.status || 'draft',
+      createdAt: now,
+      updatedAt: now,
+    };
+
+    const chapters = [...(project.chapters || []), newChapter];
+    projectsStore.update(projectId, { chapters });
+    return newChapter;
+  },
+  update(projectId: string, chapterId: string, patch: Partial<Chapter>): Chapter | null {
+    const project = projectsStore.findById(projectId);
+    if (!project) return null;
+
+    const chapters = [...(project.chapters || [])];
+    const idx = chapters.findIndex((c) => c.id === chapterId);
+    if (idx === -1) return null;
+
+    chapters[idx] = { ...chapters[idx]!, ...patch, updatedAt: new Date().toISOString() };
+    projectsStore.update(projectId, { chapters });
+    return chapters[idx]!;
+  },
+  delete(projectId: string, chapterId: string): boolean {
+    const project = projectsStore.findById(projectId);
+    if (!project) return false;
+
+    const chapters = (project.chapters || []).filter((c) => c.id !== chapterId);
+    projectsStore.update(projectId, { chapters });
+    return true;
   },
 };
 

@@ -3,7 +3,7 @@ import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
 import { v4 as uuidv4 } from 'uuid';
-import { projectsStore, clipsStore, jobsStore } from '../db/localStore';
+import { projectsStore, clipsStore, jobsStore, chaptersStore, UsedMediaItem } from '../db/localStore';
 import { assembleAudio } from '../services/audioAssembly';
 import { alignAudio } from '../services/whisperAlignment';
 import { detectNumberCallouts } from '../services/clipMatcher';
@@ -100,7 +100,7 @@ function generateJobFolderName(projectName: string, jobId: string): string {
 pipelineRouter.get('/status/:jobId', (req: Request, res: Response) => {
   const job = jobsStore.findById(req.params.jobId!);
   if (!job) return res.status(404).json({ error: 'Job not found' });
-  res.json({ job });
+  res.json({ ...job, job });
 });
 
 // ── GET /api/pipeline/timeline/:jobId ────────────────────────────────────────
@@ -130,14 +130,169 @@ pipelineRouter.get('/video/:jobId', (req: Request, res: Response) => {
   fs.createReadStream(videoPath).pipe(res);
 });
 
+// ── GET /api/pipeline/chapter-video/:projectId/:chapterId ────────────────────
+pipelineRouter.get('/chapter-video/:projectId/:chapterId', (req: Request, res: Response) => {
+  const projectId = req.params.projectId!;
+  const chapterId = req.params.chapterId!;
+  const chapter = chaptersStore.findById(projectId, chapterId);
+  if (!chapter) return res.status(404).json({ error: 'Chapter not found' });
+
+  let videoPath = chapter.videoPath;
+  if (!videoPath && chapter.jobId) {
+    const job = jobsStore.findById(chapter.jobId);
+    if (job?.outputPath) {
+      videoPath = job.outputPath.endsWith('.json')
+        ? path.join(path.dirname(job.outputPath), 'final_video.mp4')
+        : job.outputPath;
+    }
+  }
+
+  if (!videoPath || !fs.existsSync(videoPath)) {
+    return res.status(404).json({ error: 'Chapter video not rendered yet' });
+  }
+
+  res.setHeader('Content-Type', 'video/mp4');
+  res.setHeader('Content-Disposition', `inline; filename="chapter_${chapter.chapterIndex}.mp4"`);
+  fs.createReadStream(videoPath).pipe(res);
+});
+
+// ── POST /api/pipeline/start-chapter ──────────────────────────────────────────
+// Accepts: projectId, chapterId, voiceovers, scriptText, clipLibraryRoot
+pipelineRouter.post(
+  '/start-chapter',
+  audioUpload.array('voiceovers', 50),
+  (req: Request, res: Response) => {
+    const jobId = uuidv4();
+    const { projectId, chapterId, scriptText, clipLibraryRoot } = req.body;
+
+    if (!projectId) {
+      return res.status(400).json({ error: 'projectId is required' });
+    }
+
+    const project = projectsStore.findById(projectId);
+    if (!project) return res.status(404).json({ error: 'Project not found' });
+
+    let chapter = chapterId ? chaptersStore.findById(projectId, chapterId) : null;
+    if (!chapter) {
+      // If chapter doesn't exist, create it
+      chapter = chaptersStore.create(projectId, {
+        scriptText: scriptText || '',
+        status: 'processing',
+      });
+    }
+
+    const voiceoverFiles = (req.files as Express.Multer.File[])
+      .sort((a, b) => a.originalname.localeCompare(b.originalname))
+      .map((f) => f.path);
+
+    if (!voiceoverFiles.length) {
+      return res.status(400).json({ error: 'No voiceover files uploaded' });
+    }
+
+    if (chapter) {
+      chaptersStore.update(projectId, chapter.id, {
+        status: 'processing',
+        jobId,
+        scriptText: scriptText || chapter.scriptText,
+        voiceoverFileName: path.basename(voiceoverFiles[0]!),
+      });
+    }
+
+    jobsStore.create({
+      id: jobId,
+      projectId,
+      chapterId: chapter?.id,
+      chapterIndex: chapter?.chapterIndex,
+      status: 'running',
+      step: 'audio_assembly',
+    });
+
+    res.json({ jobId, chapterId: chapter?.id, message: 'Chapter pipeline started' });
+
+    runPipeline({
+      jobId,
+      project: { id: project.id, name: project.name, scriptText: scriptText || chapter?.scriptText || project.scriptText },
+      chapterId: chapter?.id,
+      chapterIndex: chapter?.chapterIndex || 1,
+      voiceoverFiles,
+      clipLibraryRoot: clipLibraryRoot || '',
+    }).catch((err) => {
+      console.error(`[Pipeline Chapter ${jobId}] Fatal error:`, err);
+      jobsStore.update(jobId, { status: 'error', errorMessage: String(err) });
+      if (chapter) {
+        chaptersStore.update(projectId, chapter.id, { status: 'error' });
+      }
+    });
+  }
+);
+
+// ── POST /api/pipeline/stitch-project/:projectId ─────────────────────────────
+// Combines all completed chapter videos for a project into one final master MP4
+pipelineRouter.post('/stitch-project/:projectId', (req: Request, res: Response) => {
+  const projectId = req.params.projectId!;
+  const project = projectsStore.findById(projectId);
+  if (!project) return res.status(404).json({ error: 'Project not found' });
+
+  const completedChapters = (project.chapters || [])
+    .filter((c) => c.status === 'completed' && c.videoPath && fs.existsSync(c.videoPath))
+    .sort((a, b) => a.chapterIndex - b.chapterIndex);
+
+  if (!completedChapters.length) {
+    return res.status(400).json({ error: 'No completed chapters found to combine' });
+  }
+
+  const projectOutDir = path.join(OUTPUT_DIR, `project_${project.name.toLowerCase().replace(/[^a-z0-9]/g, '_')}`);
+  fs.mkdirSync(projectOutDir, { recursive: true });
+
+  const finalStitchedVideo = path.join(projectOutDir, 'full_project_master.mp4');
+  const concatListPath = path.join(projectOutDir, 'chapters_concat.txt');
+
+  const listContent = completedChapters.map((c) => `file '${c.videoPath!.replace(/\\/g, '/')}'`).join('\n');
+  fs.writeFileSync(concatListPath, listContent);
+
+  try {
+    const ffmpegBin = require('ffmpeg-static') ? `"${require('ffmpeg-static')}"` : 'ffmpeg';
+    const concatCmd = `${ffmpegBin} -y -f concat -safe 0 -i "${concatListPath}" -c copy "${finalStitchedVideo}"`;
+    require('child_process').execSync(concatCmd, { stdio: 'pipe' });
+
+    res.json({
+      message: 'Project video stitched successfully',
+      outputPath: finalStitchedVideo,
+      chapterCount: completedChapters.length,
+    });
+  } catch (err) {
+    res.status(500).json({ error: `Failed to stitch chapters: ${String(err)}` });
+  }
+});
+
+// ── GET /api/pipeline/project-video/:projectId ──────────────────────────────
+pipelineRouter.get('/project-video/:projectId', (req: Request, res: Response) => {
+  const projectId = req.params.projectId!;
+  const project = projectsStore.findById(projectId);
+  if (!project) return res.status(404).json({ error: 'Project not found' });
+
+  const projectOutDir = path.join(OUTPUT_DIR, `project_${project.name.toLowerCase().replace(/[^a-z0-9]/g, '_')}`);
+  const finalStitchedVideo = path.join(projectOutDir, 'full_project_master.mp4');
+
+  if (!fs.existsSync(finalStitchedVideo)) {
+    return res.status(404).json({ error: 'Master stitched video not found' });
+  }
+
+  res.setHeader('Content-Type', 'video/mp4');
+  res.setHeader('Content-Disposition', `inline; filename="master_${project.name}.mp4"`);
+  fs.createReadStream(finalStitchedVideo).pipe(res);
+});
+
 // ── Main Pipeline ─────────────────────────────────────────────────────────────
 async function runPipeline(params: {
   jobId: string;
-  project: { id: string; scriptText: string; name: string };
+  project: { id: string; scriptText?: string; name: string };
+  chapterId?: string;
+  chapterIndex?: number;
   voiceoverFiles: string[];
   clipLibraryRoot: string;
 }) {
-  const { jobId, project, voiceoverFiles, clipLibraryRoot } = params;
+  const { jobId, project, chapterId, chapterIndex, voiceoverFiles, clipLibraryRoot } = params;
   const folderName = generateJobFolderName(project.name, jobId);
   const jobOutputDir = path.join(OUTPUT_DIR, folderName);
   fs.mkdirSync(jobOutputDir, { recursive: true });
@@ -191,7 +346,17 @@ async function runPipeline(params: {
 
   const numberCallouts: Array<{ beatIndex: number; texts: string[] }> = [];
   const timedBeats: TimedPlannedBeat[] = [];
+
+  // Load persistent project-wide used media to guarantee zero duplicate media across chapters
+  const existingProjectMedia = projectsStore.getUsedMedia(project.id);
   const usedMediaUrls = new Set<string>();
+  for (const m of existingProjectMedia) {
+    if (m.url) usedMediaUrls.add(m.url);
+    if (m.id) usedMediaUrls.add(m.id);
+  }
+  console.log(`[Job ${jobId}] 🔒 Loaded ${usedMediaUrls.size} previously used media items across project to exclude`);
+
+  const newlyUsedMedia: UsedMediaItem[] = [];
 
   for (let i = 0; i < timedBeatsRaw.length; i++) {
     const beat = timedBeatsRaw[i]!;
@@ -225,6 +390,15 @@ async function runPipeline(params: {
           try {
             await downloadStockVideo(video, dest);
             resolvedPath = dest;
+            newlyUsedMedia.push({
+              id: video.url,
+              url: video.url,
+              source: video.source,
+              mediaType: 'video',
+              chapterIndex: chapterIndex || 1,
+              query: beat.stockVideoQuery || '',
+              usedAt: new Date().toISOString(),
+            });
             console.log(`  📹 Real Stock Video [${video.source}]: ${video.title.slice(0, 40)}`);
           } catch { /* fall through */ }
         }
@@ -241,6 +415,15 @@ async function runPipeline(params: {
             await downloadStockPhoto(photo, dest);
             resolvedPath = dest;
             (beat as any).mediaType = 'image';
+            newlyUsedMedia.push({
+              id: photo.id || photo.url,
+              url: photo.url,
+              source: photo.source,
+              mediaType: 'image',
+              chapterIndex: chapterIndex || 1,
+              query: photoQuery,
+              usedAt: new Date().toISOString(),
+            });
             console.log(`  📷 Real Photo: ${photoQuery}`);
           } catch { /* fall through */ }
         }
@@ -264,6 +447,15 @@ async function runPipeline(params: {
           try {
             await downloadStockPhoto(photo, dest);
             resolvedPath = dest;
+            newlyUsedMedia.push({
+              id: photo.id || photo.url,
+              url: photo.url,
+              source: photo.source,
+              mediaType: 'image',
+              chapterIndex: chapterIndex || 1,
+              query: photoQuery,
+              usedAt: new Date().toISOString(),
+            });
             console.log(`  📷 Real Photo: ${photoQuery}`);
           } catch { /* fall through */ }
         }
@@ -278,6 +470,15 @@ async function runPipeline(params: {
             await downloadStockVideo(video, dest);
             resolvedPath = dest;
             (beat as any).mediaType = 'video';
+            newlyUsedMedia.push({
+              id: video.url,
+              url: video.url,
+              source: video.source,
+              mediaType: 'video',
+              chapterIndex: chapterIndex || 1,
+              query: beat.stockVideoQuery || '',
+              usedAt: new Date().toISOString(),
+            });
             console.log(`  📹 Fallback Stock Video: ${video.title.slice(0, 40)}`);
           } catch { /* fall through */ }
         }
@@ -285,6 +486,12 @@ async function runPipeline(params: {
     }
 
     timedBeats.push({ ...beat, resolvedPath });
+  }
+
+  // Persist newly used media to the project
+  if (newlyUsedMedia.length > 0) {
+    projectsStore.addUsedMedia(project.id, newlyUsedMedia);
+    console.log(`[Job ${jobId}] 💾 Saved ${newlyUsedMedia.length} newly used media items to project registry`);
   }
 
   // ── 6. Build Timeline JSON ─────────────────────────────────────────────────
@@ -319,6 +526,13 @@ async function runPipeline(params: {
     step: 'completed',
     outputPath: finalVideoPath,
   });
+
+  if (chapterId) {
+    chaptersStore.update(project.id, chapterId, {
+      status: 'completed',
+      videoPath: finalVideoPath,
+    });
+  }
 
   const imageCount = timedBeats.filter((b) => b.mediaType === 'image').length;
   const videoCount = timedBeats.filter((b) => b.mediaType === 'video').length;

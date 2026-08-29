@@ -34,18 +34,47 @@ export interface StockPhoto {
   height: number;
 }
 
+const STOP_WORDS = new Set([
+  'a', 'an', 'the', 'in', 'on', 'at', 'to', 'for', 'of', 'with', 'by', 'from',
+  'up', 'about', 'into', 'over', 'after', 'and', 'but', 'or', 'so', 'yet',
+  'is', 'are', 'was', 'were', 'be', 'been', 'being', 'have', 'has', 'had',
+  'it', 'its', 'this', 'that', 'these', 'those', 'there', 'somebody', 'someone',
+  'you', 'your', 'he', 'his', 'him', 'she', 'her', 'they', 'them', 'their', 'we', 'our',
+  'will', 'would', 'shall', 'should', 'can', 'could', 'may', 'might', 'must',
+  'then', 'when', 'where', 'why', 'how', 'all', 'any', 'both', 'each', 'few',
+  'more', 'most', 'other', 'some', 'such', 'no', 'nor', 'not', 'only', 'own',
+  'same', 'so', 'than', 'too', 'very', 'just', 'now', 'also'
+]);
+
+const BANNED_IMAGE_TAGS = new Set([
+  'vector', 'illustration', 'drawing', 'clipart', 'cartoon', '3d render',
+  'render', 'sketch', 'paint', 'painting', 'anime', 'cgi', 'graphic'
+]);
+
+export function compressQuery(raw: string, maxWords = 3): string {
+  if (!raw) return '';
+  const clean = raw.toLowerCase().replace(/[^a-z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim();
+  const words = clean.split(' ').filter((w) => !STOP_WORDS.has(w) && w.length > 2);
+  if (words.length === 0) {
+    return clean.split(' ').slice(0, maxWords).join(' ');
+  }
+  return words.slice(0, maxWords).join(' ');
+}
+
 function cleanQuery(query: string): string {
-  return query.trim().replace(/[^a-zA-Z0-9 ]/g, ' ').replace(/\s+/g, ' ');
+  return compressQuery(query, 3);
 }
 
 // --- PEXELS (High Quality HD / 4K Landscape) ---
-async function searchPexels(query: string, perPage = 6): Promise<StockVideo[]> {
+async function searchPexels(query: string, perPage = 10): Promise<StockVideo[]> {
   const apiKey = process.env.PEXELS_API_KEY;
   if (!apiKey) return [];
+  const q = compressQuery(query, 3);
+  if (!q) return [];
 
   try {
     const response = await fetch(
-      `https://api.pexels.com/videos/search?query=${encodeURIComponent(query)}&per_page=${perPage}&orientation=landscape`,
+      `https://api.pexels.com/videos/search?query=${encodeURIComponent(q)}&per_page=${perPage}&orientation=landscape`,
       { headers: { Authorization: apiKey } }
     );
     if (!response.ok) return [];
@@ -62,26 +91,28 @@ async function searchPexels(query: string, perPage = 6): Promise<StockVideo[]> {
           source: 'pexels' as const,
           url: file?.link || v.url,
           previewUrl: v.image || '',
-          title: v.url || query,
+          title: v.url || q,
           duration: v.duration,
           width: file?.width || 1920,
           height: file?.height || 1080,
         };
       })
-      .filter((v: StockVideo) => v.url);
+      .filter((v: StockVideo) => v.url && (v.width || 1920) >= 1280 && (v.width || 1920) > (v.height || 1080));
   } catch {
     return [];
   }
 }
 
 // --- PIXABAY (High Quality HD Videos) ---
-async function searchPixabay(query: string, perPage = 6): Promise<StockVideo[]> {
+async function searchPixabay(query: string, perPage = 10): Promise<StockVideo[]> {
   const apiKey = process.env.PIXABAY_API_KEY;
   if (!apiKey) return [];
+  const q = compressQuery(query, 3);
+  if (!q) return [];
 
   try {
     const response = await fetch(
-      `https://pixabay.com/api/videos/?key=${apiKey}&q=${encodeURIComponent(query)}&per_page=${perPage}&video_type=film`
+      `https://pixabay.com/api/videos/?key=${apiKey}&q=${encodeURIComponent(q)}&per_page=${perPage}&video_type=film&safesearch=true`
     );
     if (!response.ok) return [];
     const data = (await response.json()) as any;
@@ -93,13 +124,13 @@ async function searchPixabay(query: string, perPage = 6): Promise<StockVideo[]> 
           source: 'pixabay' as const,
           url: medium?.url || '',
           previewUrl: v.userImageURL || '',
-          title: v.tags || query,
+          title: v.tags || q,
           duration: medium?.duration,
           width: medium?.width || 1920,
           height: medium?.height || 1080,
         };
       })
-      .filter((v: StockVideo) => v.url);
+      .filter((v: StockVideo) => v.url && (v.width || 1920) >= 1280 && (v.width || 1920) > (v.height || 1080));
   } catch {
     return [];
   }
@@ -107,20 +138,23 @@ async function searchPixabay(query: string, perPage = 6): Promise<StockVideo[]> 
 
 // --- COVERR ---
 async function searchCoverr(query: string): Promise<StockVideo[]> {
+  const q = compressQuery(query, 3);
+  if (!q) return [];
+
   try {
     const response = await fetch(
-      `https://api.coverr.co/videos?query=${encodeURIComponent(query)}&page=1`
+      `https://api.coverr.co/videos?query=${encodeURIComponent(q)}&page=1`
     );
     if (!response.ok) return [];
     const data = (await response.json()) as any;
 
     return (data.hits || [])
-      .slice(0, 6)
+      .slice(0, 8)
       .map((v: any) => ({
         source: 'coverr' as const,
         url: v.urls?.mp4_download || v.urls?.mp4 || '',
         previewUrl: v.urls?.thumbnail || '',
-        title: v.title || query,
+        title: v.title || q,
         duration: v.duration,
         width: 1920,
         height: 1080,
@@ -133,20 +167,23 @@ async function searchCoverr(query: string): Promise<StockVideo[]> {
 
 // --- MIXKIT ---
 async function searchMixkit(query: string): Promise<StockVideo[]> {
+  const q = compressQuery(query, 3);
+  if (!q) return [];
+
   try {
     const response = await fetch(
-      `https://mixkit.co/api/v1/videos?search=${encodeURIComponent(query)}&limit=6`
+      `https://mixkit.co/api/v1/videos?search=${encodeURIComponent(q)}&limit=8`
     );
     if (!response.ok) return [];
     const data = (await response.json()) as any;
 
     return (data.items || data.videos || [])
-      .slice(0, 6)
+      .slice(0, 8)
       .map((v: any) => ({
         source: 'mixkit' as const,
         url: v.source || v.download_url || '',
         previewUrl: v.thumbnail || v.image || '',
-        title: v.title || query,
+        title: v.title || q,
         duration: v.duration,
         width: 1920,
         height: 1080,
@@ -244,21 +281,32 @@ export async function findStockFootage(
 async function searchPixabayPhotos(query: string, perPage = 25): Promise<StockPhoto[]> {
   const apiKey = process.env.PIXABAY_API_KEY;
   if (!apiKey) return [];
+  const q = compressQuery(query, 3);
+  if (!q) return [];
 
   try {
     const response = await fetch(
-      `https://pixabay.com/api/?key=${apiKey}&q=${encodeURIComponent(query)}&image_type=photo&orientation=horizontal&per_page=${perPage}&safesearch=true`
+      `https://pixabay.com/api/?key=${apiKey}&q=${encodeURIComponent(q)}&image_type=photo&orientation=horizontal&per_page=${perPage}&safesearch=true`
     );
     if (!response.ok) return [];
     const data = (await response.json()) as any;
 
     return (data.hits || [])
+      .filter((p: any) => {
+        if (!p.largeImageURL && !p.webformatURL) return false;
+        const w = p.imageWidth || 1920;
+        const h = p.imageHeight || 1080;
+        if (w < h || w < 1280) return false; // Enforce landscape & HD
+        const tagList = String(p.tags || '').toLowerCase().split(/[\s,]+/);
+        if (tagList.some((t: string) => BANNED_IMAGE_TAGS.has(t))) return false;
+        return true;
+      })
       .map((p: any) => ({
         source: 'pixabay' as any,
         id: `pixabay_${p.id}`,
         url: p.largeImageURL || p.fullHDURL || p.imageURL || p.webformatURL,
         previewUrl: p.previewURL || '',
-        title: p.tags || query,
+        title: p.tags || q,
         width: p.imageWidth || 1920,
         height: p.imageHeight || 1080,
       }))
@@ -268,14 +316,6 @@ async function searchPixabayPhotos(query: string, perPage = 25): Promise<StockPh
   }
 }
 
-const STOP_WORDS = new Set([
-  'a', 'an', 'the', 'in', 'on', 'at', 'to', 'for', 'of', 'with', 'by', 'from',
-  'up', 'about', 'into', 'over', 'after', 'and', 'but', 'or', 'so', 'yet',
-  'is', 'are', 'was', 'were', 'be', 'been', 'being', 'have', 'has', 'had',
-  'it', 'its', 'this', 'that', 'these', 'those', 'there', 'somebody', 'someone',
-  'you', 'your', 'he', 'his', 'him', 'she', 'her', 'they', 'them', 'their', 'we', 'our'
-]);
-
 /**
  * Search Pexels and Pixabay for ultra high-resolution real photography (4K/5K original resolution).
  * Enforces 100% uniqueness across the project by checking usedUrls against unique IDs and URLs.
@@ -284,7 +324,7 @@ export async function findStockPhoto(
   rawQuery: string,
   usedUrls?: Set<string>
 ): Promise<StockPhoto | null> {
-  const q1 = cleanQuery(rawQuery);
+  const q1 = compressQuery(rawQuery, 3);
   if (!q1) return null;
 
   console.log(`📷 Searching Ultra-HD Real Photography [Query: "${q1}"]...`);
@@ -301,15 +341,17 @@ export async function findStockPhoto(
       ).then(async (res) => {
         if (!res.ok) return [];
         const data = (await res.json()) as any;
-        return (data.photos || []).map((photo: any) => ({
-          source: 'pexels' as const,
-          id: `pexels_${photo.id}`,
-          url: photo.src?.original || photo.src?.large2x || photo.src?.large || '',
-          previewUrl: photo.src?.medium || '',
-          title: photo.alt || q1,
-          width: photo.width || 1920,
-          height: photo.height || 1080,
-        }));
+        return (data.photos || [])
+          .filter((p: any) => (p.width || 1920) >= (p.height || 1080) && (p.width || 1920) >= 1280)
+          .map((photo: any) => ({
+            source: 'pexels' as const,
+            id: `pexels_${photo.id}`,
+            url: photo.src?.original || photo.src?.large2x || photo.src?.large || '',
+            previewUrl: photo.src?.medium || '',
+            title: photo.alt || q1,
+            width: photo.width || 1920,
+            height: photo.height || 1080,
+          }));
       }).catch(() => [])
     );
   }
@@ -334,9 +376,8 @@ export async function findStockPhoto(
     return best;
   }
 
-  // Tier 2: Meaningful non-stopword core query
-  const contentWords = q1.split(' ').filter(w => !STOP_WORDS.has(w.toLowerCase()) && w.length > 2);
-  const coreWords = (contentWords.length > 0 ? contentWords.slice(0, 3) : q1.split(' ').slice(0, 2)).join(' ');
+  // Tier 2: 2-word compressed query
+  const coreWords = compressQuery(q1, 2);
 
   if (coreWords && coreWords !== q1) {
     console.log(`  🔄 Simplifying photo query: "${coreWords}"...`);
@@ -349,15 +390,17 @@ export async function findStockPhoto(
         ).then(async (res) => {
           if (!res.ok) return [];
           const data = (await res.json()) as any;
-          return (data.photos || []).map((photo: any) => ({
-            source: 'pexels' as const,
-            id: `pexels_${photo.id}`,
-            url: photo.src?.original || photo.src?.large2x || photo.src?.large || '',
-            previewUrl: photo.src?.medium || '',
-            title: photo.alt || coreWords,
-            width: photo.width || 1920,
-            height: photo.height || 1080,
-          }));
+          return (data.photos || [])
+            .filter((p: any) => (p.width || 1920) >= (p.height || 1080))
+            .map((photo: any) => ({
+              source: 'pexels' as const,
+              id: `pexels_${photo.id}`,
+              url: photo.src?.original || photo.src?.large2x || photo.src?.large || '',
+              previewUrl: photo.src?.medium || '',
+              title: photo.alt || coreWords,
+              width: photo.width || 1920,
+              height: photo.height || 1080,
+            }));
         }).catch(() => [])
       );
     }
@@ -379,14 +422,13 @@ export async function findStockPhoto(
     }
   }
 
-  // Tier 3: Concrete Subject Descriptor Fallback (never use stopwords)
-  const keySubject = contentWords[0] || 'landscape';
-  const fallbackDescriptor = `${keySubject} documentary photography`;
-  console.log(`  🔄 Trying Documentary Descriptor: "${fallbackDescriptor}"...`);
+  // Tier 3: Single primary subject noun
+  const singleWord = q1.split(' ')[0] || 'landscape';
+  console.log(`  🔄 Trying Core Subject: "${singleWord}"...`);
   if (pexelsKey) {
     try {
       const res = await fetch(
-        `https://api.pexels.com/v1/search?query=${encodeURIComponent(fallbackDescriptor)}&per_page=15&orientation=landscape`,
+        `https://api.pexels.com/v1/search?query=${encodeURIComponent(singleWord)}&per_page=15&orientation=landscape`,
         { headers: { Authorization: pexelsKey } }
       );
       if (res.ok) {
@@ -394,7 +436,7 @@ export async function findStockPhoto(
         const available3 = (data.photos || []).filter((p: any) => {
           const url = p.src?.original || p.src?.large2x || p.src?.large || '';
           const id = `pexels_${p.id}`;
-          return url && !usedUrls?.has(url) && !usedUrls?.has(id);
+          return url && !usedUrls?.has(url) && !usedUrls?.has(id) && (p.width || 1920) >= (p.height || 1080);
         });
         if (available3.length > 0) {
           const photo = available3[0];
@@ -407,7 +449,7 @@ export async function findStockPhoto(
             id: chosenId,
             url: chosenUrl,
             previewUrl: photo.src?.medium || '',
-            title: photo.alt || fallbackDescriptor,
+            title: photo.alt || singleWord,
             width: photo.width || 1920,
             height: photo.height || 1080,
           };

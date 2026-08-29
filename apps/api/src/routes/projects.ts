@@ -1,6 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { v4 as uuidv4 } from 'uuid';
-import { projectsStore, jobsStore } from '../db/localStore';
+import { projectsStore, jobsStore, chaptersStore } from '../db/localStore';
 
 export const projectsRouter = Router();
 
@@ -32,13 +32,62 @@ projectsRouter.post('/', (req: Request, res: Response) => {
   }
 });
 
-// GET /api/projects/:id — get a project + its render jobs
+// GET /api/projects/:id — get a project + its render jobs + chapters
 projectsRouter.get('/:id', (req: Request, res: Response) => {
   try {
     const project = projectsStore.findById(req.params.id!);
     if (!project) return res.status(404).json({ error: 'Not found' });
     const jobs = jobsStore.forProject(req.params.id!);
-    res.json({ project, jobs });
+    const chapters = chaptersStore.forProject(req.params.id!);
+    res.json({ project, jobs, chapters });
+  } catch (err) {
+    res.status(500).json({ error: String(err) });
+  }
+});
+
+// GET /api/projects/:id/chapters — list chapters for a project
+projectsRouter.get('/:id/chapters', (req: Request, res: Response) => {
+  try {
+    const chapters = chaptersStore.forProject(req.params.id!);
+    res.json({ chapters });
+  } catch (err) {
+    res.status(500).json({ error: String(err) });
+  }
+});
+
+// POST /api/projects/:id/chapters — create a new chapter under a project
+projectsRouter.post('/:id/chapters', (req: Request, res: Response) => {
+  try {
+    const { title, scriptText, chapterIndex } = req.body;
+    const chapter = chaptersStore.create(req.params.id!, {
+      title: title?.trim() || 'New Chapter',
+      scriptText: (scriptText || '').trim(),
+      chapterIndex,
+      status: 'draft',
+    });
+    if (!chapter) return res.status(404).json({ error: 'Project not found' });
+    res.json({ chapter });
+  } catch (err) {
+    res.status(500).json({ error: String(err) });
+  }
+});
+
+// DELETE /api/projects/:id/chapters/:chapterId — delete a chapter
+projectsRouter.delete('/:id/chapters/:chapterId', (req: Request, res: Response) => {
+  try {
+    const ok = chaptersStore.delete(req.params.id!, req.params.chapterId!);
+    if (!ok) return res.status(404).json({ error: 'Project or chapter not found' });
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: String(err) });
+  }
+});
+
+// GET /api/projects/:id/used-media — get used media for project
+projectsRouter.get('/:id/used-media', (req: Request, res: Response) => {
+  try {
+    const usedMedia = projectsStore.getUsedMedia(req.params.id!);
+    res.json({ usedMedia });
   } catch (err) {
     res.status(500).json({ error: String(err) });
   }

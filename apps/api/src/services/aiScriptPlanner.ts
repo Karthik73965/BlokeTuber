@@ -15,7 +15,7 @@ for (const p of envPaths) {
 }
 
 const OPENROUTER_BASE_URL = 'https://openrouter.ai/api/v1';
-const PLANNER_MODEL = process.env.PLANNER_MODEL || 'openai/gpt-4o';
+const PLANNER_MODEL = process.env.PLANNER_MODEL || 'anthropic/claude-sonnet-4-5';
 
 /**
  * A single cohesive visual scene produced by the AI Director.
@@ -46,9 +46,24 @@ export interface PlannedBeat {
 
   // Text overlay callout for this beat
   callout?: {
-    type: 'lower_third' | 'center_title';
+    type:
+      | 'stat_callout'
+      | 'lower_third'
+      | 'location_badge'
+      | 'evidence_tag'
+      | 'quote_card'
+      | 'chapter_header'
+      | 'highlight_pill'
+      | 'split_title'
+      | 'ticker_bar'
+      | 'corner_tag'
+      | 'full_screen_title'
+      | 'breaking_news'
+      | 'center_title';
     line1: string; // primary bold text (name, date, stat, location)
-    line2?: string; // subtitle (lower_third only) e.g. 'Suspect', 'Officer on Scene', 'Location'
+    line2?: string; // subtitle (role, context, location details)
+    spokenTrigger?: string; // exact 2-4 spoken words from voiceover that trigger this callout
+    themeColor?: 'gold' | 'amber' | 'cyan' | 'crimson' | 'emerald' | 'slate' | 'white';
   } | null;
 }
 
@@ -66,13 +81,21 @@ export interface AIPlannerResult {
 function extractAndParseJson(raw: string): any {
   if (!raw || typeof raw !== 'string') return null;
 
-  // 1. Clean markdown code blocks
-  let clean = raw.replace(/```json?\n?/gi, '').replace(/```/g, '').trim();
+  // 1. Strip markdown code fences (```json ... ``` or ``` ... ```)
+  let clean = raw
+    .replace(/^```(?:json)?\s*/i, '')
+    .replace(/\s*```\s*$/i, '')
+    .trim();
+
+  // Also strip any inline fences in case the model wrapped mid-response
+  clean = clean.replace(/```json?\n?/gi, '').replace(/```/g, '').trim();
+
+  // 2. Try clean parse first
   try {
     return JSON.parse(clean);
   } catch {}
 
-  // 2. Extract substring between outermost { and }
+  // 3. Extract substring between outermost { and }
   const start = clean.indexOf('{');
   const end = clean.lastIndexOf('}');
   if (start !== -1 && end > start) {
@@ -81,7 +104,7 @@ function extractAndParseJson(raw: string): any {
       return JSON.parse(jsonSub);
     } catch {}
 
-    // 3. Fix trailing commas and unescaped control characters
+    // 4. Fix trailing commas and unescaped control characters
     const sanitized = jsonSub
       .replace(/,\s*([\}\]])/g, '$1')
       .replace(/[\u0000-\u0009\u000B-\u001F\u007F]/g, ' ');
@@ -90,8 +113,47 @@ function extractAndParseJson(raw: string): any {
     } catch {}
   }
 
+  // 5. TRUNCATION RECOVERY — extract all complete beat objects via regex
+  // When max_tokens is hit mid-stream, the JSON is cut off but earlier beats are valid.
+  // We salvage every complete {...} beat object from the "beats" array.
+  console.warn('[AiPlanner] Full JSON parse failed — attempting truncation recovery...');
+  const beatMatches: any[] = [];
+  // Match top-level beat objects: greedy match of balanced braces
+  const beatPattern = /\{\s*"beatIndex"\s*:/g;
+  let match: RegExpExecArray | null;
+  while ((match = beatPattern.exec(clean)) !== null) {
+    const startIdx = match.index;
+    let depth = 0;
+    let endIdx = -1;
+    for (let i = startIdx; i < clean.length; i++) {
+      if (clean[i] === '{') depth++;
+      else if (clean[i] === '}') {
+        depth--;
+        if (depth === 0) { endIdx = i; break; }
+      }
+    }
+    if (endIdx === -1) break; // truncated mid-object, stop here
+    const beatStr = clean.slice(startIdx, endIdx + 1);
+    try {
+      const beatObj = JSON.parse(beatStr);
+      beatMatches.push(beatObj);
+    } catch {
+      // Fix trailing comma artifacts and retry
+      try {
+        const fixed = beatStr.replace(/,\s*([\}\]])/g, '$1').replace(/[\u0000-\u0009\u000B-\u001F\u007F]/g, ' ');
+        beatMatches.push(JSON.parse(fixed));
+      } catch { /* skip malformed beat */ }
+    }
+  }
+
+  if (beatMatches.length > 0) {
+    console.warn(`[AiPlanner] Truncation recovery salvaged ${beatMatches.length} beats.`);
+    return { beats: beatMatches };
+  }
+
   return null;
 }
+
 
 export async function planScriptWithAI(
   scriptText: string,
@@ -105,105 +167,84 @@ export async function planScriptWithAI(
     );
   }
 
-  const systemPrompt = `You are an award-winning investigative documentary director and visual photojournalist (Specializing in Gritty Realism, Human Hardship, Homelessness, Off-Grid Survival, and Industrial Americana — like Vice, Vox, BBC Eye, and Magnates Media).
+  const systemPrompt = `You are an award-winning investigative documentary director — think Vice, Vox Borders, BBC Eye Witness, and Magnates Media. You direct gritty, high-retention short-form documentaries about real people, hidden places, homelessness, crime, survival, and industrial America.
 
-Your mission is to direct the voiceover script into a master visual timeline with HIGH-RETENTION PACING (2.0s – 3.8s per beat) using PHOTO-FIRST ARCHITECTURE (80%+ High-Res Real Photos).
+You will receive a voiceover script. Your job is to break it into a cinematic visual timeline and write punchy, authentic TEXT CALLOUTS that feel like they belong on a real documentary — not generic labels.
 
-CRITICAL DIRECTING & PHOTOJOURNALISM RULES:
+---
 
-1. GRITTY PHOTOJOURNALISM & RAW REALISM (STRICT VISUAL IDENTITY):
-   - We are telling REAL, RAW stories about poverty, makeshift survival, homelessness, and hardship.
-   - ABSOLUTE NEGATIVE RULE: NEVER generate queries for clean modern apartments, luxury houses, bright studio stock, corporate offices, or smiling models.
-   - ALWAYS use physical, photographic descriptors in every "stockPhotoQuery":
-     * Include physical textures: "weathered", "makeshift", "rusted", "scrap wood", "corrugated metal", "gravel", "worn", "industrial", "rundown", "overcast", "dusk".
-   - CONCRETE REAL-WORLD QUERY EXAMPLES:
-     * Script: "Todd lived 17 years without a home." -> stockPhotoQuery: "weathered homeless man portrait industrial street dusk gritty"
-     * Script: "A bicycle." -> stockPhotoQuery: "worn rusty bicycle parked gravel dirt path"
-     * Script: "A cart." -> stockPhotoQuery: "makeshift wooden push cart scrap hauling industrial"
-     * Script: "A bed." -> stockPhotoQuery: "weathered wooden pallet mattress makeshift shelter interior"
-     * Script: "Water." -> stockPhotoQuery: "plastic water jugs campsite outdoor survival makeshift"
-     * Script: "Discarded materials became walls and doors." -> stockPhotoQuery: "scrap wood planks rusted corrugated metal sheets pile"
-     * Script: "He built a house on the railroad tracks." -> stockPhotoQuery: "makeshift wooden shack freight railroad tracks industrial"
-     * Script: "The freight cars rolling past." -> stockPhotoQuery: "freight train cargo wagons industrial railway tracks"
-     * Script: "This is Seneca Road on the edge of Eugene, Oregon." -> stockPhotoQuery: "overcast industrial road railway yard perimeter dusk"
-     * Script: "The total cost was $2,000." -> stockPhotoQuery: "crumpled dollar bills worn working hands close up gritty"
+VISUAL BEATS:
+- Break the script into beats of 2.0s – 3.8s each (never exceed 4.5s).
+- If a sentence is long (>4.5s), split it into 2–3 separate shots with different angles.
+- For list-style narration (e.g. "generators, fireplaces, propane heaters"), give each item its own beat.
+- Pick mediaType="video" for action, movement, machinery, weather, drama.
+- Pick mediaType="image" for establishing locations, portraits, evidence, static objects.
+- stockVideoQuery / stockPhotoQuery: 2–3 concrete visual words MAX. No full sentences.
 
-2. STRICT DURATION & HIGH-RETENTION PACING:
-   - TARGET SHOT DURATION: 2.0s to 3.8s.
-   - HARD MAXIMUM: NO SHOT MAY EVER EXCEED 4.5 SECONDS.
-   - If a sentence is long (e.g. 6 to 10 seconds), BREAK IT INTO 2 OR 3 SEPARATE VISUAL SHOTS with different camera angles/subjects!
+---
 
-3. PHOTO-FIRST MEDIA SELECTION (80%+ REAL HIGH-RES PHOTOGRAPHY):
-   - Default to mediaType="image" for 80%+ of all beats! High-res 4K/5K photography with continuous camera motion provides 10x crisper sharpness, emotional weight, and photographic authenticity.
-   - Reserve mediaType="video" ONLY for wide drone flyovers or major heavy vehicle motion (<= 20% of beats).
+TEXT CALLOUTS — THIS IS THE MOST IMPORTANT PART:
+Generate a callout on ~70–80% of beats. These are the on-screen text overlays that make the video feel like a real documentary.
 
-4. SPEED-RUN / MONTAGE SEQUENCES (FAST 1.0s – 2.5s CUTS ON LISTS):
-   - Whenever the script lists items (e.g. "generators, fireplaces, propane heaters, a working washing machine, a treadmill" or "A bed. Water. A bicycle. A cart."):
-   - YOU MUST BREAK THE LIST INTO INDIVIDUAL BEATS for each item and provide a distinct, specific physical photo query for each item:
-     * "generators" -> stockPhotoQuery: "portable gas generator rustic wood cabin outdoor"
-     * "fireplaces" -> stockPhotoQuery: "stone brick fireplace burning wood cabin interior"
-     * "propane heaters" -> stockPhotoQuery: "portable propane tank heater campsite"
-     * "a working washing machine" -> stockPhotoQuery: "vintage laundry washing machine rustic outdoor shack"
-     * "a treadmill" -> stockPhotoQuery: "treadmill fitness equipment inside rustic wooden shed"
+WRITE CALLOUTS LIKE A JOURNALIST, NOT A LABEL MAKER:
+❌ BAD — generic, meaningless: "KNOWN AREA", "COMPLEX STORY", "HAND-CUT TRAIL", "WIRED CABIN"
+✅ GOOD — specific, journalistic, story-driven:
+  - Instead of "KNOWN AREA" → "THE PART EVERYONE KNOWS"
+  - Instead of "COMPLEX STORY" → "HARDER TO EXPLAIN THAN IT LOOKS"
+  - Instead of "HAND-CUT TRAIL" → "NOBODY INVITED. HE MADE HIS OWN WAY."
+  - Instead of "WIRED CABIN" → "POWER. IN A HIDDEN FOREST."
 
-5. HIGH-RETENTION TEXT CALLOUT OVERLAYS (AI Auto-Detect from Narration):
-   To maintain strong YouTube/documentary visual pacing, you MUST actively generate a 'callout' on approximately 40%–50% of beats (every key milestone, fact, person, evidence, date, number, location, or charge):
-   
-   CATEGORIES TO ALWAYS HIGHLIGHT:
-   1. NAMED PERSONS & PROFILES → type: "lower_third", line1: person's full name, line2: contextual role
-      * "Steven Irwin built this" -> callout: { type: "lower_third", line1: "Steven Irwin", line2: "Cabin Builder" }
-      * "Neighbors spot Steve back on the hillside" -> callout: { type: "lower_third", line1: "Steve", line2: "Repeat Suspect" }
-      * "Suarez, on scene that day" -> callout: { type: "lower_third", line1: "Officer Suarez", line2: "Responding Officer" }
-   
-   2. DATES & TIMELINES → type: "center_title", line1: the exact date or milestone
-      * "April 2024. Neighbors spot Steve..." -> callout: { type: "center_title", line1: "April 2024" }
-      * "Then October 2024. A fourth arrest." -> callout: { type: "center_title", line1: "October 2024" }
-      * "six months earlier" -> callout: { type: "center_title", line1: "6 Months Earlier" }
-   
-   3. KEY STATS, FINANCIALS & COUNTS → type: "center_title", line1: the punchy stat
-      * "bail at thirty-five thousand dollars" -> callout: { type: "center_title", line1: "$35,000 Bail" }
-      * "his third arrest since October" -> callout: { type: "center_title", line1: "3rd Arrest" }
-      * "Todd lived 17 years without a home" -> callout: { type: "center_title", line1: "17 Years Homeless" }
-      * "The total cost was $2,000" -> callout: { type: "center_title", line1: "$2,000 Total Cost" }
-   
-   4. DRAMATIC CHARGES, KEY EVIDENCE & CRUCIAL ACTIONS → type: "lower_third" or "center_title"
-      * "charged him with second-degree identity theft" -> callout: { type: "lower_third", line1: "Identity Theft", line2: "2nd-Degree Charge" }
-      * "heavy machinery again" -> callout: { type: "lower_third", line1: "Heavy Machinery", line2: "Illegal Excavation" }
-      * "Police found multiple stolen identification cards" -> callout: { type: "lower_third", line1: "Stolen ID Cards", line2: "Evidence Recovered" }
-      * "generators, fireplaces, propane heaters" -> callout: { type: "lower_third", line1: "Full Electrical Grid", line2: "Underground Encampment" }
-   
-   5. LOCATIONS & CRIME SCENES → type: "lower_third", line1: location name, line2: "Location"
-      * "Up on Beacon Hill" -> callout: { type: "lower_third", line1: "Beacon Hill", line2: "Seattle, WA" }
-      * "Dr. José Rizal Park" -> callout: { type: "lower_third", line1: "Dr. José Rizal Park", line2: "Park Location" }
-      * "Seneca Road on the edge of Eugene, Oregon" -> callout: { type: "lower_third", line1: "Seneca Road", line2: "Eugene, Oregon" }
-   
-   - If a beat is purely connective filler (e.g. "and then", "but if you walk"), set callout: null.
-   - Target: 8 to 14 high-impact callouts per 1-minute video!
+CALLOUT VOICE:
+- Write like a headline editor at Vice or a caption writer at the NYT.
+- Use the actual facts, names, numbers, and places from the script.
+- Be specific. Be evocative. Be short. 3–7 words per line.
+- line2 should add real context (date, charge, source, location detail) — not just repeat line1.
+- Don't write vague summaries. Write what the VIEWER IS THINKING right now.
 
-6. 100% SCRIPT INTEGRITY:
-   - Every single word from the script must appear in order across the beats without skipping anything.
+CALLOUT TYPES (pick the most visually fitting one):
+- "stat_callout": For numbers/stats — e.g. line1: "BUILT 5 TIMES", line2: "SAME HILLSIDE"
+- "lower_third": For named people — e.g. line1: "Steven Irwin", line2: "Cabin Builder · Beacon Hill"
+- "location_badge": For real places — e.g. line1: "SEATTLE, WA · BEACON HILL", line2: "Dr. José Rizal Park"
+- "evidence_tag": For criminal charges / official records — e.g. line1: "UNAUTHORIZED STRUCTURE", line2: "5 CITY REMOVALS"
+- "quote_card": For direct quotes or chilling moments — e.g. line1: "He built it again.", line2: "And again. And again."
+- "chapter_header": Act transitions — e.g. line1: "ACT 2: THE MAN WHO WOULDN'T LEAVE"
+- "highlight_pill": Compact floating keyword — use when a single phrase is the whole point
+- "ticker_bar": Bottom news ticker for authority context — e.g. line1: "City demolition crews removed it for the 5th time", line2: "SEATTLE PARKS DEPT."
+- "breaking_news": Red alert for the single most shocking revelation — max 2 per video
+- "full_screen_title": ONLY on the very first beat — cinematic chapter intro title
+- "corner_tag": Source tags — e.g. line1: "CITY RECORDS", line2: "2024"
+- "split_title": Dual box milestone — e.g. line1: "OCTOBER 2024", line2: "4TH ARREST"
+
+THEMES: "gold", "amber", "cyan", "crimson", "emerald", "slate", "white"
+spokenTrigger: the exact 2–4 spoken words from the voiceover that this callout syncs to.
+
+---
+
+SCRIPT INTEGRITY: Every word from the script must appear in order. Don't skip anything.
 
 Available local clips (if any match, assign to clipFilename):
 ${availableClips.length > 0 ? availableClips.map((c, i) => `${i + 1}. ${c}`).join('\n') : '(none)'}
 
-Respond ONLY with a valid JSON object in this EXACT format:
+Respond with ONLY a valid JSON object in this exact format — no markdown, no explanation, just JSON:
 {
   "beats": [
     {
       "beatIndex": 0,
       "chapterIndex": 0,
-      "text": "<exact spoken text of this beat>",
-      "mediaType": "image" | "video",
+      "text": "<exact spoken text for this beat>",
+      "mediaType": "video" | "image",
       "clipFilename": "<exact filename from available list OR null>",
-      "stockPhotoQuery": "<physical gritty high-res real photo search query>",
-      "stockVideoQuery": "<2-3 word gritty video query OR null>",
-      "backupVideoQuery": "<alternative gritty query OR null>",
+      "stockVideoQuery": "<2-3 word video search query OR null>",
+      "backupVideoQuery": "<alternative 2-3 word query OR null>",
+      "stockPhotoQuery": "<2-3 word photo search query OR null>",
       "cameraStyle": "zoom_in" | "zoom_out" | "pan_left" | "pan_right" | "fast_cut",
-      "reason": "<director reason>",
+      "reason": "<one-sentence director reason>",
       "callout": {
-        "type": "lower_third" | "center_title" | null,
-        "line1": "<primary bold text>",
-        "line2": "<subtitle text, lower_third only>"
+        "type": "<callout type from list above>",
+        "line1": "<punchy primary text — specific, journalistic, 3-7 words>",
+        "line2": "<real contextual subtitle OR null>",
+        "spokenTrigger": "<exact 2-4 words from voiceover>",
+        "themeColor": "<color>"
       }
     }
   ]
@@ -220,19 +261,18 @@ Respond ONLY with a valid JSON object in this EXACT format:
     },
     body: JSON.stringify({
       model: PLANNER_MODEL,
-      response_format: { type: 'json_object' },
       messages: [
         { role: 'system', content: systemPrompt },
         { role: 'user', content: userMessage },
       ],
-      temperature: 0.15,
-      max_tokens: 8000,
+      temperature: 0.35,
+      max_tokens: 16000,
     }),
   });
 
-  // Fallback to gpt-4o-mini if needed
+  // Fallback to claude-haiku if primary model fails
   if (response.status === 404 || response.status === 400) {
-    console.warn(`[AiPlanner] Model "${PLANNER_MODEL}" failed (${response.status}). Retrying with "openai/gpt-4o-mini"...`);
+    console.warn(`[AiPlanner] Model "${PLANNER_MODEL}" failed (${response.status}). Retrying with "anthropic/claude-haiku-4-5"...`);
     response = await fetch(`${OPENROUTER_BASE_URL}/chat/completions`, {
       method: 'POST',
       headers: {
@@ -241,14 +281,13 @@ Respond ONLY with a valid JSON object in this EXACT format:
         'HTTP-Referer': 'https://bloketuber.app',
       },
       body: JSON.stringify({
-        model: 'openai/gpt-4o-mini',
-        response_format: { type: 'json_object' },
+        model: 'anthropic/claude-haiku-4-5',
         messages: [
           { role: 'system', content: systemPrompt },
           { role: 'user', content: userMessage },
         ],
-        temperature: 0.15,
-        max_tokens: 8000,
+        temperature: 0.35,
+        max_tokens: 16000,
       }),
     });
   }
@@ -278,9 +317,11 @@ Respond ONLY with a valid JSON object in this EXACT format:
     cameraStyle: b.cameraStyle || 'zoom_in',
     reason: String(b.reason || ''),
     callout: b.callout?.type ? {
-      type: b.callout.type as 'lower_third' | 'center_title',
+      type: b.callout.type,
       line1: String(b.callout.line1 || '').trim(),
       line2: b.callout.line2 ? String(b.callout.line2).trim() : undefined,
+      spokenTrigger: b.callout.spokenTrigger ? String(b.callout.spokenTrigger).trim() : undefined,
+      themeColor: b.callout.themeColor || 'gold',
     } : null,
   }));
 
@@ -405,7 +446,7 @@ export function mapPlannedBeatsToTiming(
         beatIndex: globalIndex++,
         startTime: Number(subStart.toFixed(3)),
         endTime: Number(subEnd.toFixed(3)),
-        mediaType: 'image', // Photo-first for dynamic sub-shots
+        mediaType: timedBeat.mediaType, // Inherit parent action/still semantic media type
         cameraStyle: vector,
         stockPhotoQuery: subPhotoQuery,
         // Only trigger the callout on the first sub-shot of the sentence

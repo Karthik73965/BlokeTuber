@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import styles from './dashboard.module.css';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
@@ -10,29 +10,67 @@ type PipelineStep =
   | 'audio_assembly'
   | 'alignment'
   | 'ai_planning'
+  | 'timing_alignment'
   | 'media_resolution'
   | 'building_timeline'
   | 'rendering_video'
   | 'completed'
   | 'error';
 
+interface UsedMediaItem {
+  id: string;
+  url: string;
+  source: string;
+  mediaType: 'image' | 'video';
+  chapterIndex: number;
+  query: string;
+  usedAt: string;
+}
+
+interface Chapter {
+  id: string;
+  projectId: string;
+  chapterIndex: number;
+  title: string;
+  scriptText?: string;
+  voiceoverFileName?: string;
+  status: 'draft' | 'queued' | 'processing' | 'completed' | 'error';
+  jobId?: string;
+  videoPath?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+interface Project {
+  id: string;
+  name: string;
+  description?: string;
+  scriptText?: string;
+  chapters: Chapter[];
+  usedMedia: UsedMediaItem[];
+  status: 'draft' | 'processing' | 'completed' | 'error';
+  createdAt: string;
+  updatedAt: string;
+}
+
 interface JobStatus {
   id: string;
   status: string;
   step: PipelineStep;
   errorMessage?: string;
-  timelineJson?: unknown;
+  outputPath?: string;
 }
 
 const STEP_LABELS: Record<string, string> = {
-  audio_assembly: 'Stitching audio chapters…',
-  alignment: 'Whisper audio transcription…',
-  ai_planning: 'AI Director directing scenes…',
-  media_resolution: 'Sourcing 4K photos & videos…',
-  building_timeline: 'Building timeline…',
-  rendering_video: 'Rendering final MP4 with FFmpeg…',
-  completed: 'Video render ready!',
-  error: 'Pipeline error',
+  audio_assembly: '01. Audio Assembly & Master Stitch',
+  alignment: '02. Whisper Word-Level Alignment',
+  ai_planning: '03. AI Director Scene Planning',
+  timing_alignment: '04. Snap Word Timings & Boundaries',
+  media_resolution: '05. 4K Stock Sourcing & Deduplication',
+  building_timeline: '06. Timeline Assembly & Overlay Sync',
+  rendering_video: '07. FFmpeg 8 Animated Overlays Render',
+  completed: '08. Video Render Ready!',
+  error: 'Pipeline Error',
 };
 
 const STEP_ORDER = [
@@ -40,7 +78,6 @@ const STEP_ORDER = [
   'alignment',
   'ai_planning',
   'media_resolution',
-  'building_timeline',
   'rendering_video',
   'completed',
 ];
@@ -49,21 +86,25 @@ function StepIndicator({ current }: { current: PipelineStep }) {
   const currentIdx = STEP_ORDER.indexOf(current);
   return (
     <div className={styles.stepIndicator}>
-      {STEP_ORDER.map((step, idx) => (
-        <div
-          key={step}
-          className={[
-            styles.step,
-            idx < currentIdx ? styles.stepDone : '',
-            idx === currentIdx ? styles.stepActive : '',
-          ].join(' ')}
-        >
-          <div className={styles.stepDot}>
-            {idx < currentIdx ? '✓' : idx + 1}
+      {STEP_ORDER.map((step, idx) => {
+        const isDone = idx < currentIdx || current === 'completed';
+        const isActive = idx === currentIdx && current !== 'completed';
+        return (
+          <div
+            key={step}
+            className={[
+              styles.step,
+              isDone ? styles.stepDone : '',
+              isActive ? styles.stepActive : '',
+            ].join(' ')}
+          >
+            <div className={styles.stepDot}>
+              {isDone ? '✓' : idx + 1}
+            </div>
+            <span className={styles.stepLabel}>{STEP_LABELS[step] || step}</span>
           </div>
-          <span className={styles.stepLabel}>{STEP_LABELS[step] || step}</span>
-        </div>
-      ))}
+        );
+      })}
     </div>
   );
 }
@@ -119,12 +160,11 @@ function FileDropZone({
       {hint && <span className={styles.dropHint}>{hint}</span>}
       {files.length > 0 && (
         <div className={styles.fileList}>
-          {files.slice(0, 5).map((f) => (
-            <span key={f.name} className={styles.fileChip}>{f.name}</span>
+          {files.map((f) => (
+            <span key={f.name} className={styles.fileChip}>
+              {f.name} ({(f.size / (1024 * 1024)).toFixed(1)}MB)
+            </span>
           ))}
-          {files.length > 5 && (
-            <span className={styles.fileChip}>+{files.length - 5} more</span>
-          )}
         </div>
       )}
     </div>
@@ -132,294 +172,644 @@ function FileDropZone({
 }
 
 export default function Dashboard() {
-  const [projectName, setProjectName] = useState('');
-  const [scriptText, setScriptText] = useState('');
-  const [voiceovers, setVoiceovers] = useState<File[]>([]);
-  const [clips, setClips] = useState<File[]>([]);
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
+  const [selectedProject, setSelectedProject] = useState<Project | null>(null);
+  const [isCreatingProject, setIsCreatingProject] = useState(false);
+  const [newProjectName, setNewProjectName] = useState('');
+  const [newProjectDesc, setNewProjectDesc] = useState('');
   const [clipLibraryRoot, setClipLibraryRoot] = useState('');
-  const [jobId, setJobId] = useState<string | null>(null);
-  const [jobStatus, setJobStatus] = useState<JobStatus | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  const pollStatus = useCallback((jId: string) => {
-    pollRef.current = setInterval(async () => {
-      try {
-        const res = await fetch(`${API_URL}/api/pipeline/status/${jId}`);
+  // Chapter Runner State
+  const [chapterVoiceovers, setChapterVoiceovers] = useState<Record<string, File[]>>({});
+  const [chapterScripts, setChapterScripts] = useState<Record<string, string>>({});
+  const [jobStatuses, setJobStatuses] = useState<Record<string, JobStatus>>({});
+  const [elapsedSeconds, setElapsedSeconds] = useState<Record<string, number>>({});
+  const [isStitching, setIsStitching] = useState(false);
+  const [stitchedVideoUrl, setStitchedVideoUrl] = useState<string | null>(null);
+  const [showVault, setShowVault] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const pollTimers = useRef<Record<string, any>>({});
+  const elapsedTimers = useRef<Record<string, any>>({});
+
+  // Fetch all projects
+  const fetchProjects = async () => {
+    try {
+      const res = await fetch(`${API_URL}/api/projects`);
+      if (res.ok) {
         const data = await res.json();
-        setJobStatus(data.job);
-        if (data.job.status === 'completed' || data.job.status === 'error') {
-          if (pollRef.current) clearInterval(pollRef.current);
-        }
-      } catch {
-        // ignore transient errors
+        setProjects(data.projects || []);
       }
-    }, 2500);
+    } catch {}
+  };
+
+  // Fetch single project detail
+  const fetchProjectDetail = async (id: string) => {
+    try {
+      const res = await fetch(`${API_URL}/api/projects/${id}`);
+      if (res.ok) {
+        const data = await res.json();
+        setSelectedProject(data.project || null);
+      }
+    } catch {}
+  };
+
+  useEffect(() => {
+    fetchProjects();
+    const interval = setInterval(fetchProjects, 6000);
+    return () => clearInterval(interval);
   }, []);
 
-  const handleStart = async () => {
-    setError(null);
-    if (!projectName.trim()) return setError('Enter a project name');
-    if (voiceovers.length === 0) return setError('Upload at least one voiceover file');
+  useEffect(() => {
+    if (selectedProjectId) {
+      fetchProjectDetail(selectedProjectId);
+    }
+  }, [selectedProjectId]);
 
-    setLoading(true);
+  // Clean up timers on unmount
+  useEffect(() => {
+    return () => {
+      Object.values(pollTimers.current).forEach(clearInterval);
+      Object.values(elapsedTimers.current).forEach(clearInterval);
+    };
+  }, []);
+
+  // Create New Project
+  const handleCreateProject = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newProjectName.trim()) return;
+
     try {
-      // Step A: Create project (scriptText is optional)
-      const projRes = await fetch(`${API_URL}/api/projects`, {
+      const res = await fetch(`${API_URL}/api/projects`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: projectName, scriptText: scriptText.trim() }),
+        body: JSON.stringify({
+          name: newProjectName.trim(),
+          description: newProjectDesc.trim(),
+        }),
       });
-      const projData = await projRes.json();
-      if (!projRes.ok) throw new Error(projData.error || 'Failed to create project');
-      const pId = projData.project.id;
-
-      // Step B: Upload clips if any
-      if (clips.length > 0) {
-        const clipForm = new FormData();
-        clips.forEach((f) => clipForm.append('clips', f));
-        await fetch(`${API_URL}/api/clips/${pId}`, { method: 'POST', body: clipForm });
+      if (res.ok) {
+        const data = await res.json();
+        const created = data.project;
+        // Auto-create Chapter 1
+        await fetch(`${API_URL}/api/projects/${created.id}/chapters`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ title: 'Chapter 1: The Hook', chapterIndex: 1 }),
+        });
+        setNewProjectName('');
+        setNewProjectDesc('');
+        setIsCreatingProject(false);
+        await fetchProjects();
+        setSelectedProjectId(created.id);
       }
-
-      // Step C: Start pipeline
-      const form = new FormData();
-      form.append('projectId', pId);
-      form.append('clipLibraryRoot', clipLibraryRoot || '/clips');
-      voiceovers.forEach((f) => form.append('voiceovers', f));
-
-      const pipeRes = await fetch(`${API_URL}/api/pipeline/start`, {
-        method: 'POST',
-        body: form,
-      });
-      const pipeData = await pipeRes.json();
-      if (!pipeRes.ok) throw new Error(pipeData.error || 'Failed to start pipeline');
-
-      setJobId(pipeData.jobId);
-      pollStatus(pipeData.jobId);
-    } catch (err: any) {
-      const errStr = String(err?.message || err);
-      if (errStr.includes('Failed to fetch') || errStr.includes('NetworkError')) {
-        setError(`Cannot connect to API server at ${API_URL}. Is the backend running? Start it with: cd apps/api && npm run dev`);
-      } else {
-        setError(errStr);
-      }
-    } finally {
-      setLoading(false);
+    } catch (err) {
+      setError(String(err));
     }
   };
 
-  const downloadTimeline = async () => {
-    if (!jobId) return;
-    const res = await fetch(`${API_URL}/api/pipeline/timeline/${jobId}`);
-    const data = await res.json();
-    const blob = new Blob([JSON.stringify(data.timeline, null, 2)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `timeline_${jobId.slice(0, 8)}.json`;
-    a.click();
+  // Add Chapter to Project
+  const handleAddChapter = async () => {
+    if (!selectedProjectId || !selectedProject) return;
+    const nextIdx = (selectedProject.chapters?.length || 0) + 1;
+    try {
+      const res = await fetch(`${API_URL}/api/projects/${selectedProjectId}/chapters`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: `Chapter ${nextIdx}`,
+          chapterIndex: nextIdx,
+        }),
+      });
+      if (res.ok) {
+        await fetchProjectDetail(selectedProjectId);
+      }
+    } catch (err) {
+      setError(String(err));
+    }
   };
 
-  const downloadVideo = () => {
-    if (!jobId) return;
-    const a = document.createElement('a');
-    a.href = `${API_URL}/api/pipeline/video/${jobId}`;
-    a.download = `final_video_${jobId.slice(0, 8)}.mp4`;
-    a.click();
+  // Poll Job Status
+  const startPollingJob = (jobId: string, chapterId: string) => {
+    if (pollTimers.current[jobId]) clearInterval(pollTimers.current[jobId]);
+    if (elapsedTimers.current[chapterId]) clearInterval(elapsedTimers.current[chapterId]);
+
+    setElapsedSeconds((prev) => ({ ...prev, [chapterId]: 0 }));
+    elapsedTimers.current[chapterId] = setInterval(() => {
+      setElapsedSeconds((prev) => ({ ...prev, [chapterId]: (prev[chapterId] || 0) + 1 }));
+    }, 1000);
+
+    pollTimers.current[jobId] = setInterval(async () => {
+      try {
+        const res = await fetch(`${API_URL}/api/pipeline/status/${jobId}`);
+        if (!res.ok) return;
+        const raw = await res.json();
+        const data: JobStatus = raw.job || raw;
+
+        setJobStatuses((prev) => ({ ...prev, [chapterId]: data }));
+
+        if (data.status === 'completed' || data.status === 'error') {
+          clearInterval(pollTimers.current[jobId]);
+          delete pollTimers.current[jobId];
+          clearInterval(elapsedTimers.current[chapterId]);
+          delete elapsedTimers.current[chapterId];
+          if (selectedProjectId) {
+            fetchProjectDetail(selectedProjectId);
+          }
+        }
+      } catch {}
+    }, 1500);
   };
 
-  const isDone = jobStatus && jobStatus.status === 'completed';
-  const isError = jobStatus && jobStatus.status === 'error';
+  // Generate Chapter Video
+  const handleGenerateChapter = async (chapter: Chapter) => {
+    if (!selectedProjectId) return;
+    const voiceoverList = chapterVoiceovers[chapter.id] || [];
+    if (!voiceoverList.length) {
+      setError(`Please upload a voiceover audio file for ${chapter.title}`);
+      return;
+    }
+
+    setError(null);
+
+    // Optimistic live status
+    setJobStatuses((prev) => ({
+      ...prev,
+      [chapter.id]: {
+        id: 'starting',
+        status: 'running',
+        step: 'audio_assembly',
+      },
+    }));
+
+    const formData = new FormData();
+    formData.append('projectId', selectedProjectId);
+    formData.append('chapterId', chapter.id);
+    formData.append('scriptText', chapterScripts[chapter.id] || chapter.scriptText || '');
+    formData.append('clipLibraryRoot', clipLibraryRoot);
+
+    for (const f of voiceoverList) {
+      formData.append('voiceovers', f);
+    }
+
+    try {
+      const res = await fetch(`${API_URL}/api/pipeline/start-chapter`, {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (!res.ok) {
+        const errData = await res.json();
+        throw new Error(errData.error || 'Failed to start chapter');
+      }
+
+      const { jobId } = await res.json();
+      startPollingJob(jobId, chapter.id);
+    } catch (err) {
+      setError(String(err));
+      setJobStatuses((prev) => ({
+        ...prev,
+        [chapter.id]: {
+          id: 'error',
+          status: 'error',
+          step: 'error',
+          errorMessage: String(err),
+        },
+      }));
+    }
+  };
+
+  // Stitch Master Project Video
+  const handleStitchProject = async () => {
+    if (!selectedProjectId) return;
+    setIsStitching(true);
+    setError(null);
+    try {
+      const res = await fetch(`${API_URL}/api/pipeline/stitch-project/${selectedProjectId}`, {
+        method: 'POST',
+      });
+      if (res.ok) {
+        setStitchedVideoUrl(`${API_URL}/api/pipeline/project-video/${selectedProjectId}?t=${Date.now()}`);
+      } else {
+        const errData = await res.json();
+        throw new Error(errData.error || 'Stitching failed');
+      }
+    } catch (err) {
+      setError(String(err));
+    } finally {
+      setIsStitching(false);
+    }
+  };
+
+  // Delete Project
+  const handleDeleteProject = async (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!confirm('Are you sure you want to delete this project?')) return;
+    try {
+      await fetch(`${API_URL}/api/projects/${id}`, { method: 'DELETE' });
+      if (selectedProjectId === id) setSelectedProjectId(null);
+      await fetchProjects();
+    } catch {}
+  };
 
   return (
     <div className={styles.root}>
-      {/* Header */}
+      {/* Repli-Mono Studio Header & Telemetry */}
       <header className={styles.header}>
         <div className={styles.headerInner}>
           <div className={styles.brand}>
-            <span className={styles.brandIcon}>🎬</span>
+            <span className={styles.brandIcon}>◈</span>
             <div>
-              <h1 className={styles.brandName}>BlokeTuber</h1>
-              <span className={styles.brandSub}>AI Video Pipeline</span>
+              <div className={styles.brandName}>BLOKETUBER</div>
+              <div className={styles.brandSub}>REPLI-MONO STUDIO V2</div>
             </div>
           </div>
-          <div className={styles.headerBadge}>American Hideaways</div>
+
+          <div className={styles.telemetry}>
+            <div className={`${styles.monoBadge} ${styles.monoBadgeActive}`}>
+              <span className={styles.dotLive} />
+              <span>ENGINE: READY</span>
+            </div>
+            <div className={styles.monoBadge}>WHISPER: SYNCED</div>
+            <div className={styles.monoBadge}>FFMPEG: 8-STYLE</div>
+          </div>
         </div>
       </header>
 
       <main className={styles.main}>
-        {/* Hero */}
-        <section className={styles.hero}>
-          <h2 className={styles.heroTitle}>
-            Voiceover in. <span className={styles.goldText}>Video out.</span>
-          </h2>
-          <p className={styles.heroSub}>
-            Drop your chapter voiceovers. Whisper transcribes, the AI Director plans high-retention pacing,
-            and the pipeline automatically renders your finished MP4 video!
-          </p>
-          <div className={styles.heroPills}>
-            <span className={styles.pill}>🎙 Whisper Auto-Transcribe</span>
-            <span className={styles.pill}>🤖 Adaptive Pacing (&lt; 4.5s)</span>
-            <span className={styles.pill}>📷 4K/5K Photo-First</span>
-            <span className={styles.pill}>🎥 Cinematic Ken Burns</span>
-            <span className={styles.pill}>⚡ Auto-Render MP4</span>
+        {error && (
+          <div className={styles.errorBox}>
+            ⚠️ ERROR: {error}
           </div>
-        </section>
-
-        {/* Pipeline Status */}
-        {jobStatus && (
-          <section className={styles.card}>
-            <div className={styles.cardHeader}>
-              <h3>Pipeline Progress</h3>
-              <span className={[
-                styles.statusBadge,
-                isDone ? styles.statusDone : isError ? styles.statusError : styles.statusRunning
-              ].join(' ')}>
-                {jobStatus.step}
-              </span>
-            </div>
-            <StepIndicator current={jobStatus.step as PipelineStep} />
-            {isError && (
-              <div className={styles.errorBox}>
-                ⚠️ {jobStatus.errorMessage}
-              </div>
-            )}
-            {isDone && (
-              <div className={styles.doneBox}>
-                <div>
-                  <strong style={{ fontSize: '1.2em', color: '#10b981' }}>✅ Your Video is Rendered & Ready!</strong>
-                  <p style={{ marginTop: 4, color: '#94a3b8' }}>
-                    Preview your generated video below or download the final MP4.
-                  </p>
-                </div>
-
-                <video
-                  controls
-                  src={`${API_URL}/api/pipeline/video/${jobId}`}
-                  style={{
-                    width: '100%',
-                    maxHeight: 440,
-                    borderRadius: 12,
-                    marginTop: 14,
-                    marginBottom: 16,
-                    backgroundColor: '#09090b',
-                    border: '1px solid #27272a',
-                  }}
-                />
-
-                <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
-                  <button className={styles.btnGold} onClick={downloadVideo} style={{ flex: 1, minWidth: 220 }}>
-                    🎬 Download Final Video (.mp4)
-                  </button>
-                  <button
-                    onClick={downloadTimeline}
-                    style={{
-                      padding: '10px 18px',
-                      borderRadius: 8,
-                      background: 'rgba(255,255,255,0.06)',
-                      border: '1px solid rgba(255,255,255,0.15)',
-                      color: '#e2e8f0',
-                      cursor: 'pointer',
-                      fontSize: '0.9em',
-                    }}
-                  >
-                    ⬇️ Download timeline.json
-                  </button>
-                </div>
-              </div>
-            )}
-          </section>
         )}
 
-        {/* Input Form */}
-        {!jobId && (
-          <div className={styles.form}>
-            {/* Project Name */}
-            <section className={styles.card}>
-              <h3 className={styles.cardTitle}>Project Name</h3>
-              <input
-                id="project-name"
-                className={styles.input}
-                placeholder="e.g. American Hideaways S02E04"
-                value={projectName}
-                onChange={(e) => setProjectName(e.target.value)}
-              />
-            </section>
-
-            {/* Script (Optional) */}
-            <section className={styles.card}>
-              <h3 className={styles.cardTitle}>Script <span style={{ fontSize: '0.85em', color: '#94a3b8', fontWeight: 'normal' }}>(Optional)</span></h3>
-              <p className={styles.cardHint}>
-                Paste your script, or leave blank — Whisper will automatically transcribe your voiceover audio directly.
+        {/* VIEW 1: PROJECTS LIST */}
+        {!selectedProjectId && (
+          <>
+            <div className={styles.hero}>
+              <div className={styles.heroTag}>
+                <span>◈</span>
+                <span>INVESTIGATIVE DOCUMENTARY ENGINE</span>
+              </div>
+              <h1 className={styles.heroTitle}>
+                Documentary Projects
+              </h1>
+              <p className={styles.heroSub}>
+                Multi-chapter documentary director with persistent cross-chapter media deduplication, audio word synchronization, and broadcast typography.
               </p>
-              <textarea
-                id="script-text"
-                className={styles.textarea}
-                placeholder={"(Optional) Paste script here, or leave blank to auto-transcribe directly from uploaded voiceovers..."}
-                value={scriptText}
-                onChange={(e) => setScriptText(e.target.value)}
-                rows={6}
-              />
-            </section>
+              <div className={styles.heroPills}>
+                <span className={styles.pill}>[DYNAMIC_VIDEO_SELECTION]</span>
+                <span className={styles.pill}>[8_ANIMATED_CALLOUTS]</span>
+                <span className={styles.pill}>[ZERO_MEDIA_DUPLICATES]</span>
+                <span className={styles.pill}>[PRECISION_AUDIO_SYNC]</span>
+              </div>
+            </div>
 
-            {/* Voiceovers */}
-            <section className={styles.card}>
-              <h3 className={styles.cardTitle}>Chapter Voiceovers</h3>
-              <p className={styles.cardHint}>Upload all chapter MP3s. Name them in order (01.mp3, 02.mp3…).</p>
-              <FileDropZone
-                label="Drop MP3 files or click to browse"
-                accept="audio/*"
-                multiple
-                files={voiceovers}
-                onFiles={setVoiceovers}
-                icon="🎤"
-                hint="01.mp3, 02.mp3 — 15.mp3 in order"
-              />
-            </section>
+            <div className={styles.card}>
+              <div className={styles.cardHeader}>
+                <div className={styles.cardTitle}>
+                  Projects Directory ({projects.length})
+                </div>
+                <button
+                  className={styles.btnMonoCyan}
+                  onClick={() => setIsCreatingProject(!isCreatingProject)}
+                >
+                  {isCreatingProject ? 'Cancel' : '+ New Project'}
+                </button>
+              </div>
 
-            {/* Clip Library */}
-            <section className={styles.card}>
-              <h3 className={styles.cardTitle}>Clip Library</h3>
-              <p className={styles.cardHint}>
-                Upload your pre-cut clips (10–20 named descriptively). Or specify their folder path if already on the server.
-              </p>
-              <FileDropZone
-                label="Drop video clips or click to browse"
-                accept="video/*"
-                multiple
-                files={clips}
-                onFiles={setClips}
-                icon="🎥"
-                hint="homeless_man_talking_porch.mp4, tiny_house_exterior.mp4…"
-              />
-              <div className={styles.orDivider}>or specify local server path</div>
-              <input
-                id="clip-library-root"
-                className={styles.input}
-                placeholder="/absolute/path/to/clips/folder"
-                value={clipLibraryRoot}
-                onChange={(e) => setClipLibraryRoot(e.target.value)}
-              />
-            </section>
-
-            {/* Error */}
-            {error && <div className={styles.errorBox}>⚠️ {error}</div>}
-
-            {/* Launch */}
-            <button
-              id="start-pipeline"
-              className={styles.btnLaunch}
-              onClick={handleStart}
-              disabled={loading}
-            >
-              {loading ? (
-                <><span className={styles.spinner} /> Starting pipeline…</>
-              ) : (
-                <>▶️ Launch Pipeline</>
+              {isCreatingProject && (
+                <form onSubmit={handleCreateProject} className={styles.form} style={{ marginTop: '8px' }}>
+                  <input
+                    className={styles.input}
+                    placeholder="Project Name (e.g. Steve Irwin Cabin Mystery)"
+                    value={newProjectName}
+                    onChange={(e) => setNewProjectName(e.target.value)}
+                    autoFocus
+                  />
+                  <input
+                    className={styles.input}
+                    placeholder="Description / Story Logline (Optional)"
+                    value={newProjectDesc}
+                    onChange={(e) => setNewProjectDesc(e.target.value)}
+                  />
+                  <button type="submit" className={styles.btnLaunch}>
+                    INITIALIZE PROJECT & CHAPTER 1 →
+                  </button>
+                </form>
               )}
-            </button>
-          </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginTop: '8px' }}>
+                {projects.length === 0 && !isCreatingProject && (
+                  <div style={{ textAlign: 'center', color: '#71717a', padding: '36px', fontFamily: 'JetBrains Mono, monospace', fontSize: '13px' }}>
+                    [NO ACTIVE PROJECTS] Click <strong>+ New Project</strong> to begin.
+                  </div>
+                )}
+
+                {projects.map((p) => {
+                  const completedCount = (p.chapters || []).filter((c) => c.status === 'completed').length;
+                  const totalMedia = p.usedMedia?.length || 0;
+                  return (
+                    <div
+                      key={p.id}
+                      className={styles.card}
+                      style={{ cursor: 'pointer', padding: '16px 20px', background: '#0e0e12' }}
+                      onClick={() => setSelectedProjectId(p.id)}
+                    >
+                      <div className={styles.cardHeader}>
+                        <div>
+                          <div style={{ fontSize: '16px', fontWeight: 700, color: '#ffffff', fontFamily: 'Space Grotesk, sans-serif' }}>
+                            {p.name}
+                          </div>
+                          {p.description && (
+                            <div style={{ fontSize: '12px', color: '#71717a', marginTop: '2px', fontFamily: 'JetBrains Mono, monospace' }}>
+                              {p.description}
+                            </div>
+                          )}
+                        </div>
+                        <button
+                          style={{
+                            background: 'transparent',
+                            border: '1px solid rgba(239, 68, 68, 0.2)',
+                            color: '#f87171',
+                            cursor: 'pointer',
+                            padding: '4px 8px',
+                            borderRadius: '4px',
+                            fontFamily: 'JetBrains Mono, monospace',
+                            fontSize: '11px',
+                          }}
+                          onClick={(e) => handleDeleteProject(p.id, e)}
+                        >
+                          DELETE
+                        </button>
+                      </div>
+
+                      <div style={{ display: 'flex', gap: '14px', fontSize: '11px', color: '#a1a1aa', fontFamily: 'JetBrains Mono, monospace', marginTop: '6px' }}>
+                        <span>[CHAPTERS: {p.chapters?.length || 0}]</span>
+                        <span style={{ color: completedCount > 0 ? '#34d399' : '#a1a1aa' }}>[RENDERED: {completedCount}]</span>
+                        <span style={{ color: '#22d3ee' }}>[DEDUP_MEDIA: {totalMedia}]</span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </>
+        )}
+
+        {/* VIEW 2: PROJECT DETAIL & CHAPTER RUNNER */}
+        {selectedProjectId && selectedProject && (
+          <>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <button
+                className={styles.btnMono}
+                onClick={() => setSelectedProjectId(null)}
+              >
+                ← ALL PROJECTS
+              </button>
+
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <button
+                  className={styles.btnMonoAmber}
+                  onClick={() => setShowVault(!showVault)}
+                >
+                  🔒 VAULT ({selectedProject.usedMedia?.length || 0})
+                </button>
+
+                <button
+                  className={styles.btnMonoCyan}
+                  onClick={handleAddChapter}
+                >
+                  + ADD CHAPTER
+                </button>
+              </div>
+            </div>
+
+            {/* Project Header Banner */}
+            <div className={styles.card} style={{ borderLeft: '3px solid #06b6d4' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                <div>
+                  <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: '11px', color: '#06b6d4' }}>
+                    PROJECT WORKSPACE
+                  </div>
+                  <h2 style={{ fontSize: '22px', fontWeight: 800, color: '#ffffff', fontFamily: 'Space Grotesk, sans-serif' }}>
+                    {selectedProject.name}
+                  </h2>
+                  <p style={{ color: '#a1a1aa', fontSize: '13px', marginTop: '2px', fontFamily: 'JetBrains Mono, monospace' }}>
+                    {selectedProject.description || 'Documentary Multi-Chapter Production'}
+                  </p>
+                </div>
+                <div className={styles.monoBadge}>
+                  {selectedProject.chapters?.length || 0} CHAPTERS
+                </div>
+              </div>
+
+              {/* Local Clip Library Root Config */}
+              <div style={{ display: 'flex', gap: '10px', alignItems: 'center', marginTop: '8px' }}>
+                <span style={{ fontSize: '11px', color: '#71717a', fontFamily: 'JetBrains Mono, monospace' }}>LOCAL CLIPS DIR:</span>
+                <input
+                  className={styles.input}
+                  style={{ padding: '6px 10px', fontSize: '11px', maxWidth: '380px' }}
+                  placeholder="C:\Users\...\Videos\Clips"
+                  value={clipLibraryRoot}
+                  onChange={(e) => setClipLibraryRoot(e.target.value)}
+                />
+              </div>
+
+              {/* Master Stitched Video Player / Button */}
+              {selectedProject.chapters?.some((c) => c.status === 'completed') && (
+                <div style={{ marginTop: '12px', paddingTop: '12px', borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div>
+                      <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: '12px', fontWeight: 700, color: '#34d399' }}>
+                        MASTER FULL-LENGTH MOVIE
+                      </div>
+                      <p style={{ fontSize: '11px', color: '#71717a', fontFamily: 'JetBrains Mono, monospace' }}>
+                        Stitches all completed chapters in timeline order.
+                      </p>
+                    </div>
+                    <button
+                      className={styles.btnMonoCyan}
+                      onClick={handleStitchProject}
+                      disabled={isStitching}
+                    >
+                      {isStitching ? <span className={styles.spinner} /> : '⚡ COMBINE & EXPORT MASTER MP4'}
+                    </button>
+                  </div>
+
+                  {stitchedVideoUrl && (
+                    <div style={{ marginTop: '12px' }}>
+                      <video
+                        src={stitchedVideoUrl}
+                        controls
+                        style={{ width: '100%', borderRadius: '6px', maxHeight: '420px', background: '#000', border: '1px solid rgba(6,182,212,0.3)' }}
+                      />
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Media Vault Inspector */}
+            {showVault && (
+              <div className={styles.card} style={{ background: '#09090b', borderColor: 'rgba(245, 158, 11, 0.3)' }}>
+                <div className={styles.cardHeader}>
+                  <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: '13px', fontWeight: 700, color: '#fbbf24' }}>
+                    🔒 DEDUPLICATION REGISTRY ({selectedProject.usedMedia?.length || 0} ITEMS)
+                  </div>
+                  <span style={{ fontSize: '11px', color: '#71717a', fontFamily: 'JetBrains Mono, monospace' }}>
+                    These media items are excluded from future chapters
+                  </span>
+                </div>
+                <div className={styles.vaultGrid}>
+                  {selectedProject.usedMedia?.length === 0 && (
+                    <div style={{ color: '#71717a', fontFamily: 'JetBrains Mono, monospace', fontSize: '11px' }}>
+                      No media used yet. Generate a chapter to populate the vault.
+                    </div>
+                  )}
+                  {selectedProject.usedMedia?.map((m, idx) => (
+                    <div key={idx} className={styles.vaultItem}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                        <span style={{ color: '#06b6d4', fontWeight: 700 }}>[{m.mediaType.toUpperCase()}]</span>
+                        <span style={{ color: '#fbbf24' }}>CH.{m.chapterIndex}</span>
+                      </div>
+                      <span style={{ color: '#e4e4e7', textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}>
+                        {m.query || m.source}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* CHAPTERS LIST */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+              {(selectedProject.chapters || []).map((chapter) => {
+                const jobStatus = jobStatuses[chapter.id];
+                const isRunning = jobStatus?.status === 'running' || chapter.status === 'processing';
+                const isDone = chapter.status === 'completed' || jobStatus?.status === 'completed';
+                const currentStep = jobStatus?.step || (isRunning ? 'audio_assembly' : 'idle');
+                const elapsed = elapsedSeconds[chapter.id] || 0;
+                const version = chapter.updatedAt ? new Date(chapter.updatedAt).getTime() : chapter.id;
+                const chapterVideoUrl = `${API_URL}/api/pipeline/chapter-video/${selectedProjectId}/${chapter.id}?v=${version}`;
+
+                return (
+                  <div key={chapter.id} className={styles.card}>
+                    <div className={styles.cardHeader}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                        <span className={styles.monoBadge}>
+                          CH.{chapter.chapterIndex}
+                        </span>
+                        <input
+                          style={{
+                            background: 'transparent',
+                            border: 'none',
+                            fontSize: '16px',
+                            fontWeight: 700,
+                            color: '#ffffff',
+                            fontFamily: 'Space Grotesk, sans-serif',
+                            outline: 'none',
+                          }}
+                          defaultValue={chapter.title}
+                          onBlur={(e) => {
+                            fetch(`${API_URL}/api/projects/${selectedProjectId}/chapters/${chapter.id}`, {
+                              method: 'PATCH',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({ title: e.target.value }),
+                            });
+                          }}
+                        />
+                      </div>
+
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        {isRunning && (
+                          <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: '11px', color: '#06b6d4' }}>
+                            ⏱️ {elapsed}s
+                          </span>
+                        )}
+                        <span className={[
+                          styles.statusBadge,
+                          isDone ? styles.statusDone : isRunning ? styles.statusRunning : '',
+                        ].join(' ')}>
+                          {isRunning ? 'PROCESSING' : isDone ? 'COMPLETED' : 'DRAFT'}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Step Progress Terminal while running */}
+                    {isRunning && (
+                      <div className={styles.terminalBox}>
+                        <div className={styles.terminalHeader}>
+                          <span>◈ PIPELINE EXECUTION TERMINAL</span>
+                          <span style={{ color: '#06b6d4' }}>ACTIVE STEP: {currentStep.toUpperCase()}</span>
+                        </div>
+                        <StepIndicator current={currentStep} />
+                      </div>
+                    )}
+
+                    {/* Completed Video Player */}
+                    {isDone && (
+                      <div className={styles.doneBox}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: '12px', color: '#34d399', fontWeight: 700 }}>
+                            ✓ CHAPTER {chapter.chapterIndex} RENDER COMPLETE
+                          </span>
+                          <a
+                            href={chapterVideoUrl}
+                            download={`Chapter_${chapter.chapterIndex}_${selectedProject.name}.mp4`}
+                            className={styles.btnMonoCyan}
+                            style={{ textDecoration: 'none', padding: '4px 10px', fontSize: '11px' }}
+                          >
+                            ⬇️ DOWNLOAD MP4
+                          </a>
+                        </div>
+                        <video
+                          src={chapterVideoUrl}
+                          controls
+                          style={{ width: '100%', borderRadius: '6px', maxHeight: '340px', background: '#000', border: '1px solid rgba(255,255,255,0.1)' }}
+                        />
+                      </div>
+                    )}
+
+                    {/* Voiceover Upload & Script Form */}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                      <FileDropZone
+                        label={chapterVoiceovers[chapter.id]?.length ? 'Voiceover Attached' : `Upload Voiceover Audio for ${chapter.title}`}
+                        accept="audio/*,.mp3,.wav,.m4a,.aac"
+                        files={chapterVoiceovers[chapter.id] || []}
+                        onFiles={(files) => setChapterVoiceovers((prev) => ({ ...prev, [chapter.id]: files }))}
+                        icon="🎙️"
+                        hint="MP3, WAV, M4A — Whisper aligns words with sub-second accuracy"
+                      />
+
+                      <textarea
+                        className={styles.textarea}
+                        placeholder={`Optional: Script for Chapter ${chapter.chapterIndex} (Leave blank to auto-transcribe with Whisper)`}
+                        value={chapterScripts[chapter.id] ?? chapter.scriptText ?? ''}
+                        onChange={(e) => setChapterScripts((prev) => ({ ...prev, [chapter.id]: e.target.value }))}
+                      />
+
+                      <button
+                        className={styles.btnLaunch}
+                        onClick={() => handleGenerateChapter(chapter)}
+                        disabled={isRunning}
+                      >
+                        {isRunning ? (
+                          <>
+                            <span className={styles.spinner} />
+                            RENDERING CHAPTER {chapter.chapterIndex} ({elapsed}s)…
+                          </>
+                        ) : (
+                          `🎬 GENERATE CHAPTER ${chapter.chapterIndex} VIDEO`
+                        )}
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </>
         )}
       </main>
     </div>

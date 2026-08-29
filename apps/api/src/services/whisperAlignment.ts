@@ -178,29 +178,114 @@ async function fallbackAlignment(audioPath: string): Promise<SegmentAlignment[]>
   ];
 }
 
+function numberToWords(num: number): string {
+  const ones = ['', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine',
+    'ten', 'eleven', 'twelve', 'thirteen', 'fourteen', 'fifteen', 'sixteen',
+    'seventeen', 'eighteen', 'nineteen'];
+  const tens = ['', '', 'twenty', 'thirty', 'forty', 'fifty', 'sixty', 'seventy', 'eighty', 'ninety'];
+
+  if (num === 0) return 'zero';
+  if (num < 20) return ones[num] || '';
+  if (num < 100) return (tens[Math.floor(num / 10)] + ' ' + (ones[num % 10] || '')).trim();
+  if (num < 1000) return (ones[Math.floor(num / 100)] + ' hundred ' + (num % 100 !== 0 ? numberToWords(num % 100) : '')).trim();
+  if (num < 1000000) {
+    const thousands = Math.floor(num / 1000);
+    const remainder = num % 1000;
+    return (numberToWords(thousands) + ' thousand ' + (remainder !== 0 ? numberToWords(remainder) : '')).trim();
+  }
+  const millions = Math.floor(num / 1000000);
+  const remainder = num % 1000000;
+  return (numberToWords(millions) + ' million ' + (remainder !== 0 ? numberToWords(remainder) : '')).trim();
+}
+
+const ORDINALS: Record<string, string> = {
+  '1st': 'first', '2nd': 'second', '3rd': 'third', '4th': 'fourth', '5th': 'fifth',
+  '6th': 'sixth', '7th': 'seventh', '8th': 'eighth', '9th': 'ninth', '10th': 'tenth',
+};
+
+export function normalizeForSearch(text: string): string[] {
+  if (!text) return [];
+  const variations = new Set<string>();
+
+  const rawClean = text.toLowerCase().replace(/[^a-z0-9\$, ]/g, ' ').replace(/\s+/g, ' ').trim();
+  variations.add(rawClean.replace(/[\$,]/g, ' ').replace(/\s+/g, ' ').trim());
+
+  // Replace ordinals (1st, 2nd, 3rd, 4th...)
+  let ordinalExpanded = rawClean;
+  for (const [ord, word] of Object.entries(ORDINALS)) {
+    const regex = new RegExp(`\\b${ord}\\b`, 'gi');
+    ordinalExpanded = ordinalExpanded.replace(regex, word);
+  }
+
+  // Parse numbers (with optional commas and $)
+  let wordsExpanded = ordinalExpanded.replace(/\$?(\d{1,3}(,\d{3})*|\d+)/g, (match) => {
+    const isCurrency = match.startsWith('$');
+    const numVal = parseInt(match.replace(/[\$,]/g, ''), 10);
+    if (!isNaN(numVal) && numVal <= 999999999) {
+      const words = numberToWords(numVal);
+      return isCurrency ? `${words} dollars` : words;
+    }
+    return match;
+  });
+
+  wordsExpanded = wordsExpanded.replace(/[^a-z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim();
+  variations.add(wordsExpanded);
+
+  // If text contained $, also add version with "dollars" appended if not already present
+  if (text.includes('$') && !wordsExpanded.includes('dollars')) {
+    variations.add(`${wordsExpanded} dollars`);
+  }
+
+  return Array.from(variations).filter(Boolean);
+}
+
 /**
- * Find when a specific phrase appears in the alignment results.
+ * Find when a specific phrase appears in the alignment results with number normalization & fuzzy window matching.
  */
 export function findPhraseTimestamp(
   phrase: string,
   segments: SegmentAlignment[]
 ): { start: number; end: number } | null {
-  const normalizedPhrase = phrase.toLowerCase().replace(/[^a-z0-9 ]/g, '');
-  const words = normalizedPhrase.split(' ').filter(Boolean);
-
+  if (!phrase) return null;
   const allWords = segments.flatMap((s) => s.words);
   if (!allWords.length) return null;
 
-  for (let i = 0; i <= allWords.length - words.length; i++) {
-    const window = allWords.slice(i, i + words.length);
-    const windowText = window
-      .map((w) => w.word.toLowerCase().replace(/[^a-z0-9 ]/g, '').trim())
-      .join(' ');
-    if (windowText.includes(words.join(' '))) {
-      return {
-        start: window[0]!.start,
-        end: window[window.length - 1]!.end,
-      };
+  const candidatePhrases = normalizeForSearch(phrase);
+
+  for (const candidate of candidatePhrases) {
+    const searchWords = candidate.split(' ').filter(Boolean);
+    if (!searchWords.length) continue;
+
+    for (let i = 0; i <= allWords.length - searchWords.length; i++) {
+      const window = allWords.slice(i, i + searchWords.length);
+      const windowText = window
+        .map((w) => w.word.toLowerCase().replace(/[^a-z0-9]/g, '').trim())
+        .join(' ');
+      const targetText = searchWords
+        .map((w) => w.toLowerCase().replace(/[^a-z0-9]/g, '').trim())
+        .join(' ');
+
+      if (windowText.includes(targetText) || targetText.includes(windowText)) {
+        return {
+          start: window[0]!.start,
+          end: window[window.length - 1]!.end,
+        };
+      }
+    }
+
+    // Fallback: match on the first 2 significant words if multi-word
+    if (searchWords.length >= 2) {
+      const anchor = searchWords.slice(0, 2).join(' ');
+      for (let i = 0; i <= allWords.length - 2; i++) {
+        const window = allWords.slice(i, i + 2);
+        const windowText = window.map((w) => w.word.toLowerCase().replace(/[^a-z0-9]/g, '')).join(' ');
+        if (windowText.includes(anchor) || anchor.includes(windowText)) {
+          return {
+            start: window[0]!.start,
+            end: window[window.length - 1]!.end,
+          };
+        }
+      }
     }
   }
 

@@ -31,9 +31,24 @@ export interface TimelineClip {
 
   // Text callout overlay
   callout?: {
-    type: 'lower_third' | 'center_title';
+    type:
+      | 'stat_callout'
+      | 'lower_third'
+      | 'location_badge'
+      | 'evidence_tag'
+      | 'quote_card'
+      | 'chapter_header'
+      | 'highlight_pill'
+      | 'split_title'
+      | 'ticker_bar'
+      | 'corner_tag'
+      | 'full_screen_title'
+      | 'breaking_news'
+      | 'center_title';
     line1: string;
     line2?: string;
+    spokenTrigger?: string;
+    themeColor?: 'gold' | 'amber' | 'cyan' | 'crimson' | 'emerald' | 'slate' | 'white';
     startTime?: number;
     endTime?: number;
   } | null;
@@ -160,18 +175,65 @@ export function buildTimeline(params: {
     const rawCallout = (beat as any).callout;
     if (rawCallout && rawCallout.line1) {
       const clipDuration = Math.max(0.5, beat.endTime - beat.startTime);
-      let startOffset = 0.05;
-      const phraseTs = findPhraseTimestamp(rawCallout.line1, alignments);
-      if (phraseTs && phraseTs.start >= beat.startTime - 0.2 && phraseTs.start <= beat.endTime + 0.2) {
-        startOffset = Math.max(0.05, phraseTs.start - beat.startTime);
+      // SYNC CORRECTION: Whisper timestamps lag ~1.5s behind actual vocal onset.
+      // We add a 1.8s grace delay so text appears WITH the spoken word, not 2s before.
+      const SYNC_CORRECTION = 1.8;
+      let startOffset = SYNC_CORRECTION;
+
+      // 1. Check spokenTrigger first, then line1, line2
+      const searchPhrases: string[] = [
+        rawCallout.spokenTrigger,
+        rawCallout.line1,
+        rawCallout.line2,
+      ].filter((p): p is string => typeof p === 'string' && p.trim().length > 0);
+
+      let foundTs: { start: number; end: number } | null = null;
+      for (const phrase of searchPhrases) {
+        foundTs = findPhraseTimestamp(phrase, alignments);
+        if (foundTs && foundTs.start >= beat.startTime - 0.3 && foundTs.start <= beat.endTime + 0.3) {
+          break;
+        }
       }
-      const holdDuration = 2.2;
+
+      if (foundTs && foundTs.start >= beat.startTime - 0.3 && foundTs.start <= beat.endTime + 0.3) {
+        // Real Whisper match — use the precise timestamp with a small cognitive lead buffer
+        startOffset = Math.max(0.1, foundTs.start - beat.startTime + 0.1);
+        // If Whisper is returning very early timestamps (< 0.5s into the clip), apply sync correction
+        if (startOffset < 0.5 && clipDuration > 2.0) {
+          startOffset = Math.min(startOffset + SYNC_CORRECTION, clipDuration * 0.5);
+        }
+      } else {
+        // 2. Word-ratio fallback: calculate relative word position of trigger inside beat text
+        const beatWords = beat.text.toLowerCase().replace(/[^a-z0-9 ]/g, '').split(/\s+/).filter(Boolean);
+        const trigger = (rawCallout.spokenTrigger || rawCallout.line1 || '').toLowerCase().replace(/[^a-z0-9 ]/g, '');
+        const triggerWords = trigger.split(/\s+/).filter(Boolean);
+
+        let wordIdx = -1;
+        if (triggerWords.length > 0 && beatWords.length > 0) {
+          wordIdx = beatWords.findIndex((w) => triggerWords.some((tw: string) => w.includes(tw) || tw.includes(w)));
+        }
+
+        if (wordIdx > 0 && beatWords.length > 1) {
+          const ratio = wordIdx / beatWords.length;
+          startOffset = Math.max(SYNC_CORRECTION, Math.min(clipDuration - 0.6, ratio * clipDuration + SYNC_CORRECTION));
+        } else if (wordIdx === 0) {
+          startOffset = SYNC_CORRECTION;
+        } else {
+          startOffset = Math.min(clipDuration * 0.5, SYNC_CORRECTION);
+        }
+      }
+
+      // Clamp to clip bounds — never start after 80% of clip, hold for at least 2.4s
+      startOffset = Math.min(startOffset, clipDuration * 0.75);
+      const holdDuration = 2.4;
       const endOffset = Math.min(clipDuration - 0.05, Math.max(startOffset + 0.8, startOffset + holdDuration));
 
       clipCallout = {
         type: rawCallout.type,
         line1: rawCallout.line1,
         line2: rawCallout.line2,
+        spokenTrigger: rawCallout.spokenTrigger,
+        themeColor: rawCallout.themeColor || 'gold',
         startTime: Number(startOffset.toFixed(2)),
         endTime: Number(endOffset.toFixed(2)),
       };
