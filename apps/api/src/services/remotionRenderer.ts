@@ -9,32 +9,69 @@ let cachedBundleUrl: string | null = null;
 
 function resolveMediaUrl(rawPath: string | null | undefined, baseDir: string): string | null {
   if (!rawPath) return null;
-  if (/^https?:\/\//i.test(rawPath)) return rawPath;
+  if (/^https?:\/\//i.test(rawPath) || /^data:/i.test(rawPath)) return rawPath;
+
+  let localFile: string | null = null;
 
   // 1. Direct path
-  if (fs.existsSync(rawPath)) return pathToFileURL(path.resolve(rawPath)).href;
+  if (fs.existsSync(rawPath)) {
+    localFile = path.resolve(rawPath);
+  } else {
+    // 2. Relative to baseDir
+    const rel = path.resolve(baseDir, rawPath);
+    if (fs.existsSync(rel)) {
+      localFile = rel;
+    } else {
+      // 3. Relative to cwd
+      const cwdRel = path.resolve(process.cwd(), rawPath);
+      if (fs.existsSync(cwdRel)) {
+        localFile = cwdRel;
+      } else {
+        // 4. Normalized path
+        const norm = path.normalize(rawPath);
+        if (fs.existsSync(norm)) {
+          localFile = path.resolve(norm);
+        } else {
+          // 5. Strip prefix
+          const stripped = rawPath.replace(/^(output|clips)[\\\/]/, '');
+          const candidate1 = path.join(baseDir, stripped);
+          if (fs.existsSync(candidate1)) {
+            localFile = path.resolve(candidate1);
+          } else {
+            const candidate2 = path.join(baseDir, 'stock', path.basename(rawPath));
+            if (fs.existsSync(candidate2)) {
+              localFile = path.resolve(candidate2);
+            }
+          }
+        }
+      }
+    }
+  }
 
-  // 2. Relative to baseDir
-  const rel = path.resolve(baseDir, rawPath);
-  if (fs.existsSync(rel)) return pathToFileURL(rel).href;
+  if (!localFile || !fs.existsSync(localFile)) return null;
 
-  // 3. Relative to cwd
-  const cwdRel = path.resolve(process.cwd(), rawPath);
-  if (fs.existsSync(cwdRel)) return pathToFileURL(cwdRel).href;
+  // If it is an image, convert to data URI to bypass Chromium local file access security
+  if (/\.svg$/i.test(localFile)) {
+    const content = fs.readFileSync(localFile, 'utf-8');
+    return `data:image/svg+xml;utf8,${encodeURIComponent(content)}`;
+  }
 
-  // 4. Normalized path
-  const norm = path.normalize(rawPath);
-  if (fs.existsSync(norm)) return pathToFileURL(path.resolve(norm)).href;
+  if (/\.(jpg|jpeg|png|webp|avif)$/i.test(localFile)) {
+    const ext = path.extname(localFile).toLowerCase();
+    const mime =
+      ext === '.png'
+        ? 'image/png'
+        : ext === '.webp'
+        ? 'image/webp'
+        : ext === '.avif'
+        ? 'image/avif'
+        : 'image/jpeg';
+    const base64 = fs.readFileSync(localFile).toString('base64');
+    return `data:${mime};base64,${base64}`;
+  }
 
-  // 5. Strip prefix
-  const stripped = rawPath.replace(/^(output|clips)[\\\/]/, '');
-  const candidate1 = path.join(baseDir, stripped);
-  if (fs.existsSync(candidate1)) return pathToFileURL(path.resolve(candidate1)).href;
-
-  const candidate2 = path.join(baseDir, 'stock', path.basename(rawPath));
-  if (fs.existsSync(candidate2)) return pathToFileURL(path.resolve(candidate2)).href;
-
-  return null;
+  // Audio / Video files: use file:/// URL
+  return pathToFileURL(localFile).href;
 }
 
 export async function getRemotionBundle(): Promise<string> {
@@ -68,13 +105,14 @@ export async function renderTimelineVideo(
   const timelineDir = path.dirname(absoluteTimelinePath);
   const rawTimeline: Timeline = JSON.parse(fs.readFileSync(absoluteTimelinePath, 'utf-8'));
 
-  // Resolve all clip paths and master audio path to valid file URLs for Remotion
+  // Resolve all clip paths and master audio path
   const resolvedTimeline: Timeline = {
     ...rawTimeline,
     masterAudioPath: resolveMediaUrl(rawTimeline.masterAudioPath, timelineDir) || '',
     clips: rawTimeline.clips.map((clip) => ({
       ...clip,
       clipPath: resolveMediaUrl(clip.clipPath, timelineDir),
+      secondaryClipPath: resolveMediaUrl(clip.secondaryClipPath, timelineDir),
     })),
   };
 
@@ -87,10 +125,19 @@ export async function renderTimelineVideo(
   console.log(`📂 Output: ${finalOut}`);
   console.log(`🎞️  Clips: ${resolvedTimeline.clips.length} | ⏱️ Duration: ${Math.round(resolvedTimeline.totalDuration)}s\n`);
 
+  const chromiumOptions = {
+    args: [
+      '--allow-file-access-from-files',
+      '--disable-web-security',
+      '--disable-site-isolation-trials',
+    ],
+  };
+
   const serveUrl = await getRemotionBundle();
 
   const compositions = await getCompositions(serveUrl, {
     inputProps: { timeline: resolvedTimeline },
+    chromiumOptions,
   });
 
   const composition = compositions.find((c) => c.id === 'DocumentaryVideo') || compositions[0];
@@ -107,12 +154,15 @@ export async function renderTimelineVideo(
     codec: 'h264',
     outputLocation: finalOut,
     inputProps: { timeline: resolvedTimeline },
+    chromiumOptions,
     onProgress: ({ progress }) => {
-      const currentClip = Math.min(totalClips, Math.max(1, Math.ceil(progress * totalClips)));
+      const currentClip = Math.min(totalClips, Math.floor(progress * totalClips) + 1);
       if (currentClip !== lastReportedClip) {
         lastReportedClip = currentClip;
         console.log(`  ⚡ [Remotion] Rendering frame progress: ${(progress * 100).toFixed(1)}% (Beat ${currentClip}/${totalClips})`);
-        if (onProgress) onProgress(currentClip, totalClips);
+        if (onProgress) {
+          onProgress(currentClip, totalClips);
+        }
       }
     },
   });

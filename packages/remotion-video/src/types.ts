@@ -4,6 +4,7 @@ export type {
   CalloutOverlay,
   CalloutType,
   CalloutThemeColor,
+  SceneLayoutType,
   TimelineClip,
   Timeline,
   NumberOverlay,

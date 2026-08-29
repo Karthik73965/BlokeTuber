@@ -17,6 +17,8 @@ for (const p of envPaths) {
 const OPENROUTER_BASE_URL = 'https://openrouter.ai/api/v1';
 const PLANNER_MODEL = process.env.PLANNER_MODEL || 'anthropic/claude-sonnet-4-5';
 
+import { CalloutType, CalloutThemeColor, SceneLayoutType } from '@repo/shared';
+
 /**
  * A single cohesive visual scene produced by the AI Director.
  */
@@ -27,6 +29,9 @@ export interface PlannedBeat {
 
   // Media type: Real authentic video is always primary
   mediaType: 'video' | 'image';
+
+  // Scene presentation layout
+  layout?: SceneLayoutType;
 
   // If local clip library has a direct match
   clipFilename: string | null;
@@ -46,24 +51,11 @@ export interface PlannedBeat {
 
   // Text overlay callout for this beat
   callout?: {
-    type:
-      | 'stat_callout'
-      | 'lower_third'
-      | 'location_badge'
-      | 'evidence_tag'
-      | 'quote_card'
-      | 'chapter_header'
-      | 'highlight_pill'
-      | 'split_title'
-      | 'ticker_bar'
-      | 'corner_tag'
-      | 'full_screen_title'
-      | 'breaking_news'
-      | 'center_title';
+    type: CalloutType;
     line1: string; // primary bold text (name, date, stat, location)
     line2?: string; // subtitle (role, context, location details)
     spokenTrigger?: string; // exact 2-4 spoken words from voiceover that trigger this callout
-    themeColor?: 'gold' | 'amber' | 'cyan' | 'crimson' | 'emerald' | 'slate' | 'white';
+    themeColor?: CalloutThemeColor;
   } | null;
 }
 

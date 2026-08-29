@@ -249,6 +249,7 @@ export function buildTimeline(params: {
       endTime: beat.endTime,
       mediaType: beat.mediaType,
       clipPath: beat.resolvedPath,
+      layout: (beat as any).layout,
       // Images get smooth fluid motion
       kenBurns: isImage,
       transitionType: 'cut',

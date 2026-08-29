@@ -1,8 +1,7 @@
 import React from 'react';
 import { Audio, Sequence, useVideoConfig } from 'remotion';
 import { DocumentaryVideoProps } from '../types';
-import { BrollLayer } from '../components/BrollLayer';
-import { CalloutDispatcher } from '../components/Callouts/CalloutDispatcher';
+import { SceneLayoutDirector } from '../components/Layouts/SceneLayoutDirector';
 
 export const DocumentaryVideo: React.FC<DocumentaryVideoProps> = ({ timeline }) => {
   const { fps } = useVideoConfig();
@@ -54,7 +53,7 @@ export const DocumentaryVideo: React.FC<DocumentaryVideoProps> = ({ timeline }) 
         overflow: 'hidden',
       }}
     >
-      {/* ── VIDEO & OVERLAY SEQUENCES ─────────────────────────────────── */}
+      {/* ── VIDEO SEQUENCES WITH MULTI-LAYOUT SCENE DIRECTOR ─────────── */}
       {sequences.map(({ clip, index, startFrame, durationInFrames, durationInSeconds }) => (
         <Sequence
           key={`seq_${index}_${clip.beatIndex}`}
@@ -62,18 +61,11 @@ export const DocumentaryVideo: React.FC<DocumentaryVideoProps> = ({ timeline }) 
           durationInFrames={durationInFrames}
           name={`Beat ${clip.beatIndex + 1} (${durationInSeconds.toFixed(1)}s)`}
         >
-          {/* B-Roll Footage Layer */}
-          <BrollLayer
+          <SceneLayoutDirector
             clip={clip}
             clipIndex={index}
             durationInFrames={durationInFrames}
-          />
-
-          {/* Upgraded AI Callouts & Overlays */}
-          <CalloutDispatcher
-            callout={clip.callout}
-            numberOverlays={clip.numberOverlays}
-            clipDurationInSeconds={durationInSeconds}
+            durationInSeconds={durationInSeconds}
           />
         </Sequence>
       ))}

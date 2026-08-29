@@ -7,6 +7,20 @@ export * from './compositions/DocumentaryVideo';
 export * from './components/BrollLayer';
 export * from './components/Callouts/CalloutDispatcher';
 
+// 11 Truly Unique Documentary Scene Layouts & Director
+export { SceneLayoutDirector, resolveSceneLayout } from './components/Layouts/SceneLayoutDirector';
+export { FullBleedCinematicLayout } from './components/Layouts/FullBleedCinematicLayout';
+export { AmbientBlurFrameLayout } from './components/Layouts/AmbientBlurFrameLayout';
+export { VintageCrtMonitorLayout } from './components/Layouts/VintageCrtMonitorLayout';
+export { FilmstripSpoolReelLayout } from './components/Layouts/FilmstripSpoolReelLayout';
+export { EditorialSidebarColumnLayout } from './components/Layouts/EditorialSidebarColumnLayout';
+export { RedStringPinboardLayout } from './components/Layouts/RedStringPinboardLayout';
+export { HorizonTopBottomSplitLayout } from './components/Layouts/HorizonTopBottomSplitLayout';
+export { ParallaxTriptychGalleryLayout } from './components/Layouts/ParallaxTriptychGalleryLayout';
+export { QuadSurveillanceMatrixLayout } from './components/Layouts/QuadSurveillanceMatrixLayout';
+export { PolaroidScatterDeskLayout } from './components/Layouts/PolaroidScatterDeskLayout';
+export { MagnifyingLoupeInspectorLayout } from './components/Layouts/MagnifyingLoupeInspectorLayout';
+
 // 20 Unique Documentary Styles
 export { NewspaperHeadline } from './components/DocumentaryStyles/NewspaperHeadline';
 export { RedactedDossier } from './components/DocumentaryStyles/RedactedDossier';

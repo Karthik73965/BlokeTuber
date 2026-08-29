@@ -110,6 +110,19 @@ export interface CalloutOverlay {
   endTime?: number;
 }
 
+export type SceneLayoutType =
+  | 'full_bleed_cinematic'
+  | 'ambient_blur_frame'
+  | 'vintage_crt_monitor'
+  | 'filmstrip_spool_reel'
+  | 'editorial_sidebar_column'
+  | 'red_string_pinboard'
+  | 'horizon_top_bottom_split'
+  | 'parallax_triptych_gallery'
+  | 'quad_surveillance_matrix'
+  | 'polaroid_scatter_desk'
+  | 'magnifying_loupe_inspector';
+
 export interface TimelineClip {
   beatIndex: number;
   chapterIndex: number;
@@ -117,7 +130,10 @@ export interface TimelineClip {
   startTime: number;
   endTime: number;
   clipPath: string | null;
+  secondaryClipPath?: string | null;
   mediaType?: 'video' | 'image';
+  secondaryMediaType?: 'video' | 'image';
+  layout?: SceneLayoutType;
   stockSource?: string;
   stockUrl?: string;
   kenBurns: boolean;
