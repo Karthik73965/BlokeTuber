@@ -1,5 +1,5 @@
 import React from 'react';
-import { Img, interpolate, OffthreadVideo, useCurrentFrame, useVideoConfig } from 'remotion';
+import { interpolate, OffthreadVideo, useCurrentFrame, useVideoConfig } from 'remotion';
 import { TimelineClip } from '../../types';
 import { CalloutDispatcher } from '../Callouts/CalloutDispatcher';
 
@@ -19,19 +19,46 @@ export const RedStringPinboardLayout: React.FC<LayoutProps> = ({
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
 
-  const isImage =
-    clip.mediaType === 'image' ||
-    (clip.clipPath && /\.(jpg|jpeg|png|webp|avif)$/i.test(clip.clipPath)) ||
-    !clip.clipPath;
-
   const progress = durationInFrames > 0 ? frame / durationInFrames : 0;
 
-  // 3D Camera Swoop: from wide pinboard overview into hero photo
+  // 3D Camera Swoop
   const camScale = interpolate(progress, [0, 1], [0.92, 1.08]);
   const camRotateX = interpolate(progress, [0, 1], [12, 4]);
   const camRotateY = interpolate(progress, [0, 1], [-10, -2]);
   const camTranslateX = interpolate(progress, [0, 1], [-40, 20]);
   const camTranslateY = interpolate(progress, [0, 1], [20, -10]);
+
+  const clueSrcA = clip.additionalClipPaths?.[0] || clip.clipPath;
+  const clueSrcB = clip.additionalClipPaths?.[1] || clip.clipPath;
+  const heroSrc = clip.clipPath;
+
+  const renderSlotMedia = (src: string | null | undefined, isHero = false) => {
+    if (!src) return <div style={{ width: '100%', height: '100%', backgroundColor: '#18181B' }} />;
+    const isImg = clip.mediaType === 'image' || /\.(jpg|jpeg|png|webp|avif|svg)$/i.test(src);
+
+    return isImg ? (
+      <img
+        src={src}
+        alt=""
+        style={{
+          width: '100%',
+          height: '100%',
+          objectFit: 'cover',
+          filter: isHero ? 'contrast(1.06) saturate(1.05)' : 'contrast(1.02) saturate(0.85) brightness(0.9)',
+        }}
+      />
+    ) : (
+      <OffthreadVideo
+        src={src}
+        style={{
+          width: '100%',
+          height: '100%',
+          objectFit: 'cover',
+          filter: isHero ? 'contrast(1.06) saturate(1.05)' : 'contrast(1.02) saturate(0.85) brightness(0.9)',
+        }}
+      />
+    );
+  };
 
   return (
     <div
@@ -92,13 +119,14 @@ export const RedStringPinboardLayout: React.FC<LayoutProps> = ({
             boxShadow: '0 16px 40px rgba(0,0,0,0.18)',
             transform: 'rotate(-4deg)',
             zIndex: 10,
+            overflow: 'hidden',
           }}
         >
           {/* Red Push Pin */}
           <div
             style={{
               position: 'absolute',
-              top: -8,
+              top: 4,
               left: '50%',
               transform: 'translateX(-50%)',
               width: 16,
@@ -110,7 +138,9 @@ export const RedStringPinboardLayout: React.FC<LayoutProps> = ({
               zIndex: 20,
             }}
           />
-          <div style={{ width: '100%', height: '100%', backgroundColor: '#27272A' }} />
+          <div style={{ width: '100%', height: '100%', overflow: 'hidden' }}>
+            {renderSlotMedia(clueSrcA)}
+          </div>
         </div>
 
         {/* SECONDARY NODE B (Bottom-Left Location Card) */}
@@ -126,13 +156,14 @@ export const RedStringPinboardLayout: React.FC<LayoutProps> = ({
             boxShadow: '0 16px 40px rgba(0,0,0,0.18)',
             transform: 'rotate(5deg)',
             zIndex: 10,
+            overflow: 'hidden',
           }}
         >
           {/* Red Push Pin */}
           <div
             style={{
               position: 'absolute',
-              top: -8,
+              top: 4,
               left: '50%',
               transform: 'translateX(-50%)',
               width: 16,
@@ -144,10 +175,12 @@ export const RedStringPinboardLayout: React.FC<LayoutProps> = ({
               zIndex: 20,
             }}
           />
-          <div style={{ width: '100%', height: '100%', backgroundColor: '#27272A' }} />
+          <div style={{ width: '100%', height: '100%', overflow: 'hidden' }}>
+            {renderSlotMedia(clueSrcB)}
+          </div>
         </div>
 
-        {/* PRIMARY HERO EVIDENCE PHOTO (Large Center-Right, Swoop Target) */}
+        {/* PRIMARY HERO EVIDENCE PHOTO */}
         <div
           style={{
             position: 'absolute',
@@ -160,13 +193,14 @@ export const RedStringPinboardLayout: React.FC<LayoutProps> = ({
             padding: '16px 16px 24px',
             boxShadow: '0 30px 80px rgba(0,0,0,0.22), 0 6px 16px rgba(0,0,0,0.1)',
             zIndex: 20,
+            overflow: 'hidden',
           }}
         >
           {/* Hero Push Pin Center-Top */}
           <div
             style={{
               position: 'absolute',
-              top: -10,
+              top: 6,
               left: '50%',
               transform: 'translateX(-50%)',
               width: 20,
@@ -179,7 +213,6 @@ export const RedStringPinboardLayout: React.FC<LayoutProps> = ({
             }}
           />
 
-          {/* Media Window */}
           <div
             style={{
               width: '100%',
@@ -189,31 +222,7 @@ export const RedStringPinboardLayout: React.FC<LayoutProps> = ({
               position: 'relative',
             }}
           >
-            {clip.clipPath ? (
-              isImage ? (
-                <Img
-                  src={clip.clipPath}
-                  style={{
-                    width: '100%',
-                    height: '100%',
-                    objectFit: 'cover',
-                    filter: 'contrast(1.06) saturate(1.05)',
-                  }}
-                />
-              ) : (
-                <OffthreadVideo
-                  src={clip.clipPath}
-                  style={{
-                    width: '100%',
-                    height: '100%',
-                    objectFit: 'cover',
-                    filter: 'contrast(1.06) saturate(1.05)',
-                  }}
-                />
-              )
-            ) : (
-              <div style={{ width: '100%', height: '100%', backgroundColor: '#18181B' }} />
-            )}
+            {renderSlotMedia(heroSrc, true)}
           </div>
         </div>
       </div>

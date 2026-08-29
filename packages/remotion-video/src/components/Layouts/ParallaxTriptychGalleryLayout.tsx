@@ -1,5 +1,5 @@
 import React from 'react';
-import { Img, interpolate, OffthreadVideo, useCurrentFrame, useVideoConfig } from 'remotion';
+import { interpolate, OffthreadVideo, useCurrentFrame, useVideoConfig } from 'remotion';
 import { TimelineClip } from '../../types';
 import { CalloutDispatcher } from '../Callouts/CalloutDispatcher';
 
@@ -19,18 +19,45 @@ export const ParallaxTriptychGalleryLayout: React.FC<LayoutProps> = ({
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
 
-  const isImage =
-    clip.mediaType === 'image' ||
-    (clip.clipPath && /\.(jpg|jpeg|png|webp|avif)$/i.test(clip.clipPath)) ||
-    !clip.clipPath;
-
   const progress = durationInFrames > 0 ? frame / durationInFrames : 0;
 
-  // 3D Parallax Drift: center panel pushes in faster than side wings
+  // 3D Parallax Drift
   const centerScale = interpolate(progress, [0, 1], [0.98, 1.05]);
   const centerTranslateY = interpolate(progress, [0, 1], [15, -10]);
   const leftTranslateY = interpolate(progress, [0, 1], [25, 5]);
   const rightTranslateY = interpolate(progress, [0, 1], [5, -20]);
+
+  const leftSrc = clip.additionalClipPaths?.[0] || clip.clipPath;
+  const rightSrc = clip.additionalClipPaths?.[1] || clip.clipPath;
+  const centerSrc = clip.clipPath;
+
+  const renderMedia = (src: string | null | undefined, isCenter = false) => {
+    if (!src) return <div style={{ width: '100%', height: '100%', backgroundColor: '#26262B', borderRadius: 2 }} />;
+    const isImg = clip.mediaType === 'image' || /\.(jpg|jpeg|png|webp|avif|svg)$/i.test(src);
+
+    return isImg ? (
+      <img
+        src={src}
+        alt=""
+        style={{
+          width: '100%',
+          height: '100%',
+          objectFit: 'cover',
+          filter: isCenter ? 'contrast(1.06) saturate(1.05)' : 'contrast(1.02) saturate(0.9) brightness(0.85)',
+        }}
+      />
+    ) : (
+      <OffthreadVideo
+        src={src}
+        style={{
+          width: '100%',
+          height: '100%',
+          objectFit: 'cover',
+          filter: isCenter ? 'contrast(1.06) saturate(1.05)' : 'contrast(1.02) saturate(0.9) brightness(0.85)',
+        }}
+      />
+    );
+  };
 
   return (
     <div
@@ -61,9 +88,12 @@ export const ParallaxTriptychGalleryLayout: React.FC<LayoutProps> = ({
           boxShadow: '0 20px 50px rgba(0,0,0,0.12)',
           transform: `translateY(${leftTranslateY}px) rotateY(8deg) rotate(-1.5deg)`,
           opacity: 0.85,
+          overflow: 'hidden',
         }}
       >
-        <div style={{ width: '100%', height: '100%', backgroundColor: '#26262B', borderRadius: 2 }} />
+        <div style={{ width: '100%', height: '100%', borderRadius: 2, overflow: 'hidden' }}>
+          {renderMedia(leftSrc)}
+        </div>
       </div>
 
       {/* ── CENTER HERO PANEL (Enlarged, Focus of Parallax) ─────────── */}
@@ -92,31 +122,7 @@ export const ParallaxTriptychGalleryLayout: React.FC<LayoutProps> = ({
             position: 'relative',
           }}
         >
-          {clip.clipPath ? (
-            isImage ? (
-              <Img
-                src={clip.clipPath}
-                style={{
-                  width: '100%',
-                  height: '100%',
-                  objectFit: 'cover',
-                  filter: 'contrast(1.06) saturate(1.05)',
-                }}
-              />
-            ) : (
-              <OffthreadVideo
-                src={clip.clipPath}
-                style={{
-                  width: '100%',
-                  height: '100%',
-                  objectFit: 'cover',
-                  filter: 'contrast(1.06) saturate(1.05)',
-                }}
-              />
-            )
-          ) : (
-            <div style={{ width: '100%', height: '100%', backgroundColor: '#18181B' }} />
-          )}
+          {renderMedia(centerSrc, true)}
         </div>
       </div>
 
@@ -132,9 +138,12 @@ export const ParallaxTriptychGalleryLayout: React.FC<LayoutProps> = ({
           boxShadow: '0 20px 50px rgba(0,0,0,0.12)',
           transform: `translateY(${rightTranslateY}px) rotateY(-8deg) rotate(1.5deg)`,
           opacity: 0.85,
+          overflow: 'hidden',
         }}
       >
-        <div style={{ width: '100%', height: '100%', backgroundColor: '#26262B', borderRadius: 2 }} />
+        <div style={{ width: '100%', height: '100%', borderRadius: 2, overflow: 'hidden' }}>
+          {renderMedia(rightSrc)}
+        </div>
       </div>
 
       {/* ── OVERLAY CALLOUT LAYER ───────────────────────────────────── */}

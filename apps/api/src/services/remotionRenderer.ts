@@ -1,48 +1,140 @@
+import { bundle } from '@remotion/bundler';
+import { renderMedia, selectComposition } from '@remotion/renderer';
 import path from 'path';
 import fs from 'fs';
+import http from 'http';
 import { pathToFileURL } from 'url';
-import { bundle } from '@remotion/bundler';
-import { getCompositions, renderMedia } from '@remotion/renderer';
 import { Timeline } from '@repo/shared';
 
 let cachedBundleUrl: string | null = null;
+let localMediaServer: http.Server | null = null;
+let mediaServerPort = 0;
 
-function resolveMediaUrl(rawPath: string | null | undefined, baseDir: string): string | null {
+/**
+ * Spins up a high-performance local HTTP streaming server with Range request support
+ * to reliably stream media (MP4, MP3, JPG, PNG) directly to Chromium & Remotion Compositor.
+ */
+export async function ensureMediaServer(): Promise<number> {
+  if (localMediaServer && mediaServerPort > 0) {
+    return mediaServerPort;
+  }
+
+  return new Promise((resolve, reject) => {
+    const server = http.createServer((req, res) => {
+      res.setHeader('Access-Control-Allow-Origin', '*');
+      res.setHeader('Access-Control-Allow-Methods', 'GET, HEAD, OPTIONS');
+      res.setHeader('Access-Control-Allow-Headers', '*');
+
+      if (req.method === 'OPTIONS') {
+        res.writeHead(200);
+        res.end();
+        return;
+      }
+
+      try {
+        const decodedUrl = decodeURIComponent(req.url || '');
+        let filePath = decodedUrl.startsWith('/') ? decodedUrl.slice(1) : decodedUrl;
+        if (filePath.includes('?')) filePath = filePath.split('?')[0];
+
+        // Windows drive letter normalization (e.g. C:/Users/...)
+        let targetFile = path.resolve(filePath);
+        if (!fs.existsSync(targetFile) && fs.existsSync(filePath)) {
+          targetFile = filePath;
+        }
+
+        if (fs.existsSync(targetFile) && fs.statSync(targetFile).isFile()) {
+          const ext = path.extname(targetFile).toLowerCase();
+          const mimeTypes: Record<string, string> = {
+            '.mp4': 'video/mp4',
+            '.webm': 'video/webm',
+            '.mp3': 'audio/mpeg',
+            '.wav': 'audio/wav',
+            '.jpg': 'image/jpeg',
+            '.jpeg': 'image/jpeg',
+            '.png': 'image/png',
+            '.svg': 'image/svg+xml',
+            '.webp': 'image/webp',
+          };
+          const contentType = mimeTypes[ext] || 'application/octet-stream';
+          const stat = fs.statSync(targetFile);
+
+          // Support HTTP range requests for instant seek/stream
+          const range = req.headers.range;
+          if (range) {
+            const parts = range.replace(/bytes=/, '').split('-');
+            const start = parseInt(parts[0], 10);
+            const end = parts[1] ? parseInt(parts[1], 10) : stat.size - 1;
+            const chunksize = end - start + 1;
+            const file = fs.createReadStream(targetFile, { start, end });
+            res.writeHead(206, {
+              'Content-Range': `bytes ${start}-${end}/${stat.size}`,
+              'Accept-Ranges': 'bytes',
+              'Content-Length': chunksize,
+              'Content-Type': contentType,
+            });
+            file.pipe(res);
+          } else {
+            res.writeHead(200, {
+              'Content-Length': stat.size,
+              'Content-Type': contentType,
+              'Accept-Ranges': 'bytes',
+            });
+            fs.createReadStream(targetFile).pipe(res);
+          }
+        } else {
+          console.warn(`⚠️ [MediaServer 404] File not found: ${filePath} -> ${targetFile}`);
+          res.writeHead(404);
+          res.end('File not found');
+        }
+      } catch (err) {
+        res.writeHead(500);
+        res.end(String(err));
+      }
+    });
+
+    server.listen(0, '127.0.0.1', () => {
+      const addr = server.address();
+      if (addr && typeof addr === 'object') {
+        mediaServerPort = addr.port;
+        localMediaServer = server;
+        console.log(`📡 [RemotionRenderer] Local Media Stream Server running at http://127.0.0.1:${mediaServerPort}`);
+        resolve(mediaServerPort);
+      } else {
+        reject(new Error('Failed to bind media server'));
+      }
+    });
+  });
+}
+
+/**
+ * Resolves local file paths to HTTP stream URLs so Remotion Compositor & Chromium can render them without error.
+ */
+export function resolveMediaUrl(rawPath: string | null | undefined, baseDir: string, port = mediaServerPort): string | null {
   if (!rawPath) return null;
-  if (/^https?:\/\//i.test(rawPath) || /^data:/i.test(rawPath)) return rawPath;
+
+  if (rawPath.startsWith('http://') || rawPath.startsWith('https://') || rawPath.startsWith('data:')) {
+    return rawPath;
+  }
 
   let localFile: string | null = null;
-
-  // 1. Direct path
-  if (fs.existsSync(rawPath)) {
-    localFile = path.resolve(rawPath);
+  if (rawPath.startsWith('file:///')) {
+    try {
+      localFile = path.resolve(new URL(rawPath).pathname.replace(/^\/([a-zA-Z]:)/, '$1'));
+    } catch {
+      localFile = path.resolve(rawPath.replace('file:///', '').replace('file://', ''));
+    }
+  } else if (path.isAbsolute(rawPath)) {
+    localFile = rawPath;
   } else {
-    // 2. Relative to baseDir
-    const rel = path.resolve(baseDir, rawPath);
-    if (fs.existsSync(rel)) {
-      localFile = rel;
-    } else {
-      // 3. Relative to cwd
-      const cwdRel = path.resolve(process.cwd(), rawPath);
-      if (fs.existsSync(cwdRel)) {
-        localFile = cwdRel;
+    localFile = path.resolve(baseDir, rawPath);
+    if (!fs.existsSync(localFile)) {
+      const candidate1 = path.join(process.cwd(), rawPath);
+      if (fs.existsSync(candidate1)) {
+        localFile = path.resolve(candidate1);
       } else {
-        // 4. Normalized path
-        const norm = path.normalize(rawPath);
-        if (fs.existsSync(norm)) {
-          localFile = path.resolve(norm);
-        } else {
-          // 5. Strip prefix
-          const stripped = rawPath.replace(/^(output|clips)[\\\/]/, '');
-          const candidate1 = path.join(baseDir, stripped);
-          if (fs.existsSync(candidate1)) {
-            localFile = path.resolve(candidate1);
-          } else {
-            const candidate2 = path.join(baseDir, 'stock', path.basename(rawPath));
-            if (fs.existsSync(candidate2)) {
-              localFile = path.resolve(candidate2);
-            }
-          }
+        const candidate2 = path.join(baseDir, 'stock', path.basename(rawPath));
+        if (fs.existsSync(candidate2)) {
+          localFile = path.resolve(candidate2);
         }
       }
     }
@@ -50,27 +142,18 @@ function resolveMediaUrl(rawPath: string | null | undefined, baseDir: string): s
 
   if (!localFile || !fs.existsSync(localFile)) return null;
 
-  // If it is an image, convert to data URI to bypass Chromium local file access security
+  // SVGs: inline data URI
   if (/\.svg$/i.test(localFile)) {
     const content = fs.readFileSync(localFile, 'utf-8');
     return `data:image/svg+xml;utf8,${encodeURIComponent(content)}`;
   }
 
-  if (/\.(jpg|jpeg|png|webp|avif)$/i.test(localFile)) {
-    const ext = path.extname(localFile).toLowerCase();
-    const mime =
-      ext === '.png'
-        ? 'image/png'
-        : ext === '.webp'
-        ? 'image/webp'
-        : ext === '.avif'
-        ? 'image/avif'
-        : 'image/jpeg';
-    const base64 = fs.readFileSync(localFile).toString('base64');
-    return `data:${mime};base64,${base64}`;
+  // All local media (videos, audio, photos, JPG/PNG) served via local HTTP server
+  if (port > 0) {
+    const normalized = localFile.replace(/\\/g, '/');
+    return `http://127.0.0.1:${port}/${normalized}`;
   }
 
-  // Audio / Video files: use file:/// URL
   return pathToFileURL(localFile).href;
 }
 
@@ -102,17 +185,21 @@ export async function renderTimelineVideo(
     throw new Error(`Timeline file not found: ${absoluteTimelinePath}`);
   }
 
+  const streamPort = await ensureMediaServer();
   const timelineDir = path.dirname(absoluteTimelinePath);
   const rawTimeline: Timeline = JSON.parse(fs.readFileSync(absoluteTimelinePath, 'utf-8'));
 
   // Resolve all clip paths and master audio path
   const resolvedTimeline: Timeline = {
     ...rawTimeline,
-    masterAudioPath: resolveMediaUrl(rawTimeline.masterAudioPath, timelineDir) || '',
+    masterAudioPath: resolveMediaUrl(rawTimeline.masterAudioPath, timelineDir, streamPort) || '',
     clips: rawTimeline.clips.map((clip) => ({
       ...clip,
-      clipPath: resolveMediaUrl(clip.clipPath, timelineDir),
-      secondaryClipPath: resolveMediaUrl(clip.secondaryClipPath, timelineDir),
+      clipPath: resolveMediaUrl(clip.clipPath, timelineDir, streamPort),
+      secondaryClipPath: resolveMediaUrl(clip.secondaryClipPath, timelineDir, streamPort),
+      additionalClipPaths: (clip.additionalClipPaths || [])
+        .map((p) => resolveMediaUrl(p, timelineDir, streamPort))
+        .filter(Boolean) as string[],
     })),
   };
 
@@ -120,50 +207,74 @@ export async function renderTimelineVideo(
   const outDir = path.dirname(finalOut);
   fs.mkdirSync(outDir, { recursive: true });
 
+  const bundleUrl = await getRemotionBundle();
+
+  const fps = 30;
+  const durationInSeconds = Math.max(1, resolvedTimeline.totalDuration || 10);
+  const durationInFrames = Math.round(durationInSeconds * fps);
+
   console.log(`\n🎬 [RemotionEngine] Starting React-Powered Video Render`);
   console.log(`📋 Timeline: ${absoluteTimelinePath}`);
   console.log(`📂 Output: ${finalOut}`);
-  console.log(`🎞️  Clips: ${resolvedTimeline.clips.length} | ⏱️ Duration: ${Math.round(resolvedTimeline.totalDuration)}s\n`);
+  console.log(`🎞️  Clips: ${resolvedTimeline.clips.length} | ⏱️ Duration: ${durationInSeconds}s`);
 
-  const chromiumOptions = {
-    args: [
-      '--allow-file-access-from-files',
-      '--disable-web-security',
-      '--disable-site-isolation-trials',
-    ],
-  };
-
-  const serveUrl = await getRemotionBundle();
-
-  const compositions = await getCompositions(serveUrl, {
-    inputProps: { timeline: resolvedTimeline },
-    chromiumOptions,
+  const composition = await selectComposition({
+    serveUrl: bundleUrl,
+    id: 'DocumentaryVideo',
+    inputProps: {
+      timeline: resolvedTimeline,
+      width: 1920,
+      height: 1080,
+      fps,
+      durationInFrames,
+      durationInSeconds,
+    },
+    chromiumOptions: {
+      args: [
+        '--allow-file-access-from-files',
+        '--disable-web-security',
+        '--disable-features=IsolateOrigins,site-per-process',
+        '--autoplay-policy=no-user-gesture-required',
+      ],
+    },
   });
 
-  const composition = compositions.find((c) => c.id === 'DocumentaryVideo') || compositions[0];
-  if (!composition) {
-    throw new Error('Composition "DocumentaryVideo" not found in Remotion bundle.');
-  }
-
-  let lastReportedClip = 0;
-  const totalClips = resolvedTimeline.clips.length;
-
   await renderMedia({
-    composition,
-    serveUrl,
+    composition: {
+      ...composition,
+      durationInFrames,
+      fps,
+    },
+    serveUrl: bundleUrl,
     codec: 'h264',
     outputLocation: finalOut,
-    inputProps: { timeline: resolvedTimeline },
-    chromiumOptions,
-    onProgress: ({ progress }) => {
-      const currentClip = Math.min(totalClips, Math.floor(progress * totalClips) + 1);
-      if (currentClip !== lastReportedClip) {
-        lastReportedClip = currentClip;
-        console.log(`  ⚡ [Remotion] Rendering frame progress: ${(progress * 100).toFixed(1)}% (Beat ${currentClip}/${totalClips})`);
-        if (onProgress) {
-          onProgress(currentClip, totalClips);
-        }
+    everyFrameTimeoutInMilliseconds: 60000,
+    inputProps: {
+      timeline: resolvedTimeline,
+      width: 1920,
+      height: 1080,
+      fps,
+      durationInFrames,
+      durationInSeconds,
+    },
+    onProgress: ({ renderedFrames, totalFrames }) => {
+      const percent = Math.round((renderedFrames / totalFrames) * 100);
+      const currentBeat = Math.min(
+        resolvedTimeline.clips.length,
+        Math.floor((renderedFrames / totalFrames) * resolvedTimeline.clips.length) + 1
+      );
+      if (renderedFrames % Math.round(fps * 2) === 0 || renderedFrames === totalFrames) {
+        console.log(`  ⚡ [Remotion] Rendering frame progress: ${percent}.0% (Beat ${currentBeat}/${resolvedTimeline.clips.length})`);
+        if (onProgress) onProgress(currentBeat, resolvedTimeline.clips.length);
       }
+    },
+    chromiumOptions: {
+      args: [
+        '--allow-file-access-from-files',
+        '--disable-web-security',
+        '--disable-features=IsolateOrigins,site-per-process',
+        '--autoplay-policy=no-user-gesture-required',
+      ],
     },
   });
 

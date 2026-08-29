@@ -1,5 +1,5 @@
 import React from 'react';
-import { Img, interpolate, OffthreadVideo, useCurrentFrame, useVideoConfig } from 'remotion';
+import { interpolate, OffthreadVideo, useCurrentFrame, useVideoConfig } from 'remotion';
 import { TimelineClip } from '../../types';
 import { CalloutDispatcher } from '../Callouts/CalloutDispatcher';
 
@@ -21,7 +21,7 @@ export const PolaroidScatterDeskLayout: React.FC<LayoutProps> = ({
 
   const isImage =
     clip.mediaType === 'image' ||
-    (clip.clipPath && /\.(jpg|jpeg|png|webp|avif)$/i.test(clip.clipPath)) ||
+    (clip.clipPath && /\.(jpg|jpeg|png|webp|avif|svg)$/i.test(clip.clipPath)) ||
     !clip.clipPath;
 
   const progress = durationInFrames > 0 ? frame / durationInFrames : 0;
@@ -30,6 +30,9 @@ export const PolaroidScatterDeskLayout: React.FC<LayoutProps> = ({
   const camScale = interpolate(progress, [0, 1], [0.94, 1.05]);
   const camTranslateY = interpolate(progress, [0, 1], [20, -10]);
   const camTranslateX = interpolate(progress, [0, 1], [-30, 20]);
+
+  const photo1 = clip.additionalClipPaths?.[0] || clip.clipPath;
+  const photo2 = clip.additionalClipPaths?.[1] || clip.clipPath;
 
   return (
     <div
@@ -65,9 +68,14 @@ export const PolaroidScatterDeskLayout: React.FC<LayoutProps> = ({
             borderRadius: 2,
             boxShadow: '0 16px 40px rgba(0,0,0,0.14)',
             transform: 'rotate(-9deg)',
+            overflow: 'hidden',
           }}
         >
-          <div style={{ width: '100%', height: 200, backgroundColor: '#27272A' }} />
+          <div style={{ width: '100%', height: 200, backgroundColor: '#27272A', overflow: 'hidden' }}>
+            {photo1 && (
+              <img src={photo1} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+            )}
+          </div>
         </div>
 
         {/* SCATTERED POLAROID 2 (Bottom-Left) */}
@@ -82,9 +90,14 @@ export const PolaroidScatterDeskLayout: React.FC<LayoutProps> = ({
             borderRadius: 2,
             boxShadow: '0 16px 40px rgba(0,0,0,0.14)',
             transform: 'rotate(11deg)',
+            overflow: 'hidden',
           }}
         >
-          <div style={{ width: '100%', height: 190, backgroundColor: '#27272A' }} />
+          <div style={{ width: '100%', height: 190, backgroundColor: '#27272A', overflow: 'hidden' }}>
+            {photo2 && (
+              <img src={photo2} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+            )}
+          </div>
         </div>
 
         {/* PRIMARY HERO POLAROID (Large Center-Right, Focus Target) */}
@@ -115,8 +128,9 @@ export const PolaroidScatterDeskLayout: React.FC<LayoutProps> = ({
           >
             {clip.clipPath ? (
               isImage ? (
-                <Img
+                <img
                   src={clip.clipPath}
+                  alt=""
                   style={{
                     width: '100%',
                     height: '100%',

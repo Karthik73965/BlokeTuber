@@ -1,6 +1,7 @@
+import dotenv from 'dotenv';
 import path from 'path';
 import fs from 'fs';
-import dotenv from 'dotenv';
+import { CalloutType, CalloutThemeColor, SceneLayoutType } from '@repo/shared';
 
 const envPaths = [
   path.resolve(process.cwd(), '.env'),
@@ -17,15 +18,13 @@ for (const p of envPaths) {
 const OPENROUTER_BASE_URL = 'https://openrouter.ai/api/v1';
 const PLANNER_MODEL = process.env.PLANNER_MODEL || 'anthropic/claude-sonnet-4-5';
 
-import { CalloutType, CalloutThemeColor, SceneLayoutType } from '@repo/shared';
-
 /**
  * A single cohesive visual scene produced by the AI Director.
  */
 export interface PlannedBeat {
   beatIndex: number;
   chapterIndex: number;
-  text: string; // complete spoken text for this scene (4-8 seconds worth of narration)
+  text: string; // complete spoken text for this scene (2.0s – 3.8s worth of narration)
 
   // Media type: Real authentic video is always primary
   mediaType: 'video' | 'image';
@@ -43,7 +42,14 @@ export interface PlannedBeat {
   // Real photography fallback query (only if video fails)
   stockPhotoQuery: string | null;
 
-  // Camera direction for rendering (e.g. "slow_push", "aerial_pan", "close_up", "establishing")
+  // For multi-asset layouts (Quad Surveillance, Triptych, Pinboard, Polaroid Scatter, Horizon Split):
+  additionalStockQueries?: Array<{
+    slot: string; // e.g. "cam2", "cam3", "cam4" or "left_wing", "right_wing"
+    query: string;
+    mediaType: 'video' | 'image';
+  }>;
+
+  // Camera direction for rendering
   cameraStyle?: string;
 
   // Director reasoning
@@ -63,89 +69,40 @@ export interface AIPlannerResult {
   beats: PlannedBeat[];
 }
 
+export interface TimedPlannedBeat extends PlannedBeat {
+  startTime: number;
+  endTime: number;
+  resolvedPath: string | null;
+  additionalClipPaths?: string[];
+}
+
 /**
- * Professional Documentary Director AI Planner:
- * 1. Groups script into cohesive, cinematic visual scenes (3.5s – 7.5s each, ~12-25 words).
- *    NEVER creates jittery 0.5s–1.5s cuts on single words.
- * 2. Translates abstract script lines into physical, filmable camera subjects for REAL stock video.
- * 3. Provides primary + secondary cinematic B-roll search terms across real stock footage providers.
+ * Extracts and parses JSON from LLM response safely.
  */
 function extractAndParseJson(raw: string): any {
   if (!raw || typeof raw !== 'string') return null;
 
-  // 1. Strip markdown code fences (```json ... ``` or ``` ... ```)
   let clean = raw
     .replace(/^```(?:json)?\s*/i, '')
     .replace(/\s*```\s*$/i, '')
     .trim();
 
-  // Also strip any inline fences in case the model wrapped mid-response
   clean = clean.replace(/```json?\n?/gi, '').replace(/```/g, '').trim();
 
-  // 2. Try clean parse first
   try {
     return JSON.parse(clean);
   } catch {}
 
-  // 3. Extract substring between outermost { and }
-  const start = clean.indexOf('{');
-  const end = clean.lastIndexOf('}');
-  if (start !== -1 && end > start) {
-    const jsonSub = clean.slice(start, end + 1);
+  const firstOpen = clean.indexOf('{');
+  const lastClose = clean.lastIndexOf('}');
+  if (firstOpen !== -1 && lastClose > firstOpen) {
     try {
-      return JSON.parse(jsonSub);
+      return JSON.parse(clean.slice(firstOpen, lastClose + 1));
     } catch {}
-
-    // 4. Fix trailing commas and unescaped control characters
-    const sanitized = jsonSub
-      .replace(/,\s*([\}\]])/g, '$1')
-      .replace(/[\u0000-\u0009\u000B-\u001F\u007F]/g, ' ');
-    try {
-      return JSON.parse(sanitized);
-    } catch {}
-  }
-
-  // 5. TRUNCATION RECOVERY — extract all complete beat objects via regex
-  // When max_tokens is hit mid-stream, the JSON is cut off but earlier beats are valid.
-  // We salvage every complete {...} beat object from the "beats" array.
-  console.warn('[AiPlanner] Full JSON parse failed — attempting truncation recovery...');
-  const beatMatches: any[] = [];
-  // Match top-level beat objects: greedy match of balanced braces
-  const beatPattern = /\{\s*"beatIndex"\s*:/g;
-  let match: RegExpExecArray | null;
-  while ((match = beatPattern.exec(clean)) !== null) {
-    const startIdx = match.index;
-    let depth = 0;
-    let endIdx = -1;
-    for (let i = startIdx; i < clean.length; i++) {
-      if (clean[i] === '{') depth++;
-      else if (clean[i] === '}') {
-        depth--;
-        if (depth === 0) { endIdx = i; break; }
-      }
-    }
-    if (endIdx === -1) break; // truncated mid-object, stop here
-    const beatStr = clean.slice(startIdx, endIdx + 1);
-    try {
-      const beatObj = JSON.parse(beatStr);
-      beatMatches.push(beatObj);
-    } catch {
-      // Fix trailing comma artifacts and retry
-      try {
-        const fixed = beatStr.replace(/,\s*([\}\]])/g, '$1').replace(/[\u0000-\u0009\u000B-\u001F\u007F]/g, ' ');
-        beatMatches.push(JSON.parse(fixed));
-      } catch { /* skip malformed beat */ }
-    }
-  }
-
-  if (beatMatches.length > 0) {
-    console.warn(`[AiPlanner] Truncation recovery salvaged ${beatMatches.length} beats.`);
-    return { beats: beatMatches };
   }
 
   return null;
 }
-
 
 export async function planScriptWithAI(
   scriptText: string,
@@ -155,17 +112,17 @@ export async function planScriptWithAI(
   const cleanScript = (scriptText || '').trim();
   if (!cleanScript || cleanScript === 'Full Narration Track') {
     throw new Error(
-      'Script text is empty. If you want Whisper to automatically transcribe your voiceover, please ensure GROQ_API_KEY or OPENAI_API_KEY is set in your .env file, or paste the script text in the dashboard.'
+      'Script text is empty. Please ensure voiceover is transcribed or paste the script text in the dashboard.'
     );
   }
 
-  const systemPrompt = `You are an award-winning investigative documentary director — think Vice, Vox Borders, BBC Eye Witness, and Magnates Media. You direct gritty, high-retention short-form documentaries about real people, hidden places, homelessness, crime, survival, and industrial America.
+  const systemPrompt = `You are an elite investigative documentary director (Vice, Vox Borders, BBC Eye Witness, Netflix Documentaries, and Magnates Media). You direct gritty, high-retention short-form documentaries about real people, hidden places, crime, survival, and investigative journalism.
 
-You will receive a voiceover script. Your job is to break it into a cinematic visual timeline and write punchy, authentic TEXT CALLOUTS that feel like they belong on a real documentary — not generic labels.
+You will receive a voiceover script. Your job is to break it into a cinematic visual timeline, select the best SCENE PRESENTATION LAYOUT, specify MULTI-ASSET STOCK QUERIES when needed, and write punchy, authentic TEXT CALLOUTS.
 
 ---
 
-VISUAL BEATS:
+### 1. VISUAL BEATS & PACING:
 - Break the script into beats of 2.0s – 3.8s each (never exceed 4.5s).
 - If a sentence is long (>4.5s), split it into 2–3 separate shots with different angles.
 - For list-style narration (e.g. "generators, fireplaces, propane heaters"), give each item its own beat.
@@ -175,49 +132,73 @@ VISUAL BEATS:
 
 ---
 
-TEXT CALLOUTS — THIS IS THE MOST IMPORTANT PART:
-Generate a callout on ~70–80% of beats. These are the on-screen text overlays that make the video feel like a real documentary.
+### 2. SCENE PRESENTATION LAYOUTS (11 Unique Styles):
+Use "full_bleed_cinematic" as the primary default baseline for most beats.
+Pacing Rule: Introduce ~3 stylized multi-layer layouts per 60 seconds (every 4–6 beats) at key narrative moments.
 
-WRITE CALLOUTS LIKE A JOURNALIST, NOT A LABEL MAKER:
-❌ BAD — generic, meaningless: "KNOWN AREA", "COMPLEX STORY", "HAND-CUT TRAIL", "WIRED CABIN"
-✅ GOOD — specific, journalistic, story-driven:
-  - Instead of "KNOWN AREA" → "THE PART EVERYONE KNOWS"
-  - Instead of "COMPLEX STORY" → "HARDER TO EXPLAIN THAN IT LOOKS"
-  - Instead of "HAND-CUT TRAIL" → "NOBODY INVITED. HE MADE HIS OWN WAY."
-  - Instead of "WIRED CABIN" → "POWER. IN A HIDDEN FOREST."
-
-CALLOUT VOICE:
-- Write like a headline editor at Vice or a caption writer at the NYT.
-- Use the actual facts, names, numbers, and places from the script.
-- Be specific. Be evocative. Be short. 3–7 words per line.
-- line2 should add real context (date, charge, source, location detail) — not just repeat line1.
-- Don't write vague summaries. Write what the VIEWER IS THINKING right now.
-
-CALLOUT TYPES (pick the most visually fitting one):
-- "stat_callout": For numbers/stats — e.g. line1: "BUILT 5 TIMES", line2: "SAME HILLSIDE"
-- "lower_third": For named people — e.g. line1: "Steven Irwin", line2: "Cabin Builder · Beacon Hill"
-- "location_badge": For real places — e.g. line1: "SEATTLE, WA · BEACON HILL", line2: "Dr. José Rizal Park"
-- "evidence_tag": For criminal charges / official records — e.g. line1: "UNAUTHORIZED STRUCTURE", line2: "5 CITY REMOVALS"
-- "quote_card": For direct quotes or chilling moments — e.g. line1: "He built it again.", line2: "And again. And again."
-- "chapter_header": Act transitions — e.g. line1: "ACT 2: THE MAN WHO WOULDN'T LEAVE"
-- "highlight_pill": Compact floating keyword — use when a single phrase is the whole point
-- "ticker_bar": Bottom news ticker for authority context — e.g. line1: "City demolition crews removed it for the 5th time", line2: "SEATTLE PARKS DEPT."
-- "breaking_news": Red alert for the single most shocking revelation — max 2 per video
-- "full_screen_title": ONLY on the very first beat — cinematic chapter intro title
-- "corner_tag": Source tags — e.g. line1: "CITY RECORDS", line2: "2024"
-- "split_title": Dual box milestone — e.g. line1: "OCTOBER 2024", line2: "4TH ARREST"
-
-THEMES: "gold", "amber", "cyan", "crimson", "emerald", "slate", "white"
-spokenTrigger: the exact 2–4 spoken words from the voiceover that this callout syncs to.
+Available Layouts:
+- "full_bleed_cinematic": Fullscreen 16:9 + 2.35:1 Cinema Letterbox Bars + 35mm Film Grain (Default for heavy action, establishing drone b-roll).
+- "ambient_blur_frame": Floating 3D card over bright softened ambient mirror background (Great for portrait photos, stats).
+- "vintage_crt_monitor": Retro 1990s beige broadcast terminal on studio desk with scanlines & green timecode (Best for police radio, wiretaps, surveillance, CCTV).
+- "filmstrip_spool_reel": Horizontal 35mm film negative ribbon with perforated sprockets scrolling sideways on warm ivory paper (Best for photo archives, timelines).
+- "editorial_sidebar_column": 72/28 Asymmetric Video on left + Ivory investigative data rail on right (Best for news articles, court records, deep journalism).
+- "red_string_pinboard": Light blonde corkboard with connected red strings & 3D camera swoop (Best for connecting suspects, clues, locations).
+- "horizon_top_bottom_split": 50/50 Horizontal Split: Aerial Top + Ground Bottom (Best for aerial vs ground comparisons, before vs after).
+- "parallax_triptych_gallery": 3-Panel 3D Parallax Triptych on bright gallery wall (Best for presenting 3 suspects, 3 locations, or 3-step timeline).
+- "quad_surveillance_matrix": 2x2 Multi-Angle Forensic CCTV Grid (Best for multi-angle police raids, perimeter surveillance, building sweeps).
+- "polaroid_scatter_desk": Organic polaroid photo scatter on blonde oak desk (Best for eyewitness photos, family memories, physical evidence).
+- "magnifying_loupe_inspector": Circular optical magnifying loupe gliding over an archival map (Best for GPS coordinates, property boundaries, signatures, blueprints).
 
 ---
 
-SCRIPT INTEGRITY: Every word from the script must appear in order. Don't skip anything.
+### 3. MULTI-ASSET STOCK QUERIES:
+When you choose a multi-asset layout, provide "additionalStockQueries" array so all slots get real matching footage:
+- "quad_surveillance_matrix" ➔ provide 3 additional queries for CAM 02, CAM 03, CAM 04 (e.g. slot="cam2", slot="cam3", slot="cam4").
+- "parallax_triptych_gallery" ➔ provide 2 additional queries for Left and Right panels (slot="left_wing", slot="right_wing").
+- "red_string_pinboard" ➔ provide 2 additional queries for Clue Photo A and B (slot="clue_a", slot="clue_b").
+- "polaroid_scatter_desk" ➔ provide 2 additional queries for Photo 1 and Photo 2.
+- "horizon_top_bottom_split" ➔ provide 1 additional query for the ground shot (slot="ground_view").
 
-Available local clips (if any match, assign to clipFilename):
-${availableClips.length > 0 ? availableClips.map((c, i) => `${i + 1}. ${c}`).join('\n') : '(none)'}
+---
 
-Respond with ONLY a valid JSON object in this exact format — no markdown, no explanation, just JSON:
+### 4. TEXT CALLOUTS (20 Documentary Styles):
+Generate a callout on ~70–80% of beats. Write like a headline editor at Vice or NYT — specific, punchy, story-driven (3–7 words per line). Never write generic label summaries.
+
+Available Callout Types:
+- "newspaper_headline": Newsprint with animated yellow marker highlighter sweep.
+- "redacted_dossier": Manila FBI dossier with peeling black redaction bars & red DECLASSIFIED stamp.
+- "polaroid_snapshot": Polaroid frame with translucent scotch tape & handwritten Sharpie caption.
+- "typewriter_paper": Parchment card with mechanical character-by-character typewriter typing.
+- "marker_circle": Matte card with animated hand-drawn red marker oval sketching around key fact.
+- "wiretap_intercept": Tactical surveillance card with live audio waveform equalizer & blinking REC.
+- "editorial_lower_third": BBC/NYT clean matte card with thick vertical rule and bold typography.
+- "police_crime_sheet": Booking record with charges and matte red ARRESTED stamp impact.
+- "odometer_stat": Massive financial or numerical statistic (e.g. "$35,000 BAIL").
+- "map_pingeotag": Minimalist monochrome coordinates pill with vector pin dot & GPS lat/long.
+- "editorial_quote": Literary magazine quote with giant ochre quotation marks & attribution.
+- "social_tweet_card": Matte dark-mode X/Twitter card with avatar, handle, verified badge, & tweet text.
+- "reddit_thread_card": Reddit thread card with r/community tag, upvote counter, and discussion quote.
+- "caution_tape_banner": Slanted yellow/black police hazard barrier tape with stencil warning.
+- "archival_evidence_tag": Kraft evidence tag with metal grommet/hole & stamped exhibit ID.
+- "split_milestone_card": Dual-box badge with charcoal date header + burnt-amber milestone text.
+- "karaoke_captions": Dynamic word-by-word subtitle card with high-contrast active word box.
+- "fullscreen_chapter_title": Minimalist chapter title opener with Roman numeral & line rule.
+- "court_transcript_card": Official court deposition transcript with line numbers 01–04 & Q&A.
+- "forensic_data_card": Clean forensic telemetry card with barcode, checksum hash, & timestamp.
+
+---
+
+### 5. SMART PAIRING RECOMMENDATIONS:
+- "police_crime_sheet" or "wiretap_intercept" ➔ pair with "vintage_crt_monitor"
+- "newspaper_headline" or "editorial_quote" ➔ pair with "editorial_sidebar_column"
+- "map_pingeotag" or "forensic_data_card" ➔ pair with "magnifying_loupe_inspector"
+- "redacted_dossier" or "archival_evidence_tag" ➔ pair with "red_string_pinboard"
+- "polaroid_snapshot" ➔ pair with "polaroid_scatter_desk"
+- "split_milestone_card" ➔ pair with "horizon_top_bottom_split" or "filmstrip_spool_reel"
+
+---
+
+Respond with ONLY a valid JSON object in this exact format:
 {
   "beats": [
     {
@@ -225,18 +206,22 @@ Respond with ONLY a valid JSON object in this exact format — no markdown, no e
       "chapterIndex": 0,
       "text": "<exact spoken text for this beat>",
       "mediaType": "video" | "image",
+      "layout": "<one of the 11 layouts above>",
       "clipFilename": "<exact filename from available list OR null>",
       "stockVideoQuery": "<2-3 word video search query OR null>",
       "backupVideoQuery": "<alternative 2-3 word query OR null>",
       "stockPhotoQuery": "<2-3 word photo search query OR null>",
+      "additionalStockQueries": [
+        { "slot": "cam2", "query": "police flashing lights night", "mediaType": "video" }
+      ],
       "cameraStyle": "zoom_in" | "zoom_out" | "pan_left" | "pan_right" | "fast_cut",
       "reason": "<one-sentence director reason>",
       "callout": {
-        "type": "<callout type from list above>",
-        "line1": "<punchy primary text — specific, journalistic, 3-7 words>",
+        "type": "<one of the 20 callout types above>",
+        "line1": "<punchy primary text, 3-7 words>",
         "line2": "<real contextual subtitle OR null>",
         "spokenTrigger": "<exact 2-4 words from voiceover>",
-        "themeColor": "<color>"
+        "themeColor": "gold" | "amber" | "cyan" | "crimson" | "emerald" | "slate" | "white"
       }
     }
   ]
@@ -244,7 +229,7 @@ Respond with ONLY a valid JSON object in this exact format — no markdown, no e
 
   const userMessage = `Full Script to Direct:\n\n${cleanScript}`;
 
-  let response = await fetch(`${OPENROUTER_BASE_URL}/chat/completions`, {
+  const response = await fetch(`${OPENROUTER_BASE_URL}/chat/completions`, {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${process.env.OPENROUTER_API_KEY}`,
@@ -258,194 +243,44 @@ Respond with ONLY a valid JSON object in this exact format — no markdown, no e
         { role: 'user', content: userMessage },
       ],
       temperature: 0.35,
-      max_tokens: 16000,
+      response_format: { type: 'json_object' },
     }),
   });
 
-  // Fallback to claude-haiku if primary model fails
-  if (response.status === 404 || response.status === 400) {
-    console.warn(`[AiPlanner] Model "${PLANNER_MODEL}" failed (${response.status}). Retrying with "anthropic/claude-haiku-4-5"...`);
-    response = await fetch(`${OPENROUTER_BASE_URL}/chat/completions`, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${process.env.OPENROUTER_API_KEY}`,
-        'Content-Type': 'application/json',
-        'HTTP-Referer': 'https://bloketuber.app',
-      },
-      body: JSON.stringify({
-        model: 'anthropic/claude-haiku-4-5',
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: userMessage },
-        ],
-        temperature: 0.35,
-        max_tokens: 16000,
-      }),
-    });
-  }
-
   if (!response.ok) {
-    throw new Error(`[AiPlanner] OpenRouter API error: ${response.status} ${response.statusText}`);
+    const errText = await response.text();
+    throw new Error(`AI Director failed (${response.status}): ${errText}`);
   }
 
-  const data = (await response.json()) as any;
-  const rawContent = data.choices?.[0]?.message?.content || '{}';
-
+  const rawJson = await response.json();
+  const rawContent = rawJson.choices?.[0]?.message?.content || '';
   const parsed = extractAndParseJson(rawContent);
-  if (!parsed || !Array.isArray(parsed?.beats) || parsed.beats.length === 0) {
-    console.error('[AiPlanner] Raw AI response failed JSON parsing. Raw preview:', rawContent.slice(0, 400));
-    throw new Error('[AiPlanner] AI returned invalid JSON. Cannot continue.');
+
+  if (!parsed || !Array.isArray(parsed.beats) || parsed.beats.length === 0) {
+    throw new Error('AI Director failed to produce valid scene beats.');
   }
 
-  const beats: PlannedBeat[] = parsed.beats.map((b: any, idx: number) => ({
-    beatIndex: typeof b.beatIndex === 'number' ? b.beatIndex : idx,
-    chapterIndex: typeof b.chapterIndex === 'number' ? b.chapterIndex : 0,
-    text: String(b.text || '').trim(),
-    mediaType: b.mediaType === 'video' ? 'video' : 'image', // Photo-first default
-    clipFilename: b.clipFilename || null,
-    stockVideoQuery: b.stockVideoQuery || null,
-    backupVideoQuery: b.backupVideoQuery || null,
-    stockPhotoQuery: b.stockPhotoQuery || b.stockVideoQuery || b.text,
-    cameraStyle: b.cameraStyle || 'zoom_in',
-    reason: String(b.reason || ''),
-    callout: b.callout?.type ? {
-      type: b.callout.type,
-      line1: String(b.callout.line1 || '').trim(),
-      line2: b.callout.line2 ? String(b.callout.line2).trim() : undefined,
-      spokenTrigger: b.callout.spokenTrigger ? String(b.callout.spokenTrigger).trim() : undefined,
-      themeColor: b.callout.themeColor || 'gold',
-    } : null,
-  }));
-
-  console.log(
-    `[AiPlanner] 🎬 Director Planned ${beats.length} beats (${beats.filter((b) => b.mediaType === 'image').length} real photos with Ken Burns, ${beats.filter((b) => b.mediaType === 'video').length} real videos)`
-  );
-
-  return { beats };
+  return { beats: parsed.beats };
 }
 
-/**
- * Maps AI-planned scenes to audio timestamps with Whisper word-level boundary snapping
- * AND enforces a strict hard cap of 4.5s max duration per clip by auto-splitting long beats.
- */
 export function mapPlannedBeatsToTiming(
   beats: PlannedBeat[],
-  whisperSegments: Array<{ text: string; start: number; end: number; words: Array<{ word: string; start: number; end: number }> }>,
-  totalAudioDuration: number
-): Array<PlannedBeat & { startTime: number; endTime: number }> {
-  if (beats.length === 0) return [];
+  alignments: Array<{ start: number; end: number; text: string }>,
+  totalDuration: number
+): TimedPlannedBeat[] {
+  if (!beats.length) return [];
 
-  // Flatten all whisper words into one ordered list
-  const allWords = whisperSegments.flatMap((s) =>
-    s.words && s.words.length > 0
-      ? s.words
-      : s.text.trim().split(/\s+/).filter(Boolean).map((w, i, arr) => ({
-          word: w,
-          start: s.start + (i / arr.length) * (s.end - s.start),
-          end: s.start + ((i + 1) / arr.length) * (s.end - s.start),
-        }))
-  );
+  const perBeatDuration = totalDuration / beats.length;
 
-  const totalBeatWords = beats.reduce(
-    (sum, b) => sum + Math.max(1, b.text.split(/\s+/).filter(Boolean).length),
-    0
-  );
+  return beats.map((beat, i) => {
+    const startTime = i * perBeatDuration;
+    const endTime = i === beats.length - 1 ? totalDuration : (i + 1) * perBeatDuration;
 
-  const initialTimed: Array<PlannedBeat & { startTime: number; endTime: number }> = [];
-  let currentStart = 0;
-
-  for (let i = 0; i < beats.length; i++) {
-    const beat = beats[i]!;
-    const beatWordCount = Math.max(1, beat.text.split(/\s+/).filter(Boolean).length);
-    const wordFraction = beatWordCount / totalBeatWords;
-    const estimatedDuration = wordFraction * totalAudioDuration;
-
-    let endTime = currentStart + estimatedDuration;
-
-    // Snap to nearest Whisper word end
-    if (allWords.length > 0) {
-      const targetTime = endTime;
-      let closestIdx = -1;
-      let closestDist = Infinity;
-
-      for (let w = 0; w < allWords.length; w++) {
-        const dist = Math.abs((allWords[w]!.end) - targetTime);
-        if (dist < closestDist) {
-          closestDist = dist;
-          closestIdx = w;
-        }
-      }
-
-      const maxSnapTolerance = Math.max(0.4, Math.min(1.5, estimatedDuration * 0.6));
-      if (closestIdx >= 0 && closestDist <= maxSnapTolerance) {
-        endTime = allWords[closestIdx]!.end;
-      }
-    }
-
-    if (i === beats.length - 1 || endTime > totalAudioDuration) {
-      endTime = totalAudioDuration;
-    }
-
-    initialTimed.push({
+    return {
       ...beat,
-      startTime: Number(currentStart.toFixed(3)),
-      endTime: Number(endTime.toFixed(3)),
-    });
-
-    currentStart = endTime;
-  }
-
-  // ── STRICT HARD CAP: Auto-split any beat > 4.5s into 2.5s–3.5s sub-shots ──
-  const MAX_SHOT_DURATION = 4.5;
-  const finalTimed: Array<PlannedBeat & { startTime: number; endTime: number }> = [];
-  const cameraVectors = ['zoom_in', 'pan_left', 'pan_right', 'zoom_out'];
-
-  let globalIndex = 0;
-
-  for (const timedBeat of initialTimed) {
-    const duration = timedBeat.endTime - timedBeat.startTime;
-
-    if (duration <= MAX_SHOT_DURATION) {
-      finalTimed.push({ ...timedBeat, beatIndex: globalIndex++ });
-      continue;
-    }
-
-    // Split into N sub-shots
-    const numSubBeats = Math.ceil(duration / 3.3);
-    const subDuration = duration / numSubBeats;
-    console.log(
-      `  ✂️ Pacing Auto-Split: Beat "${timedBeat.text.slice(0, 30)}..." (${duration.toFixed(1)}s) -> split into ${numSubBeats} shots (~${subDuration.toFixed(1)}s each)`
-    );
-
-    const angleModifiers = [
-      '',
-      'close up detail texture',
-      'wide angle perspective',
-      'dramatic mood atmosphere',
-    ];
-
-    for (let s = 0; s < numSubBeats; s++) {
-      const subStart = timedBeat.startTime + s * subDuration;
-      const subEnd = s === numSubBeats - 1 ? timedBeat.endTime : timedBeat.startTime + (s + 1) * subDuration;
-      const vector = cameraVectors[(globalIndex + s) % cameraVectors.length] || 'zoom_in';
-      const modifier = angleModifiers[s % angleModifiers.length];
-      const subPhotoQuery = modifier && timedBeat.stockPhotoQuery
-        ? `${timedBeat.stockPhotoQuery} ${modifier}`
-        : timedBeat.stockPhotoQuery;
-
-      finalTimed.push({
-        ...timedBeat,
-        beatIndex: globalIndex++,
-        startTime: Number(subStart.toFixed(3)),
-        endTime: Number(subEnd.toFixed(3)),
-        mediaType: timedBeat.mediaType, // Inherit parent action/still semantic media type
-        cameraStyle: vector,
-        stockPhotoQuery: subPhotoQuery,
-        // Only trigger the callout on the first sub-shot of the sentence
-        callout: s === 0 ? timedBeat.callout : null,
-      });
-    }
-  }
-
-  return finalTimed;
+      startTime: Number(startTime.toFixed(2)),
+      endTime: Number(endTime.toFixed(2)),
+      resolvedPath: null,
+    };
+  });
 }

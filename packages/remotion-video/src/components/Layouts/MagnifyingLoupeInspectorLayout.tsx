@@ -1,5 +1,5 @@
 import React from 'react';
-import { Img, interpolate, OffthreadVideo, useCurrentFrame, useVideoConfig } from 'remotion';
+import { interpolate, OffthreadVideo, useCurrentFrame, useVideoConfig } from 'remotion';
 import { TimelineClip } from '../../types';
 import { CalloutDispatcher } from '../Callouts/CalloutDispatcher';
 
@@ -21,7 +21,7 @@ export const MagnifyingLoupeInspectorLayout: React.FC<LayoutProps> = ({
 
   const isImage =
     clip.mediaType === 'image' ||
-    (clip.clipPath && /\.(jpg|jpeg|png|webp|avif)$/i.test(clip.clipPath)) ||
+    (clip.clipPath && /\.(jpg|jpeg|png|webp|avif|svg)$/i.test(clip.clipPath)) ||
     !clip.clipPath;
 
   const progress = durationInFrames > 0 ? frame / durationInFrames : 0;
@@ -83,8 +83,9 @@ export const MagnifyingLoupeInspectorLayout: React.FC<LayoutProps> = ({
         {/* Media inside optical circle */}
         {clip.clipPath ? (
           isImage ? (
-            <Img
+            <img
               src={clip.clipPath}
+              alt=""
               style={{
                 width: '120%',
                 height: '120%',

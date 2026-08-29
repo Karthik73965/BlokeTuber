@@ -502,7 +502,52 @@ async function runPipeline(params: {
       }
     }
 
-    timedBeats.push({ ...beat, resolvedPath });
+    // 4. Fetch additional multi-asset stock items for multi-angle layouts (Quad Surveillance, Triptych, etc.)
+    const additionalClipPaths: string[] = [];
+    if (beat.additionalStockQueries && beat.additionalStockQueries.length > 0) {
+      for (let sIdx = 0; sIdx < beat.additionalStockQueries.length; sIdx++) {
+        const sub = beat.additionalStockQueries[sIdx];
+        if (sub.mediaType === 'video') {
+          const v = await findStockFootage(sub.query, null, usedMediaUrls);
+          if (v) {
+            const dest = path.join(stockDir, `video_${i}_sub_${sIdx}.mp4`);
+            try {
+              await downloadStockVideo(v, dest);
+              additionalClipPaths.push(dest);
+              newlyUsedMedia.push({
+                id: v.url,
+                url: v.url,
+                source: v.source,
+                mediaType: 'video',
+                chapterIndex: chapterIndex || 1,
+                query: sub.query,
+                usedAt: new Date().toISOString(),
+              });
+            } catch { /* ignore */ }
+          }
+        } else {
+          const p = await findStockPhoto(sub.query, usedMediaUrls);
+          if (p) {
+            const dest = path.join(stockDir, `photo_${i}_sub_${sIdx}.jpg`);
+            try {
+              await downloadStockPhoto(p, dest);
+              additionalClipPaths.push(dest);
+              newlyUsedMedia.push({
+                id: p.id || p.url,
+                url: p.url,
+                source: p.source,
+                mediaType: 'image',
+                chapterIndex: chapterIndex || 1,
+                query: sub.query,
+                usedAt: new Date().toISOString(),
+              });
+            } catch { /* ignore */ }
+          }
+        }
+      }
+    }
+
+    timedBeats.push({ ...beat, resolvedPath, additionalClipPaths });
   }
 
   // Persist newly used media to the project

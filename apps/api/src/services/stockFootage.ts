@@ -346,7 +346,7 @@ export async function findStockPhoto(
           .map((photo: any) => ({
             source: 'pexels' as const,
             id: `pexels_${photo.id}`,
-            url: photo.src?.original || photo.src?.large2x || photo.src?.large || '',
+            url: photo.src?.large2x || photo.src?.large || photo.src?.original || '',
             previewUrl: photo.src?.medium || '',
             title: photo.alt || q1,
             width: photo.width || 1920,
@@ -395,7 +395,7 @@ export async function findStockPhoto(
             .map((photo: any) => ({
               source: 'pexels' as const,
               id: `pexels_${photo.id}`,
-              url: photo.src?.original || photo.src?.large2x || photo.src?.large || '',
+              url: photo.src?.large2x || photo.src?.large || photo.src?.original || '',
               previewUrl: photo.src?.medium || '',
               title: photo.alt || coreWords,
               width: photo.width || 1920,

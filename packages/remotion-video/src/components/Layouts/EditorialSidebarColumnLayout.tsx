@@ -1,5 +1,5 @@
 import React from 'react';
-import { Img, interpolate, OffthreadVideo, useCurrentFrame, useVideoConfig } from 'remotion';
+import { interpolate, OffthreadVideo, useCurrentFrame, useVideoConfig } from 'remotion';
 import { TimelineClip } from '../../types';
 import { CalloutDispatcher } from '../Callouts/CalloutDispatcher';
 
@@ -21,7 +21,7 @@ export const EditorialSidebarColumnLayout: React.FC<LayoutProps> = ({
 
   const isImage =
     clip.mediaType === 'image' ||
-    (clip.clipPath && /\.(jpg|jpeg|png|webp|avif)$/i.test(clip.clipPath)) ||
+    (clip.clipPath && /\.(jpg|jpeg|png|webp|avif|svg)$/i.test(clip.clipPath)) ||
     !clip.clipPath;
 
   const progress = durationInFrames > 0 ? frame / durationInFrames : 0;
@@ -30,6 +30,8 @@ export const EditorialSidebarColumnLayout: React.FC<LayoutProps> = ({
   const heroScale = interpolate(progress, [0, 1], [1.0, 1.05]);
   const totalSeconds = Math.floor(frame / fps);
   const secondsMod = String(totalSeconds % 60).padStart(2, '0');
+
+  const contextSrc = clip.additionalClipPaths?.[0] || clip.clipPath;
 
   return (
     <div
@@ -54,8 +56,9 @@ export const EditorialSidebarColumnLayout: React.FC<LayoutProps> = ({
       >
         {clip.clipPath ? (
           isImage ? (
-            <Img
+            <img
               src={clip.clipPath}
+              alt=""
               style={{
                 width: '100%',
                 height: '100%',
@@ -217,7 +220,11 @@ export const EditorialSidebarColumnLayout: React.FC<LayoutProps> = ({
               overflow: 'hidden',
               boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
             }}
-          />
+          >
+            {contextSrc && (
+              <img src={contextSrc} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+            )}
+          </div>
         </div>
       </div>
 

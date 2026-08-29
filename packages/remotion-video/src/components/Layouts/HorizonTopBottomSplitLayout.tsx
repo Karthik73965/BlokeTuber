@@ -1,5 +1,5 @@
 import React from 'react';
-import { Img, interpolate, OffthreadVideo, useCurrentFrame, useVideoConfig } from 'remotion';
+import { interpolate, OffthreadVideo, useCurrentFrame, useVideoConfig } from 'remotion';
 import { TimelineClip } from '../../types';
 import { CalloutDispatcher } from '../Callouts/CalloutDispatcher';
 
@@ -21,7 +21,7 @@ export const HorizonTopBottomSplitLayout: React.FC<LayoutProps> = ({
 
   const isImage =
     clip.mediaType === 'image' ||
-    (clip.clipPath && /\.(jpg|jpeg|png|webp|avif)$/i.test(clip.clipPath)) ||
+    (clip.clipPath && /\.(jpg|jpeg|png|webp|avif|svg)$/i.test(clip.clipPath)) ||
     !clip.clipPath;
 
   const progress = durationInFrames > 0 ? frame / durationInFrames : 0;
@@ -29,6 +29,8 @@ export const HorizonTopBottomSplitLayout: React.FC<LayoutProps> = ({
   // Synced counter-direction pans for top and bottom halves
   const topTranslateX = interpolate(progress, [0, 1], [-20, 20]);
   const bottomTranslateX = interpolate(progress, [0, 1], [20, -20]);
+
+  const groundSrc = clip.secondaryClipPath || clip.additionalClipPaths?.[0] || clip.clipPath;
 
   return (
     <div
@@ -58,8 +60,9 @@ export const HorizonTopBottomSplitLayout: React.FC<LayoutProps> = ({
         <div style={{ transform: `translateX(${topTranslateX}px)`, width: '105%', height: '100%' }}>
           {clip.clipPath ? (
             isImage ? (
-              <Img
+              <img
                 src={clip.clipPath}
+                alt=""
                 style={{
                   width: '100%',
                   height: '100%',
@@ -116,10 +119,11 @@ export const HorizonTopBottomSplitLayout: React.FC<LayoutProps> = ({
         }}
       >
         <div style={{ transform: `translateX(${bottomTranslateX}px)`, width: '105%', height: '100%' }}>
-          {clip.secondaryClipPath || clip.clipPath ? (
+          {groundSrc ? (
             isImage ? (
-              <Img
-                src={clip.secondaryClipPath || clip.clipPath!}
+              <img
+                src={groundSrc}
+                alt=""
                 style={{
                   width: '100%',
                   height: '100%',
@@ -129,7 +133,7 @@ export const HorizonTopBottomSplitLayout: React.FC<LayoutProps> = ({
               />
             ) : (
               <OffthreadVideo
-                src={clip.secondaryClipPath || clip.clipPath!}
+                src={groundSrc}
                 style={{
                   width: '100%',
                   height: '100%',

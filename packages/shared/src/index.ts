@@ -131,6 +131,7 @@ export interface TimelineClip {
   endTime: number;
   clipPath: string | null;
   secondaryClipPath?: string | null;
+  additionalClipPaths?: string[];
   mediaType?: 'video' | 'image';
   secondaryMediaType?: 'video' | 'image';
   layout?: SceneLayoutType;

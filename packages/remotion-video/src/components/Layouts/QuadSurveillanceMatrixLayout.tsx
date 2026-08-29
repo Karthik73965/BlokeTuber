@@ -1,5 +1,5 @@
 import React from 'react';
-import { Img, interpolate, OffthreadVideo, useCurrentFrame, useVideoConfig } from 'remotion';
+import { interpolate, OffthreadVideo, useCurrentFrame, useVideoConfig } from 'remotion';
 import { TimelineClip } from '../../types';
 import { CalloutDispatcher } from '../Callouts/CalloutDispatcher';
 
@@ -19,19 +19,14 @@ export const QuadSurveillanceMatrixLayout: React.FC<LayoutProps> = ({
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
 
-  const isImage =
-    clip.mediaType === 'image' ||
-    (clip.clipPath && /\.(jpg|jpeg|png|webp|avif)$/i.test(clip.clipPath)) ||
-    !clip.clipPath;
-
   const progress = durationInFrames > 0 ? frame / durationInFrames : 0;
   const matrixScale = interpolate(progress, [0, 1], [0.99, 1.02]);
 
   const cams = [
-    { id: 'CAM 01', loc: 'PERIMETER NORTH' },
-    { id: 'CAM 02', loc: 'PRIMARY ROADWAY' },
-    { id: 'CAM 03', loc: 'STRUCTURE REAR' },
-    { id: 'CAM 04', loc: 'OVERHEAD DRONE' },
+    { id: 'CAM 01', loc: 'PERIMETER NORTH', path: clip.clipPath },
+    { id: 'CAM 02', loc: 'PRIMARY ROADWAY', path: clip.additionalClipPaths?.[0] || clip.clipPath },
+    { id: 'CAM 03', loc: 'STRUCTURE REAR', path: clip.additionalClipPaths?.[1] || clip.clipPath },
+    { id: 'CAM 04', loc: 'OVERHEAD DRONE', path: clip.additionalClipPaths?.[2] || clip.clipPath },
   ];
 
   return (
@@ -49,58 +44,88 @@ export const QuadSurveillanceMatrixLayout: React.FC<LayoutProps> = ({
         transform: `scale(${matrixScale})`,
       }}
     >
-      {cams.map((cam, idx) => (
-        <div
-          key={cam.id}
-          style={{
-            backgroundColor: '#18181B',
-            borderRadius: 4,
-            border: '2px solid #64748B',
-            boxShadow: '0 10px 25px rgba(15, 23, 42, 0.15)',
-            position: 'relative',
-            overflow: 'hidden',
-          }}
-        >
-          {/* Active footage rendered in Primary Cam 01 */}
-          {idx === 0 && clip.clipPath ? (
-            isImage ? (
-              <Img
-                src={clip.clipPath}
-                style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-              />
-            ) : (
-              <OffthreadVideo
-                src={clip.clipPath}
-                style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-              />
-            )
-          ) : (
-            <div style={{ width: '100%', height: '100%', backgroundColor: '#141418' }} />
-          )}
+      {cams.map((cam, idx) => {
+        const mediaSrc = cam.path;
+        const isImg =
+          clip.mediaType === 'image' ||
+          (mediaSrc && /\.(jpg|jpeg|png|webp|avif|svg)$/i.test(mediaSrc));
 
-          {/* Camera ID OSD Overlay */}
+        // Slight independent zoom/crop variation if fallback is used
+        const isFallback = idx > 0 && !clip.additionalClipPaths?.[idx - 1] && clip.clipPath;
+        const angleScale = isFallback ? 1.08 + idx * 0.04 : 1.0;
+
+        return (
           <div
+            key={cam.id}
             style={{
-              position: 'absolute',
-              top: 10,
-              left: 12,
-              display: 'flex',
-              alignItems: 'center',
-              gap: 8,
-              backgroundColor: 'rgba(0, 0, 0, 0.75)',
-              padding: '2px 8px',
-              borderRadius: 2,
-              fontFamily: '"Courier New", Courier, monospace',
-              fontSize: 11,
-              fontWeight: 800,
-              color: '#38BDF8',
+              backgroundColor: '#18181B',
+              borderRadius: 4,
+              border: '2px solid #64748B',
+              boxShadow: '0 10px 25px rgba(15, 23, 42, 0.15)',
+              position: 'relative',
+              overflow: 'hidden',
             }}
           >
-            <div style={{ width: 6, height: 6, borderRadius: '50%', backgroundColor: '#EF4444' }} />
-            <span>{cam.id} // {cam.loc}</span>
+            {mediaSrc ? (
+              isImg ? (
+                <img
+                  src={mediaSrc}
+                  alt=""
+                  style={{
+                    width: '100%',
+                    height: '100%',
+                    objectFit: 'cover',
+                    transform: `scale(${angleScale})`,
+                    filter: isFallback ? `contrast(1.1) brightness(${0.9 + idx * 0.05})` : 'none',
+                  }}
+                />
+              ) : (
+                <OffthreadVideo
+                  src={mediaSrc}
+                  style={{
+                    width: '100%',
+                    height: '100%',
+                    objectFit: 'cover',
+                    transform: `scale(${angleScale})`,
+                    filter: isFallback ? `contrast(1.1) brightness(${0.9 + idx * 0.05})` : 'none',
+                  }}
+                />
+              )
+            ) : (
+              <div style={{ width: '100%', height: '100%', backgroundColor: '#141418' }} />
+            )}
+
+            {/* Camera ID OSD Overlay */}
+            <div
+              style={{
+                position: 'absolute',
+                top: 10,
+                left: 12,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+                backgroundColor: 'rgba(0, 0, 0, 0.75)',
+                padding: '2px 8px',
+                borderRadius: 2,
+                fontFamily: '"Courier New", Courier, monospace',
+                fontSize: 11,
+                fontWeight: 800,
+                color: '#38BDF8',
+              }}
+            >
+              <div
+                style={{
+                  width: 6,
+                  height: 6,
+                  borderRadius: '50%',
+                  backgroundColor: frame % 30 < 18 ? '#EF4444' : 'transparent',
+                }}
+              />
+              <span>{cam.id} // {cam.loc}</span>
+            </div>
           </div>
-        </div>
-      ))}
+        );
+      })}
 
       {/* ── OVERLAY CALLOUT LAYER ───────────────────────────────────── */}
       <CalloutDispatcher

@@ -149,7 +149,10 @@ export function buildTimeline(params: {
     numberCallouts,
   } = params;
 
-  const totalDuration = chapterTimings[chapterTimings.length - 1]?.end || 0;
+  const totalDuration =
+    chapterTimings[chapterTimings.length - 1]?.end ||
+    timedBeats[timedBeats.length - 1]?.endTime ||
+    0;
 
   const clips: TimelineClip[] = timedBeats.map((beat, i) => {
     const callout = numberCallouts.find((c) => c.beatIndex === beat.beatIndex);
@@ -250,6 +253,7 @@ export function buildTimeline(params: {
       mediaType: beat.mediaType,
       clipPath: beat.resolvedPath,
       layout: (beat as any).layout,
+      additionalClipPaths: (beat as any).additionalClipPaths || [],
       // Images get smooth fluid motion
       kenBurns: isImage,
       transitionType: 'cut',
