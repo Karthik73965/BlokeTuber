@@ -49,7 +49,7 @@ export const beats = pgTable('beats', {
   endTime: integer('end_time'), // ms
   matchedClipId: uuid('matched_clip_id'), // null if stock footage
   matchedClipPath: text('matched_clip_path'),
-  stockSource: text('stock_source'), // 'pexels' | 'pixabay' | 'coverr' | 'mixkit'
+  stockSource: text('stock_source'), // 'pexels' | 'pixabay' | 'coverr' | 'mixkit' | 'archive'
   stockUrl: text('stock_url'),
   hasNumberOverlay: boolean('has_number_overlay').default(false),
   overlayText: text('overlay_text'), // e.g. "$2,000"

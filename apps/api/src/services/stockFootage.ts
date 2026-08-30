@@ -15,7 +15,7 @@ for (const p of envPaths) {
 }
 
 export interface StockVideo {
-  source: 'pexels' | 'pixabay' | 'coverr' | 'mixkit';
+  source: 'pexels' | 'pixabay' | 'coverr' | 'mixkit' | 'archive';
   url: string;
   previewUrl: string;
   title: string;
@@ -53,6 +53,10 @@ const BANNED_IMAGE_TAGS = new Set([
   'render', 'sketch', 'paint', 'painting', 'anime', 'cgi', 'graphic'
 ]);
 
+/**
+ * Compress a raw AI query down to N significant keywords.
+ * Strips stop words, punctuation, and short filler words.
+ */
 export function compressQuery(raw: string, maxWords = 4): string {
   if (!raw) return '';
   const clean = raw.toLowerCase().replace(/[^a-z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim();
@@ -63,14 +67,11 @@ export function compressQuery(raw: string, maxWords = 4): string {
   return words.slice(0, maxWords).join(' ');
 }
 
-function cleanQuery(query: string): string {
-  return compressQuery(query, 4);
-}
-
-// --- PEXELS (High Quality HD / 4K Landscape) ---
+// --- PEXELS (High Quality HD / 4K Landscape) — supports up to 4-word queries ---
 async function searchPexels(query: string, perPage = 15): Promise<StockVideo[]> {
   const apiKey = process.env.PEXELS_API_KEY;
   if (!apiKey) return [];
+  // Pexels handles 4-word queries well
   const q = compressQuery(query, 4);
   if (!q) return [];
 
@@ -90,7 +91,6 @@ async function searchPexels(query: string, perPage = 15): Promise<StockVideo[]> 
           v.video_files?.find((f: any) => f.quality === 'hd') ||
           v.video_files?.[0];
 
-        // Extract meaningful semantic title from Pexels video URL slug
         let extractedTitle = q;
         if (v.url) {
           const parts = v.url.split('/').filter(Boolean);
@@ -120,11 +120,12 @@ async function searchPexels(query: string, perPage = 15): Promise<StockVideo[]> 
   }
 }
 
-// --- PIXABAY (High Quality HD Videos) ---
+// --- PIXABAY (High Quality HD Videos) — best with 3-word queries ---
 async function searchPixabay(query: string, perPage = 15): Promise<StockVideo[]> {
   const apiKey = process.env.PIXABAY_API_KEY;
   if (!apiKey) return [];
-  const q = compressQuery(query, 4);
+  // Pixabay degrades above 3 words — compress harder
+  const q = compressQuery(query, 3);
   if (!q) return [];
 
   try {
@@ -155,9 +156,10 @@ async function searchPixabay(query: string, perPage = 15): Promise<StockVideo[]>
   }
 }
 
-// --- COVERR ---
+// --- COVERR — max 2-word queries, loops well ---
 async function searchCoverr(query: string): Promise<StockVideo[]> {
-  const q = compressQuery(query, 3);
+  // Coverr breaks above 2 words
+  const q = compressQuery(query, 2);
   if (!q) return [];
 
   try {
@@ -184,9 +186,10 @@ async function searchCoverr(query: string): Promise<StockVideo[]> {
   }
 }
 
-// --- MIXKIT ---
+// --- MIXKIT — max 2-word queries ---
 async function searchMixkit(query: string): Promise<StockVideo[]> {
-  const q = compressQuery(query, 3);
+  // Mixkit also breaks above 2 words
+  const q = compressQuery(query, 2);
   if (!q) return [];
 
   try {
@@ -208,6 +211,76 @@ async function searchMixkit(query: string): Promise<StockVideo[]> {
         height: 1080,
       }))
       .filter((v: StockVideo) => v.url);
+  } catch {
+    return [];
+  }
+}
+
+// --- INTERNET ARCHIVE (Free, No API Key, Documentary / News / Crime Footage) ---
+// Archive.org has millions of public domain and CC-licensed video clips.
+// Particularly strong for: true crime, news broadcasts, documentaries, historical footage.
+// Direct MP4 download: https://archive.org/download/{identifier}/{identifier}.mp4
+async function searchInternetArchive(query: string, rows = 10): Promise<StockVideo[]> {
+  // Archive.org search works best with 3-word focused queries
+  const q = compressQuery(query, 3);
+  if (!q) return [];
+
+  try {
+    // Search only the movies mediatype, filter for HD landscape, sort by downloads (popularity)
+    const searchUrl = new URL('https://archive.org/advancedsearch.php');
+    searchUrl.searchParams.set(
+      'q',
+      `${q} AND mediatype:movies AND -subject:"animation" AND -subject:"cartoon"`
+    );
+    searchUrl.searchParams.set('fl[]', 'identifier,title,description,subject,downloads');
+    searchUrl.searchParams.set('sort[]', 'downloads desc');
+    searchUrl.searchParams.set('rows', String(rows));
+    searchUrl.searchParams.set('start', '0');
+    searchUrl.searchParams.set('output', 'json');
+
+    const response = await fetch(searchUrl.toString(), {
+      headers: { 'User-Agent': 'BlokeTuber/1.0 (documentary video automation)' },
+      signal: AbortSignal.timeout(6000),
+    });
+    if (!response.ok) return [];
+
+    const data = (await response.json()) as any;
+    const docs: any[] = data?.response?.docs || [];
+    if (docs.length === 0) return [];
+
+    // For each result, build the direct MP4 download URL and thumbnail
+    // Archive.org URL patterns:
+    //   video:   https://archive.org/download/{id}/{id}.mp4
+    //   thumb:   https://archive.org/services/img/{id}
+    const results: StockVideo[] = [];
+
+    for (const doc of docs) {
+      const id: string = doc.identifier;
+      if (!id) continue;
+
+      const videoUrl = `https://archive.org/download/${id}/${id}.mp4`;
+      const previewUrl = `https://archive.org/services/img/${id}`;
+      const title: string = doc.title || q;
+      const tags: string[] = [];
+      if (doc.subject) {
+        const raw = Array.isArray(doc.subject) ? doc.subject : [doc.subject];
+        tags.push(...raw.flatMap((s: string) => String(s).toLowerCase().split(/[,;]+/)).map((s: string) => s.trim()).filter(Boolean));
+      }
+
+      results.push({
+        source: 'archive' as const,
+        url: videoUrl,
+        previewUrl,
+        title,
+        tags,
+        // We don't know resolution upfront; assume 1280x720 minimum
+        // The download process will validate the file
+        width: 1280,
+        height: 720,
+      });
+    }
+
+    return results;
   } catch {
     return [];
   }
@@ -271,34 +344,45 @@ export function computeMetadataRelevanceScore(
 }
 
 /**
- * Fast AI Vision Verification using OpenRouter (e.g. openai/gpt-4o-mini).
- * Inspects candidate thumbnail preview to confirm it actually matches the visual subject.
+ * AI Vision Verification using OpenRouter (gpt-4o-mini).
+ * Inspects the candidate thumbnail and returns a confidence score 0–100.
+ * Clips scoring below VISION_SIMILARITY_THRESHOLD (50) are rejected.
  */
+const VISION_SIMILARITY_THRESHOLD = 50;
+
 export async function verifyStockCandidateWithVision(
   previewUrl: string,
   visualRequirement: string,
   candidateTitle: string
-): Promise<{ matches: boolean; reason: string }> {
+): Promise<{ matches: boolean; confidence: number; reason: string }> {
   const openrouterKey = process.env.OPENROUTER_API_KEY;
   if (!openrouterKey || !previewUrl || !previewUrl.startsWith('http')) {
-    return { matches: true, reason: 'Vision verification skipped (no API key or preview URL)' };
+    return { matches: true, confidence: 100, reason: 'Vision verification skipped (no key or URL)' };
   }
 
   try {
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 4000); // 4-second fast timeout
+    const timeout = setTimeout(() => controller.abort(), 4000);
 
     const prompt = `You are a strict documentary visual quality editor.
-We need a stock footage clip/photo that visually portrays this subject: "${visualRequirement}".
+We need a stock footage clip/photo that visually portrays: "${visualRequirement}".
 Candidate metadata: "${candidateTitle}".
 
-Look at the image preview. Does this preview image/video match the requested topic?
-Reject if it shows completely unrelated scenes (e.g. showing kitchen/dishwashing when we need a car seat, or showing modern luxury office when we need gritty van life).
+Look at the image preview. How well does it match the requested visual subject?
 
-Respond ONLY in JSON format:
+Score 0–100 where:
+  0  = completely wrong scene (e.g. kitchen when we need a car seat)
+  50 = loosely related but not ideal
+  100 = perfect match to the requested subject
+
+Rules:
+- Reject (score < 50) if the scene shows a completely different environment, wrong demographics, or unrelated subject matter.
+- Accept (score >= 50) if the core visual subject is present even if not perfect.
+
+Respond ONLY in JSON:
 {
-  "matches": true or false,
-  "reason": "short 1-sentence explanation"
+  "confidence": <integer 0-100>,
+  "reason": "<one sentence>"
 }`;
 
     const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
@@ -320,7 +404,7 @@ Respond ONLY in JSON format:
           },
         ],
         temperature: 0.1,
-        max_tokens: 100,
+        max_tokens: 120,
       }),
       signal: controller.signal,
     });
@@ -328,7 +412,7 @@ Respond ONLY in JSON format:
     clearTimeout(timeout);
 
     if (!res.ok) {
-      return { matches: true, reason: 'Vision verification fallback on HTTP error' };
+      return { matches: true, confidence: 100, reason: 'Vision fallback on HTTP error' };
     }
 
     const data = (await res.json()) as any;
@@ -336,14 +420,19 @@ Respond ONLY in JSON format:
     const cleanJson = content.replace(/```json?\n?/g, '').replace(/```/g, '').trim();
     const parsed = JSON.parse(cleanJson);
 
+    const confidence = Math.max(0, Math.min(100, Number(parsed.confidence ?? 100)));
+    const matches = confidence >= VISION_SIMILARITY_THRESHOLD;
+
     return {
-      matches: parsed.matches !== false,
-      reason: parsed.reason || 'Verified by AI Vision',
+      matches,
+      confidence,
+      reason: parsed.reason || `Confidence: ${confidence}%`,
     };
   } catch (err: any) {
-    return { matches: true, reason: `Vision check skipped: ${err.message}` };
+    return { matches: true, confidence: 100, reason: `Vision skipped: ${err.message}` };
   }
 }
+
 
 export interface StockSearchFilterOptions {
   visualSubject?: string;
@@ -352,8 +441,10 @@ export interface StockSearchFilterOptions {
 }
 
 /**
- * Searches all configured stock footage platforms simultaneously (Pexels, Pixabay, Coverr, Mixkit).
- * Automatically ranks results by relevance, enforces negative keyword filtering, runs AI vision check, and enforces uniqueness.
+ * Searches all configured stock footage platforms simultaneously.
+ * Sources: Pexels, Pixabay, Coverr, Mixkit, Internet Archive
+ * Automatically ranks results by relevance, enforces negative keyword filtering,
+ * runs AI vision check, and enforces uniqueness.
  */
 export async function findStockFootage(
   primaryQuery: string,
@@ -361,16 +452,17 @@ export async function findStockFootage(
   usedUrls?: Set<string>,
   options?: StockSearchFilterOptions
 ): Promise<StockVideo | null> {
-  const q1 = cleanQuery(primaryQuery);
+  const q1 = compressQuery(primaryQuery, 4); // use full 4-word for routing
   const visualReq = options?.visualSubject || primaryQuery;
-  console.log(`🔎 Searching Real Stock B-Roll [Query: "${q1}"] [Subject: "${visualReq}"]...`);
+  console.log(`🔎 Searching Stock B-Roll [Query: "${q1}"] [Subject: "${visualReq}"]...`);
 
-  // Tier 1: Search all 4 providers for primary query
-  const [pexels1, pixabay1, coverr1, mixkit1] = await Promise.allSettled([
+  // Tier 1: Search all 5 providers in parallel for primary query
+  const [pexels1, pixabay1, coverr1, mixkit1, archive1] = await Promise.allSettled([
     searchPexels(q1, 10),
     searchPixabay(q1, 10),
     searchCoverr(q1),
     searchMixkit(q1),
+    searchInternetArchive(q1, 8),
   ]);
 
   const pool1: StockVideo[] = [
@@ -378,6 +470,7 @@ export async function findStockFootage(
     ...(pixabay1.status === 'fulfilled' ? pixabay1.value : []),
     ...(coverr1.status === 'fulfilled' ? coverr1.value : []),
     ...(mixkit1.status === 'fulfilled' ? mixkit1.value : []),
+    ...(archive1.status === 'fulfilled' ? archive1.value : []),
   ];
 
   // Filter and score candidates
@@ -394,29 +487,34 @@ export async function findStockFootage(
     if (options?.useVisionVerification !== false && item.video.previewUrl) {
       const visionResult = await verifyStockCandidateWithVision(item.video.previewUrl, visualReq, item.video.title);
       if (!visionResult.matches) {
-        console.log(`  ❌ Rejected candidate [${item.video.source}]: "${item.video.title}" (Vision Reason: ${visionResult.reason})`);
+        console.log(`  ❌ Rejected [${item.video.source}]: "${item.video.title}" (Confidence: ${visionResult.confidence}% — ${visionResult.reason})`);
         continue;
       }
+      usedUrls?.add(item.video.url);
+      console.log(`  ✅ Selected [${item.video.source}]: "${item.video.title}" (Confidence: ${visionResult.confidence}% | Metadata: ${item.score})`);
+      return item.video;
     }
     usedUrls?.add(item.video.url);
-    console.log(`  ✅ Selected verified video [${item.video.source}]: "${item.video.title}" (Score: ${item.score})`);
+    console.log(`  ✅ Selected [${item.video.source}]: "${item.video.title}" (Metadata Score: ${item.score})`);
     return item.video;
   }
 
   // Tier 2: Try backup query if available
   if (backupQuery) {
-    const q2 = cleanQuery(backupQuery);
-    console.log(`  🔄 Trying Backup B-Roll Query [Query: "${q2}"]...`);
-    const [pexels2, pixabay2, coverr2] = await Promise.allSettled([
+    const q2 = compressQuery(backupQuery, 4);
+    console.log(`  🔄 Trying Backup Query ["${q2}"]...`);
+    const [pexels2, pixabay2, coverr2, archive2] = await Promise.allSettled([
       searchPexels(q2, 8),
       searchPixabay(q2, 8),
       searchCoverr(q2),
+      searchInternetArchive(q2, 6),
     ]);
 
     const pool2: StockVideo[] = [
       ...(pexels2.status === 'fulfilled' ? pexels2.value : []),
       ...(pixabay2.status === 'fulfilled' ? pixabay2.value : []),
       ...(coverr2.status === 'fulfilled' ? coverr2.value : []),
+      ...(archive2.status === 'fulfilled' ? archive2.value : []),
     ];
 
     const scored2 = pool2
@@ -432,28 +530,30 @@ export async function findStockFootage(
       if (options?.useVisionVerification !== false && item.video.previewUrl) {
         const visionResult = await verifyStockCandidateWithVision(item.video.previewUrl, visualReq, item.video.title);
         if (!visionResult.matches) {
-          console.log(`  ❌ Rejected candidate [${item.video.source}]: "${item.video.title}" (Vision Reason: ${visionResult.reason})`);
+          console.log(`  ❌ Rejected [${item.video.source}]: "${item.video.title}" (Confidence: ${visionResult.confidence}% — ${visionResult.reason})`);
           continue;
         }
       }
       usedUrls?.add(item.video.url);
-      console.log(`  ✅ Selected verified backup video [${item.video.source}]: "${item.video.title}" (Score: ${item.score})`);
+      console.log(`  ✅ Backup match [${item.video.source}]: "${item.video.title}" (Score: ${item.score})`);
       return item.video;
     }
   }
 
-  // Tier 3: Core keyword fallback with positive score requirement
-  const coreWords = q1.split(' ').slice(0, 2).join(' ');
+  // Tier 3: Core 2-keyword fallback — Pexels + Pixabay + Archive only
+  const coreWords = compressQuery(q1, 2);
   if (coreWords && coreWords !== q1) {
-    console.log(`  🔄 Trying Core Keyword Fallback [Query: "${coreWords}"]...`);
-    const [pexels3, pixabay3] = await Promise.allSettled([
+    console.log(`  🔄 Core Keyword Fallback ["${coreWords}"]...`);
+    const [pexels3, pixabay3, archive3] = await Promise.allSettled([
       searchPexels(coreWords, 6),
       searchPixabay(coreWords, 6),
+      searchInternetArchive(coreWords, 6),
     ]);
 
     const pool3: StockVideo[] = [
       ...(pexels3.status === 'fulfilled' ? pexels3.value : []),
       ...(pixabay3.status === 'fulfilled' ? pixabay3.value : []),
+      ...(archive3.status === 'fulfilled' ? archive3.value : []),
     ];
 
     const scored3 = pool3
@@ -468,6 +568,7 @@ export async function findStockFootage(
     if (scored3.length > 0) {
       const best = scored3[0]!.video;
       usedUrls?.add(best.url);
+      console.log(`  ✅ Core fallback [${best.source}]: "${best.title}"`);
       return best;
     }
   }
@@ -479,7 +580,7 @@ export async function findStockFootage(
 async function searchPixabayPhotos(query: string, perPage = 25): Promise<StockPhoto[]> {
   const apiKey = process.env.PIXABAY_API_KEY;
   if (!apiKey) return [];
-  const q = compressQuery(query, 4);
+  const q = compressQuery(query, 3); // Pixabay photos also degrade above 3 words
   if (!q) return [];
 
   try {
@@ -531,9 +632,9 @@ export async function findStockPhoto(
   if (!q1) return null;
 
   const visualReq = options?.visualSubject || rawQuery;
-  console.log(`📷 Searching Ultra-HD Real Photography [Query: "${q1}"] [Subject: "${visualReq}"]...`);
+  console.log(`📷 Searching Stock Photo [Query: "${q1}"] [Subject: "${visualReq}"]...`);
 
-  // Tier 1: Deep search Pexels (25) + Pixabay (25)
+  // Tier 1: Pexels (25) + Pixabay (25)
   const pexelsKey = process.env.PEXELS_API_KEY;
   const searchPromises: Promise<any>[] = [];
 
@@ -583,17 +684,21 @@ export async function findStockPhoto(
     if (options?.useVisionVerification !== false && item.photo.previewUrl) {
       const visionResult = await verifyStockCandidateWithVision(item.photo.previewUrl, visualReq, item.photo.title);
       if (!visionResult.matches) {
-        console.log(`  ❌ Rejected photo candidate [${item.photo.source}]: "${item.photo.title}" (Vision Reason: ${visionResult.reason})`);
+        console.log(`  ❌ Rejected photo [${item.photo.source}]: "${item.photo.title}" (Confidence: ${visionResult.confidence}% — ${visionResult.reason})`);
         continue;
       }
+      usedUrls?.add(item.photo.url);
+      if (item.photo.id) usedUrls?.add(item.photo.id);
+      console.log(`  ✅ Selected photo [${item.photo.source}]: "${item.photo.title}" (Confidence: ${visionResult.confidence}% | Metadata: ${item.score})`);
+      return item.photo;
     }
     usedUrls?.add(item.photo.url);
     if (item.photo.id) usedUrls?.add(item.photo.id);
-    console.log(`  ✅ Selected verified photo [${item.photo.source}]: "${item.photo.title}" (Score: ${item.score})`);
+    console.log(`  ✅ Selected photo [${item.photo.source}]: "${item.photo.title}" (Metadata Score: ${item.score})`);
     return item.photo;
   }
 
-  // Tier 2: 2-word compressed query
+  // Tier 2: 2-word compressed query fallback
   const coreWords = compressQuery(q1, 2);
   if (coreWords && coreWords !== q1) {
     console.log(`  🔄 Simplifying photo query: "${coreWords}"...`);
@@ -650,6 +755,7 @@ export async function findStockPhoto(
 /**
  * Download a stock video to local disk.
  * Automatically ensures faststart (moov atom at head) for instant, seamless decoding in Chromium & Remotion.
+ * For Internet Archive MKV sources, also handles format conversion to H.264 MP4.
  */
 export async function downloadStockVideo(
   video: StockVideo,
@@ -714,7 +820,7 @@ export interface StockSearchOption {
   url: string;
   previewUrl: string;
   title: string;
-  source: 'pexels' | 'pixabay' | 'coverr' | 'mixkit';
+  source: 'pexels' | 'pixabay' | 'coverr' | 'mixkit' | 'archive';
   mediaType: 'video' | 'image';
   width: number;
   height: number;
@@ -733,19 +839,21 @@ export async function searchAlternativeStock(
   if (!q) return [];
 
   if (mediaType === 'video') {
-    const [pexels, pixabay, coverr] = await Promise.allSettled([
+    const [pexels, pixabay, coverr, archive] = await Promise.allSettled([
       searchPexels(q, count * 2),
       searchPixabay(q, count * 2),
       searchCoverr(q),
+      searchInternetArchive(q, count),
     ]);
 
     const pool: StockVideo[] = [
       ...(pexels.status === 'fulfilled' ? pexels.value : []),
       ...(pixabay.status === 'fulfilled' ? pixabay.value : []),
       ...(coverr.status === 'fulfilled' ? coverr.value : []),
+      ...(archive.status === 'fulfilled' ? archive.value : []),
     ];
 
-    const filtered = pool
+    return pool
       .filter((v) => !usedUrls?.has(v.url))
       .slice(0, count)
       .map((v) => ({
@@ -758,8 +866,6 @@ export async function searchAlternativeStock(
         width: v.width || 1920,
         height: v.height || 1080,
       }));
-
-    return filtered;
   } else {
     const pexelsKey = process.env.PEXELS_API_KEY;
     const searchPromises: Promise<any>[] = [];
@@ -807,4 +913,3 @@ export async function searchAlternativeStock(
     return pool.filter((p) => !usedUrls?.has(p.url)).slice(0, count);
   }
 }
-

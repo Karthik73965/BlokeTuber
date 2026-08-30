@@ -21,6 +21,11 @@ export interface TimelineClip {
   stockSource?: string;
   stockUrl?: string;
 
+  // AI-generated stock search queries (preserved for audit, regeneration, and dedup)
+  stockVideoQuery?: string | null;
+  backupVideoQuery?: string | null;
+  stockPhotoQuery?: string | null;
+
   // Effects
   kenBurns: boolean; // apply slow zoom? (always true for images)
   transitionType: 'cut' | 'crossfade';
@@ -295,6 +300,10 @@ export function buildTimeline(params: {
       layout: (beat as any).layout,
       layoutData: (beat as any).layoutData,
       additionalClipPaths: (beat as any).additionalClipPaths || [],
+      // AI-generated stock search queries — preserved for audit, regeneration, and dedup
+      stockVideoQuery: beat.stockVideoQuery ?? null,
+      backupVideoQuery: beat.backupVideoQuery ?? null,
+      stockPhotoQuery: beat.stockPhotoQuery ?? null,
       // Images get smooth fluid motion
       kenBurns: isImage,
       transitionType: 'cut',

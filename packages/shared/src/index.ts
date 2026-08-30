@@ -32,7 +32,7 @@ export interface StockSearchOption {
   url: string;
   previewUrl: string;
   title: string;
-  source: 'pexels' | 'pixabay' | 'coverr' | 'mixkit';
+  source: 'pexels' | 'pixabay' | 'coverr' | 'mixkit' | 'archive';
   mediaType: 'video' | 'image';
   width: number;
   height: number;
