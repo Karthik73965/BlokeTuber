@@ -1,7 +1,7 @@
 import dotenv from 'dotenv';
 import path from 'path';
 import fs from 'fs';
-import { CalloutType, CalloutThemeColor, SceneLayoutType } from '@repo/shared';
+import { CalloutType, CalloutThemeColor, SceneLayoutType, SceneLayoutData } from '@repo/shared';
 import { findPhraseTimestamp, SegmentAlignment } from './whisperAlignment';
 
 const envPaths = [
@@ -32,6 +32,7 @@ export interface PlannedBeat {
 
   // Scene presentation layout
   layout?: SceneLayoutType;
+  layoutData?: SceneLayoutData;
 
   // If local clip library has a direct match
   clipFilename: string | null;
@@ -181,6 +182,7 @@ ${contextDirective ? `\n⚠️ STRICT DIRECTOR BRIEF:\n${contextDirective}\n` : 
 
 ### 5. MULTI-ASSET STOCK QUERIES:
 When you choose a multi-asset layout, provide "additionalStockQueries" array so all slots get real matching footage:
+- "editorial_sidebar_column" ➔ provide 1 additional image query for the right-column context thumbnail (slot="context_image", mediaType="image" e.g. archival document, location photograph, police report, or newspaper snippet).
 - "quad_surveillance_matrix" ➔ provide 3 additional queries for CAM 02, CAM 03, CAM 04 (e.g. slot="cam2", slot="cam3", slot="cam4").
 - "parallax_triptych_gallery" ➔ provide 2 additional queries for Left and Right panels (slot="left_wing", slot="right_wing").
 - "red_string_pinboard" ➔ provide 2 additional queries for Clue Photo A and B (slot="clue_a", slot="clue_b").

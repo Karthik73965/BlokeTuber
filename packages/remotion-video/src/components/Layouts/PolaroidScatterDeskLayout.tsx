@@ -19,10 +19,21 @@ export const PolaroidScatterDeskLayout: React.FC<LayoutProps> = ({
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
 
+  const isMediaImage = (src: string | null | undefined, fallback = true): boolean => {
+    if (!src) return fallback;
+    const clean = src.toLowerCase().split('?')[0] || '';
+    if (/\.(mp4|webm|mov|mkv|avi|m4v)$/i.test(clean) || /\.(mp4|webm|mov|mkv|avi|m4v)/i.test(src.toLowerCase())) {
+      return false;
+    }
+    if (/\.(jpg|jpeg|png|webp|avif|svg|gif|bmp)$/i.test(clean) || /\.(jpg|jpeg|png|webp|avif|svg|gif|bmp)/i.test(src.toLowerCase()) || src.startsWith('data:image/')) {
+      return true;
+    }
+    return fallback;
+  };
+
   const isImage =
     clip.mediaType === 'image' ||
-    (clip.clipPath && /\.(jpg|jpeg|png|webp|avif|svg)$/i.test(clip.clipPath)) ||
-    !clip.clipPath;
+    isMediaImage(clip.clipPath, true);
 
   const progress = durationInFrames > 0 ? frame / durationInFrames : 0;
 
@@ -31,8 +42,18 @@ export const PolaroidScatterDeskLayout: React.FC<LayoutProps> = ({
   const camTranslateY = interpolate(progress, [0, 1], [20, -10]);
   const camTranslateX = interpolate(progress, [0, 1], [-30, 20]);
 
-  const photo1 = clip.additionalClipPaths?.[0] || clip.clipPath;
-  const photo2 = clip.additionalClipPaths?.[1] || clip.clipPath;
+  const photo1 = clip.additionalClipPaths?.[0] || clip.secondaryClipPath || null;
+  const photo2 = clip.additionalClipPaths?.[1] || null;
+
+  const renderSlotMedia = (src: string | null | undefined, fallbackBg = '#27272A') => {
+    if (!src) return <div style={{ width: '100%', height: '100%', backgroundColor: fallbackBg }} />;
+    const isImg = isMediaImage(src, true);
+    return isImg ? (
+      <img src={src} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+    ) : (
+      <OffthreadVideo src={src} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+    );
+  };
 
   const defaultNotes = ['EXHIBIT A // EVIDENCE', 'SCENE ARCHIVE', 'PRIMARY RECORD'];
   const notes = clip.layoutData?.notes || defaultNotes;
@@ -75,9 +96,7 @@ export const PolaroidScatterDeskLayout: React.FC<LayoutProps> = ({
           }}
         >
           <div style={{ width: '100%', height: 200, backgroundColor: '#27272A', overflow: 'hidden' }}>
-            {photo1 && (
-              <img src={photo1} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-            )}
+            {renderSlotMedia(photo1)}
           </div>
           <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 700, color: '#44403C', marginTop: 6, textTransform: 'uppercase' }}>
             {notes[0] || defaultNotes[0]}
@@ -100,9 +119,7 @@ export const PolaroidScatterDeskLayout: React.FC<LayoutProps> = ({
           }}
         >
           <div style={{ width: '100%', height: 190, backgroundColor: '#27272A', overflow: 'hidden' }}>
-            {photo2 && (
-              <img src={photo2} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-            )}
+            {renderSlotMedia(photo2)}
           </div>
           <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 700, color: '#44403C', marginTop: 6, textTransform: 'uppercase' }}>
             {notes[1] || defaultNotes[1]}

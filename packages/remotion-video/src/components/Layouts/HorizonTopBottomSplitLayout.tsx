@@ -19,10 +19,21 @@ export const HorizonTopBottomSplitLayout: React.FC<LayoutProps> = ({
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
 
+  const isMediaImage = (src: string | null | undefined, fallback = true): boolean => {
+    if (!src) return fallback;
+    const clean = src.toLowerCase().split('?')[0] || '';
+    if (/\.(mp4|webm|mov|mkv|avi|m4v)$/i.test(clean) || /\.(mp4|webm|mov|mkv|avi|m4v)/i.test(src.toLowerCase())) {
+      return false;
+    }
+    if (/\.(jpg|jpeg|png|webp|avif|svg|gif|bmp)$/i.test(clean) || /\.(jpg|jpeg|png|webp|avif|svg|gif|bmp)/i.test(src.toLowerCase()) || src.startsWith('data:image/')) {
+      return true;
+    }
+    return fallback;
+  };
+
   const isImage =
     clip.mediaType === 'image' ||
-    (clip.clipPath && /\.(jpg|jpeg|png|webp|avif|svg)$/i.test(clip.clipPath)) ||
-    !clip.clipPath;
+    isMediaImage(clip.clipPath, true);
 
   const progress = durationInFrames > 0 ? frame / durationInFrames : 0;
 
@@ -31,6 +42,9 @@ export const HorizonTopBottomSplitLayout: React.FC<LayoutProps> = ({
   const bottomTranslateX = interpolate(progress, [0, 1], [20, -20]);
 
   const groundSrc = clip.secondaryClipPath || clip.additionalClipPaths?.[0] || clip.clipPath;
+  const isGroundImage =
+    clip.secondaryMediaType === 'image' ||
+    isMediaImage(groundSrc, true);
 
   return (
     <div
@@ -120,7 +134,7 @@ export const HorizonTopBottomSplitLayout: React.FC<LayoutProps> = ({
       >
         <div style={{ transform: `translateX(${bottomTranslateX}px)`, width: '105%', height: '100%' }}>
           {groundSrc ? (
-            isImage ? (
+            isGroundImage ? (
               <img
                 src={groundSrc}
                 alt=""
