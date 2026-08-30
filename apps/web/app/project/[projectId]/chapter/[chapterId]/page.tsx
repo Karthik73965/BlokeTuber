@@ -3,7 +3,7 @@
 import { useState, useCallback, useRef, useEffect, use } from 'react';
 import Link from 'next/link';
 import styles from '../../../../dashboard.module.css';
-import { Timeline, Chapter, Project } from '@repo/shared';
+import { Timeline, Chapter, Project, PacingSpeed } from '@repo/shared';
 import { RemotionPreviewModal } from '../../../../components/RemotionPreviewModal';
 import { ClipSwapModal } from '../../../../components/ClipSwapModal';
 
@@ -93,6 +93,7 @@ export default function ChapterStudioPage({
   const [isEditingScript, setIsEditingScript] = useState(false);
   const [scriptInput, setScriptInput] = useState('');
   const [voiceoverFiles, setVoiceoverFiles] = useState<File[]>([]);
+  const [pacing, setPacing] = useState<PacingSpeed>('medium');
 
   // Pipeline execution & telemetry
   const [jobStatus, setJobStatus] = useState<JobStatus | null>(null);
@@ -132,6 +133,7 @@ export default function ChapterStudioPage({
         setTitleInput(ch.title);
         setDescInput(ch.description || '');
         setScriptInput(ch.scriptText || '');
+        if (ch.pacing) setPacing(ch.pacing);
       }
 
       if (timelineRes.ok) {
@@ -221,6 +223,7 @@ export default function ChapterStudioPage({
     formData.append('projectId', projectId);
     formData.append('chapterId', chapterId);
     formData.append('scriptText', scriptInput || chapter?.scriptText || '');
+    formData.append('pacing', pacing);
 
     for (const f of voiceoverFiles) {
       formData.append('voiceovers', f);
@@ -610,6 +613,46 @@ export default function ChapterStudioPage({
                 )}
               </div>
             )}
+
+            {/* Pacing Speed Selector */}
+            <div className={styles.pacingSelectorGroup}>
+              <div className={styles.pacingHeader}>
+                <span className={styles.pacingLabel}>⏱️ Video Pacing & Cut Velocity</span>
+                <span className={styles.pacingHint}>Select clip duration style</span>
+              </div>
+              <div className={styles.pacingOptions}>
+                <div
+                  className={[
+                    styles.pacingOption,
+                    pacing === 'low' ? styles.pacingOptionActive : '',
+                  ].join(' ')}
+                  onClick={() => setPacing('low')}
+                >
+                  <span className={styles.pacingTitle}>🐢 Relaxed</span>
+                  <span className={styles.pacingDuration}>6–8.5s / clip</span>
+                </div>
+                <div
+                  className={[
+                    styles.pacingOption,
+                    pacing === 'medium' ? styles.pacingOptionActive : '',
+                  ].join(' ')}
+                  onClick={() => setPacing('medium')}
+                >
+                  <span className={styles.pacingTitle}>⚖️ Balanced</span>
+                  <span className={styles.pacingDuration}>3.5–5.5s / clip</span>
+                </div>
+                <div
+                  className={[
+                    styles.pacingOption,
+                    pacing === 'high' ? styles.pacingOptionActive : '',
+                  ].join(' ')}
+                  onClick={() => setPacing('high')}
+                >
+                  <span className={styles.pacingTitle}>⚡ Fast & Punchy</span>
+                  <span className={styles.pacingDuration}>2–3.2s / clip</span>
+                </div>
+              </div>
+            </div>
 
             <div className={styles.scriptMetaRow}>
               <span>

@@ -788,3 +788,81 @@
   0%, 100% { opacity: 1; }
   50% { opacity: 0.65; }
 }
+
+/* ── Pacing Speed Selector ───────────────────────────────────────────── */
+.pacingSelectorGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 14px;
+  padding: 12px 14px;
+  background: var(--bg-subtle);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-md);
+}
+
+.pacingHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.pacingLabel {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-family: 'JetBrains Mono', monospace;
+}
+
+.pacingHint {
+  font-size: 11px;
+  color: var(--text-tertiary);
+}
+
+.pacingOptions {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+
+.pacingOption {
+  padding: 8px 10px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-strong);
+  background: var(--bg-surface);
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  transition: all 0.15s ease;
+  text-align: center;
+}
+
+.pacingOption:hover {
+  border-color: var(--gold-primary);
+}
+
+.pacingOptionActive {
+  background: #FEF3C7;
+  border-color: #D97706;
+  box-shadow: 0 0 0 1px #D97706;
+}
+
+.pacingTitle {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.pacingOptionActive .pacingTitle {
+  color: #92400E;
+}
+
+.pacingDuration {
+  font-size: 10px;
+  font-family: 'JetBrains Mono', monospace;
+  color: var(--text-muted);
+}

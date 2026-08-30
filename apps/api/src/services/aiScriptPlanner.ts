@@ -37,12 +37,18 @@ export interface PlannedBeat {
   // If local clip library has a direct match
   clipFilename: string | null;
 
+  // Concrete visual physical subject (e.g. "car_interior_seat", "rural_highway_driving")
+  visualSubject?: string;
+
   // Real stock video cinematographer search terms
   stockVideoQuery: string | null; // Primary cinematic search (e.g. "aerial drone railway tracks sunset")
   backupVideoQuery: string | null; // Alternative cinematic angle (e.g. "moody train tracks dusk")
 
   // Real photography fallback query (only if video fails)
   stockPhotoQuery: string | null;
+
+  // Explicit negative keywords to filter out conflicting stock
+  negativeKeywords?: string[];
 
   // For multi-asset layouts (Quad Surveillance, Triptych, Pinboard, Polaroid Scatter, Horizon Split):
   additionalStockQueries?: Array<{
@@ -110,7 +116,8 @@ export async function planScriptWithAI(
   scriptText: string,
   availableClips: string[],
   projectContext: string = '',
-  chapterContext: string = ''
+  chapterContext: string = '',
+  pacing: 'low' | 'medium' | 'high' = 'medium'
 ): Promise<AIPlannerResult> {
   const cleanScript = (scriptText || '').trim();
   if (!cleanScript || cleanScript === 'Full Narration Track') {
@@ -119,27 +126,46 @@ export async function planScriptWithAI(
     );
   }
 
+  const pacingDirectives = {
+    low: `⏱️ TARGET PACING DIRECTIVE: RELAXED / CINEMATIC (LOW PACING: ~6.0s – 8.5s per clip / ~15–25 words per beat).
+- Let scenes linger and breathe. Hold shots for emotional weight and evidence absorption.
+- Combine 1–2 full thoughts/sentences into a single continuous visual beat. Fewer total cuts.
+- Stylized layouts should have 7–9s of runway. Baseline b-roll should hold for 5–7s.`,
+    medium: `⏱️ TARGET PACING DIRECTIVE: BALANCED INVESTIGATIVE (MEDIUM PACING: ~3.5s – 5.5s per clip / ~9–15 words per beat).
+- Standard investigative documentary rhythm. 5–7s for feature layouts/callouts, 3–4s for punchy baseline b-roll cuts.`,
+    high: `⏱️ TARGET PACING DIRECTIVE: FAST & PUNCHY (HIGH PACING: ~2.0s – 3.2s per clip / ~5–8 words per beat).
+- High visual velocity, rapid cuts, punchy retention pacing.
+- Break narration into short dynamic phrases (~5–8 words per cut).
+- Feature layouts hold for 3.5–4.5s max, baseline b-roll cuts rapidly every 2–3s.`,
+  }[pacing] || '';
+
   const contextDirective = [
     projectContext ? `PROJECT STORY PREMISE: "${projectContext}"` : '',
     chapterContext ? `CHAPTER VISUAL & PACING DIRECTIVE: "${chapterContext}"` : '',
+    pacingDirectives,
   ]
     .filter(Boolean)
-    .join('\n');
+    .join('\n\n');
 
   const systemPrompt = `You are an elite investigative documentary director (Vice, Vox Borders, BBC Eye Witness, Netflix Documentaries, and Magnates Media). You direct gritty, high-retention short-form documentaries about real people, hidden places, crime, survival, and investigative journalism.
 
-You will receive a voiceover script along with specific Chapter Visual Directives. Your job is to break it into a dynamic, rhythmically balanced visual timeline using SMART VARIABLE PACING: longer 5–7s beats for stylized layouts and text animations, and fast 2.5–3.5s punchy cuts for clean cinematic b-roll.
+You will receive a voiceover script along with specific Chapter Visual Directives. Your job is to break it into a dynamic, rhythmically balanced visual timeline matching the requested PACING DIRECTIVE.
 
 ${contextDirective ? `\n⚠️ STRICT DIRECTOR BRIEF:\n${contextDirective}\n` : ''}
 
 ---
 
-### 1. CHARACTER PROFILE, DEMOGRAPHICS & SETTING CONSISTENCY (CRITICAL MANDATORY RULE):
+### 1. CHARACTER PROFILE, DEMOGRAPHICS & STRICT VISUAL LITERALISM (CRITICAL MANDATORY RULE):
 - You MUST anchor every single visual beat to the exact character demographics, age, environment, vehicle, and visual tone specified in the Director Brief.
 - If the story is about an elderly/older woman living in a van / vehicle:
   - You MUST explicitly include "elderly senior woman", "older female nomad", "vintage camper van", "rural highway", "dusty roadside" in your search queries.
   - You are STRICTLY FORBIDDEN from generating generic queries like "woman calling phone", "girl in apartment", "young model thinking", or "modern office worker" which return out-of-context modern stock clips!
-- Every visual shot MUST align 100% with the literal spoken words of that beat (e.g. if narration mentions driving -> search "elderly woman driving car windshield", if narration mentions cold winter -> search "senior woman bundled warm inside van").
+- **STRICT ANTI-METAPHOR / LITERAL PHYSICAL RULE**:
+  - Separate what is **SPOKEN** (voiceover) from what is **SEEN** (camera shot).
+  - Voiceovers often use metaphors (e.g. "she washed away her past while sitting in her car"). **NEVER search for the metaphor ("washing dishes/sink")!** You MUST search for the LITERAL PHYSICAL SUBJECT ("elderly woman car seat interior" or "car driver seat").
+  - Provide "visualSubject": a 2-4 word concrete physical environment (e.g. "car_seat_interior", "van_backseat", "rural_highway_driving", "cash_wallet_dollars").
+  - Provide "negativeKeywords": an array of 3-5 conflicting objects to filter out (e.g. ["kitchen", "dishes", "restaurant", "modern apartment", "baby stroller"]).
+- Every visual shot MUST align 100% with the literal physical action of that beat (e.g. if narration mentions driving -> search "elderly woman driving car windshield", if narration mentions cold winter -> search "senior woman bundled warm inside van").
 
 ---
 
@@ -220,6 +246,7 @@ Respond with ONLY a valid JSON object in this exact format:
       "beatIndex": 0,
       "chapterIndex": 0,
       "text": "<exact spoken text for this beat>",
+      "visualSubject": "<2-4 word concrete physical environment/object, e.g. 'car_seat_interior'>",
       "mediaType": "video" | "image",
       "layout": "<one of the 11 layouts above>",
       "layoutData": {
@@ -236,6 +263,7 @@ Respond with ONLY a valid JSON object in this exact format:
       "stockVideoQuery": "<concrete visual query matching character demographics & setting OR null>",
       "backupVideoQuery": "<alternative visual query OR null>",
       "stockPhotoQuery": "<concrete photo query OR null>",
+      "negativeKeywords": ["kitchen", "dishes", "restaurant", "modern apartment"],
       "additionalStockQueries": [
         { "slot": "cam2", "query": "senior woman hands steering wheel", "mediaType": "video" }
       ],

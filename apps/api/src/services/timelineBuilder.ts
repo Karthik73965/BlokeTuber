@@ -79,31 +79,69 @@ export function mapBeatsToAudioTiming(
 ): BeatInput[] {
   if (!beats.length) return [];
 
+  const allWords = alignments.flatMap((s) => s.words || []);
   const totalWords = beats.reduce(
     (sum, b) => sum + Math.max(1, b.text.split(/\s+/).filter(Boolean).length),
     0
   );
 
   let currentStart = 0;
+  let wordSearchCursor = 0;
 
   return beats.map((beat, i) => {
-    const wordCount = Math.max(1, beat.text.split(/\s+/).filter(Boolean).length);
+    const beatWords = beat.text.split(/\s+/).filter(Boolean);
+    const wordCount = Math.max(1, beatWords.length);
+    let matchedEndTime: number | null = null;
 
-    let beatDuration = (wordCount / totalWords) * totalAudioDuration;
+    if (allWords.length > 0 && wordSearchCursor < allWords.length) {
+      const cleanBeatWords = beatWords.map((w) => w.toLowerCase().replace(/[^a-z0-9]/g, '')).filter(Boolean);
+      const targetEndWord = cleanBeatWords[cleanBeatWords.length - 1];
+      const targetSecondEndWord = cleanBeatWords[cleanBeatWords.length - 2];
 
-    if (
-      alignments[i] &&
-      alignments[i].end > alignments[i].start &&
-      alignments[i].end - alignments[i].start < totalAudioDuration * 0.5
-    ) {
-      beatDuration = alignments[i].end - alignments[i].start;
+      if (targetEndWord) {
+        const searchLimit = Math.min(allWords.length, wordSearchCursor + wordCount * 3 + 6);
+        let bestMatchIdx: number | null = null;
+
+        for (let wIdx = wordSearchCursor; wIdx < searchLimit; wIdx++) {
+          const currentWordClean = allWords[wIdx]?.word.toLowerCase().replace(/[^a-z0-9]/g, '');
+          if (currentWordClean === targetEndWord) {
+            bestMatchIdx = wIdx;
+          }
+        }
+
+        if (bestMatchIdx === null && targetSecondEndWord) {
+          for (let wIdx = wordSearchCursor; wIdx < searchLimit; wIdx++) {
+            const currentWordClean = allWords[wIdx]?.word.toLowerCase().replace(/[^a-z0-9]/g, '');
+            if (currentWordClean === targetSecondEndWord) {
+              bestMatchIdx = wIdx;
+            }
+          }
+        }
+
+        if (bestMatchIdx !== null) {
+          matchedEndTime = allWords[bestMatchIdx]!.end;
+          wordSearchCursor = bestMatchIdx + 1;
+        }
+      }
     }
 
-    let endTime = currentStart + beatDuration;
+    const estimatedDuration = (wordCount / totalWords) * totalAudioDuration;
+    let endTime: number;
+
+    if (matchedEndTime !== null && matchedEndTime > currentStart + 0.5) {
+      endTime = matchedEndTime;
+    } else {
+      endTime = currentStart + estimatedDuration;
+    }
 
     // Force the last beat to end at the exact total audio duration
     if (i === beats.length - 1 || endTime > totalAudioDuration) {
       endTime = totalAudioDuration;
+    }
+
+    // Enforce positive duration
+    if (endTime <= currentStart) {
+      endTime = Math.min(totalAudioDuration, currentStart + Math.max(1.0, estimatedDuration));
     }
 
     const timedBeat: BeatInput = {

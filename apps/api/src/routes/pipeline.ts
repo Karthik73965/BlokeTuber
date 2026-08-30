@@ -409,7 +409,7 @@ pipelineRouter.post(
   audioUpload.array('voiceovers', 50),
   async (req: Request, res: Response) => {
     const jobId = uuidv4();
-    const { projectId, chapterId, scriptText, clipLibraryRoot } = req.body;
+    const { projectId, chapterId, scriptText, clipLibraryRoot, pacing } = req.body;
 
     if (!projectId) {
       return res.status(400).json({ error: 'projectId is required' });
@@ -422,6 +422,7 @@ pipelineRouter.post(
     if (!chapter) {
       chapter = chaptersStore.create(projectId, {
         scriptText: scriptText || '',
+        pacing: pacing || 'medium',
         status: 'processing',
       });
     }
@@ -440,6 +441,7 @@ pipelineRouter.post(
         jobId,
         scriptText: scriptText || chapter.scriptText,
         voiceoverFileName: voiceoverFiles.length ? path.basename(voiceoverFiles[0]!) : chapter.voiceoverFileName,
+        pacing: pacing || chapter.pacing || 'medium',
       });
     }
 
@@ -461,6 +463,7 @@ pipelineRouter.post(
       chapterIndex: chapter?.chapterIndex || 1,
       voiceoverFiles: voiceoverFiles.length ? voiceoverFiles : [],
       clipLibraryRoot: clipLibraryRoot || '',
+      pacing: pacing || chapter?.pacing || 'medium',
       skipRender: true, // Only stage storyboard!
     }).catch((err) => {
       console.error(`[Storyboard Chapter ${jobId}] Fatal error:`, err);
@@ -696,9 +699,10 @@ async function runPipeline(params: {
   chapterIndex?: number;
   voiceoverFiles: string[];
   clipLibraryRoot: string;
+  pacing?: 'low' | 'medium' | 'high';
   skipRender?: boolean;
 }) {
-  const { jobId, project, chapterId, chapterIndex, voiceoverFiles, clipLibraryRoot } = params;
+  const { jobId, project, chapterId, chapterIndex, voiceoverFiles, clipLibraryRoot, pacing } = params;
   const folderName = generateJobFolderName(project.name, jobId);
   const jobOutputDir = path.join(OUTPUT_DIR, folderName);
   fs.mkdirSync(jobOutputDir, { recursive: true });
@@ -739,7 +743,8 @@ async function runPipeline(params: {
     effectiveScript,
     clipFilenames,
     project.name,
-    chapter?.description || ''
+    chapter?.description || '',
+    pacing || chapter?.pacing || 'medium'
   );
 
   // ── 4. Snap beat timings to Whisper word boundaries ───────────────────────
@@ -784,6 +789,12 @@ async function runPipeline(params: {
 
     let resolvedPath: string | null = null;
 
+    const searchOptions = {
+      visualSubject: beat.visualSubject,
+      negativeKeywords: beat.negativeKeywords,
+      useVisionVerification: true,
+    };
+
     if (beat.mediaType === 'video') {
       // 1. Local clip from library
       if (beat.clipFilename) {
@@ -794,9 +805,9 @@ async function runPipeline(params: {
         }
       }
 
-      // 2. Multi-tier Stock video search (Pexels, Pixabay, Coverr, Mixkit) with uniqueness tracking
+      // 2. Multi-tier Stock video search (Pexels, Pixabay, Coverr, Mixkit) with uniqueness tracking & AI vision verification
       if (!resolvedPath && (beat.stockVideoQuery || beat.backupVideoQuery)) {
-        const video = await findStockFootage(beat.stockVideoQuery || '', beat.backupVideoQuery, usedMediaUrls);
+        const video = await findStockFootage(beat.stockVideoQuery || '', beat.backupVideoQuery, usedMediaUrls, searchOptions);
         if (video) {
           const dest = path.join(stockDir, `video_${i}.mp4`);
           try {
@@ -820,7 +831,7 @@ async function runPipeline(params: {
       if (!resolvedPath) {
         const photoQuery = beat.stockPhotoQuery || beat.stockVideoQuery || beat.text.slice(0, 40);
         console.log(`  🔄 Video not found — trying real photography: ${photoQuery}`);
-        const photo = await findStockPhoto(photoQuery, usedMediaUrls);
+        const photo = await findStockPhoto(photoQuery, usedMediaUrls, searchOptions);
         if (photo) {
           const dest = path.join(stockDir, `photo_${i}.jpg`);
           try {
@@ -850,10 +861,10 @@ async function runPipeline(params: {
         }
       }
 
-      // 2. High-res real stock photo search with uniqueness tracking
+      // 2. High-res real stock photo search with uniqueness tracking & AI vision verification
       if (!resolvedPath) {
         const photoQuery = beat.stockPhotoQuery || beat.text.slice(0, 40);
-        const photo = await findStockPhoto(photoQuery, usedMediaUrls);
+        const photo = await findStockPhoto(photoQuery, usedMediaUrls, searchOptions);
         if (photo) {
           const dest = path.join(stockDir, `photo_${i}.jpg`);
           try {
@@ -875,7 +886,7 @@ async function runPipeline(params: {
 
       // 3. Fallback to stock video if photo fails
       if (!resolvedPath && (beat.stockVideoQuery || beat.backupVideoQuery)) {
-        const video = await findStockFootage(beat.stockVideoQuery || beat.stockPhotoQuery || '', beat.backupVideoQuery, usedMediaUrls);
+        const video = await findStockFootage(beat.stockVideoQuery || beat.stockPhotoQuery || '', beat.backupVideoQuery, usedMediaUrls, searchOptions);
         if (video) {
           const dest = path.join(stockDir, `video_${i}.mp4`);
           try {
@@ -919,7 +930,11 @@ async function runPipeline(params: {
         const sub = beat.additionalStockQueries[sIdx];
         if (!sub) continue;
         if (sub.mediaType === 'video') {
-          const v = await findStockFootage(sub.query, null, usedMediaUrls);
+          const v = await findStockFootage(sub.query, null, usedMediaUrls, {
+            visualSubject: sub.query,
+            negativeKeywords: beat.negativeKeywords,
+            useVisionVerification: true,
+          });
           if (v) {
             const dest = path.join(stockDir, `video_${i}_sub_${sIdx}.mp4`);
             try {
@@ -937,7 +952,11 @@ async function runPipeline(params: {
             } catch { /* ignore */ }
           }
         } else {
-          const p = await findStockPhoto(sub.query, usedMediaUrls);
+          const p = await findStockPhoto(sub.query, usedMediaUrls, {
+            visualSubject: sub.query,
+            negativeKeywords: beat.negativeKeywords,
+            useVisionVerification: true,
+          });
           if (p) {
             const dest = path.join(stockDir, `photo_${i}_sub_${sIdx}.jpg`);
             try {

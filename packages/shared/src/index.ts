@@ -8,6 +8,8 @@ export interface UsedMediaItem {
   usedAt: string;
 }
 
+export type PacingSpeed = 'low' | 'medium' | 'high';
+
 export interface Chapter {
   id: string;
   projectId: string;
@@ -16,6 +18,7 @@ export interface Chapter {
   description?: string; // Pacing & Visual Director Note (e.g. "70yo elderly woman, van life, desert roads")
   scriptText?: string;
   voiceoverFileName?: string;
+  pacing?: PacingSpeed;
   status: 'draft' | 'staged' | 'queued' | 'processing' | 'completed' | 'error';
   jobId?: string;
   videoPath?: string;

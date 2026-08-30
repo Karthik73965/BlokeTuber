@@ -19,6 +19,7 @@ export interface StockVideo {
   url: string;
   previewUrl: string;
   title: string;
+  tags?: string[];
   duration?: number;
   width?: number;
   height?: number;
@@ -30,6 +31,7 @@ export interface StockPhoto {
   url: string; // full-resolution download URL
   previewUrl: string;
   title: string;
+  tags?: string[];
   width: number;
   height: number;
 }
@@ -51,7 +53,7 @@ const BANNED_IMAGE_TAGS = new Set([
   'render', 'sketch', 'paint', 'painting', 'anime', 'cgi', 'graphic'
 ]);
 
-export function compressQuery(raw: string, maxWords = 3): string {
+export function compressQuery(raw: string, maxWords = 4): string {
   if (!raw) return '';
   const clean = raw.toLowerCase().replace(/[^a-z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim();
   const words = clean.split(' ').filter((w) => !STOP_WORDS.has(w) && w.length > 2);
@@ -62,14 +64,14 @@ export function compressQuery(raw: string, maxWords = 3): string {
 }
 
 function cleanQuery(query: string): string {
-  return compressQuery(query, 3);
+  return compressQuery(query, 4);
 }
 
 // --- PEXELS (High Quality HD / 4K Landscape) ---
-async function searchPexels(query: string, perPage = 10): Promise<StockVideo[]> {
+async function searchPexels(query: string, perPage = 15): Promise<StockVideo[]> {
   const apiKey = process.env.PEXELS_API_KEY;
   if (!apiKey) return [];
-  const q = compressQuery(query, 3);
+  const q = compressQuery(query, 4);
   if (!q) return [];
 
   try {
@@ -87,11 +89,26 @@ async function searchPexels(query: string, perPage = 10): Promise<StockVideo[]> 
           v.video_files?.find((f: any) => f.quality === 'hd' && f.width >= 1280) ||
           v.video_files?.find((f: any) => f.quality === 'hd') ||
           v.video_files?.[0];
+
+        // Extract meaningful semantic title from Pexels video URL slug
+        let extractedTitle = q;
+        if (v.url) {
+          const parts = v.url.split('/').filter(Boolean);
+          const slug = parts[parts.length - 1] || parts[parts.length - 2] || '';
+          const cleanSlug = slug.replace(/-\d+$/, '').replace(/-/g, ' ').trim();
+          if (cleanSlug && cleanSlug.length > 3) extractedTitle = cleanSlug;
+        }
+
+        const tagsList: string[] = Array.isArray(v.tags)
+          ? v.tags.map((t: any) => (typeof t === 'string' ? t : t.name || ''))
+          : extractedTitle.split(' ');
+
         return {
           source: 'pexels' as const,
           url: file?.link || v.url,
           previewUrl: v.image || '',
-          title: v.url || q,
+          title: extractedTitle,
+          tags: tagsList.filter(Boolean),
           duration: v.duration,
           width: file?.width || 1920,
           height: file?.height || 1080,
@@ -104,10 +121,10 @@ async function searchPexels(query: string, perPage = 10): Promise<StockVideo[]> 
 }
 
 // --- PIXABAY (High Quality HD Videos) ---
-async function searchPixabay(query: string, perPage = 10): Promise<StockVideo[]> {
+async function searchPixabay(query: string, perPage = 15): Promise<StockVideo[]> {
   const apiKey = process.env.PIXABAY_API_KEY;
   if (!apiKey) return [];
-  const q = compressQuery(query, 3);
+  const q = compressQuery(query, 4);
   if (!q) return [];
 
   try {
@@ -120,11 +137,13 @@ async function searchPixabay(query: string, perPage = 10): Promise<StockVideo[]>
     return (data.hits || [])
       .map((v: any) => {
         const medium = v.videos?.large || v.videos?.medium || v.videos?.small;
+        const tagArray = String(v.tags || '').split(',').map((t: string) => t.trim().toLowerCase()).filter(Boolean);
         return {
           source: 'pixabay' as const,
           url: medium?.url || '',
           previewUrl: v.userImageURL || '',
           title: v.tags || q,
+          tags: tagArray,
           duration: medium?.duration,
           width: medium?.width || 1920,
           height: medium?.height || 1080,
@@ -195,21 +214,161 @@ async function searchMixkit(query: string): Promise<StockVideo[]> {
 }
 
 /**
+ * Scores a stock video or photo candidate against target queries and visual subject,
+ * and heavily penalizes negative/conflicting keywords (e.g. kitchen/dishes when looking for car).
+ */
+export function computeMetadataRelevanceScore(
+  item: { title: string; tags?: string[] },
+  query: string,
+  visualSubject?: string,
+  negativeKeywords?: string[]
+): number {
+  const combinedText = `${item.title || ''} ${(item.tags || []).join(' ')}`.toLowerCase();
+
+  // 1. Negative Keyword Penalty: Disqualify completely if negative keywords appear
+  const allNegative = new Set<string>();
+  if (negativeKeywords && Array.isArray(negativeKeywords)) {
+    for (const nk of negativeKeywords) {
+      if (nk) allNegative.add(nk.toLowerCase().trim());
+    }
+  }
+
+  // Common contextual conflicts:
+  const queryLower = `${query} ${visualSubject || ''}`.toLowerCase();
+  const isVehicleQuery = /\b(car|van|truck|vehicle|seat|driver|driving|highway|road|windshield|dashboard|steering)\b/i.test(queryLower);
+  if (isVehicleQuery) {
+    const defaultVehicleConflicts = ['kitchen', 'dish', 'dishes', 'dishwasher', 'cooking', 'restaurant', 'food', 'bedroom', 'baby stroller', 'airplane'];
+    for (const c of defaultVehicleConflicts) allNegative.add(c);
+  }
+
+  for (const neg of allNegative) {
+    if (neg && combinedText.includes(neg)) {
+      return -1000; // instant rejection
+    }
+  }
+
+  // 2. Positive Keyword Matching:
+  let score = 0;
+  const searchWords = `${query} ${visualSubject || ''}`
+    .toLowerCase()
+    .replace(/[^a-z0-9 ]/g, ' ')
+    .split(' ')
+    .filter((w) => !STOP_WORDS.has(w) && w.length > 2);
+
+  for (const word of searchWords) {
+    if (combinedText.includes(word)) {
+      score += 15;
+    }
+  }
+
+  // Bonus if title contains full query phrase
+  const cleanQ = query.toLowerCase().replace(/[^a-z0-9 ]/g, ' ').trim();
+  if (cleanQ && combinedText.includes(cleanQ)) {
+    score += 30;
+  }
+
+  return score;
+}
+
+/**
+ * Fast AI Vision Verification using OpenRouter (e.g. openai/gpt-4o-mini).
+ * Inspects candidate thumbnail preview to confirm it actually matches the visual subject.
+ */
+export async function verifyStockCandidateWithVision(
+  previewUrl: string,
+  visualRequirement: string,
+  candidateTitle: string
+): Promise<{ matches: boolean; reason: string }> {
+  const openrouterKey = process.env.OPENROUTER_API_KEY;
+  if (!openrouterKey || !previewUrl || !previewUrl.startsWith('http')) {
+    return { matches: true, reason: 'Vision verification skipped (no API key or preview URL)' };
+  }
+
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 4000); // 4-second fast timeout
+
+    const prompt = `You are a strict documentary visual quality editor.
+We need a stock footage clip/photo that visually portrays this subject: "${visualRequirement}".
+Candidate metadata: "${candidateTitle}".
+
+Look at the image preview. Does this preview image/video match the requested topic?
+Reject if it shows completely unrelated scenes (e.g. showing kitchen/dishwashing when we need a car seat, or showing modern luxury office when we need gritty van life).
+
+Respond ONLY in JSON format:
+{
+  "matches": true or false,
+  "reason": "short 1-sentence explanation"
+}`;
+
+    const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${openrouterKey}`,
+        'Content-Type': 'application/json',
+        'HTTP-Referer': 'https://bloketuber.app',
+      },
+      body: JSON.stringify({
+        model: process.env.CLIP_MATCH_MODEL || 'openai/gpt-4o-mini',
+        messages: [
+          {
+            role: 'user',
+            content: [
+              { type: 'text', text: prompt },
+              { type: 'image_url', image_url: { url: previewUrl } },
+            ],
+          },
+        ],
+        temperature: 0.1,
+        max_tokens: 100,
+      }),
+      signal: controller.signal,
+    });
+
+    clearTimeout(timeout);
+
+    if (!res.ok) {
+      return { matches: true, reason: 'Vision verification fallback on HTTP error' };
+    }
+
+    const data = (await res.json()) as any;
+    const content = data.choices?.[0]?.message?.content || '{}';
+    const cleanJson = content.replace(/```json?\n?/g, '').replace(/```/g, '').trim();
+    const parsed = JSON.parse(cleanJson);
+
+    return {
+      matches: parsed.matches !== false,
+      reason: parsed.reason || 'Verified by AI Vision',
+    };
+  } catch (err: any) {
+    return { matches: true, reason: `Vision check skipped: ${err.message}` };
+  }
+}
+
+export interface StockSearchFilterOptions {
+  visualSubject?: string;
+  negativeKeywords?: string[];
+  useVisionVerification?: boolean;
+}
+
+/**
  * Searches all configured stock footage platforms simultaneously (Pexels, Pixabay, Coverr, Mixkit).
- * Automatically ranks results, enforces uniqueness via usedUrls, and tries fallback queries.
+ * Automatically ranks results by relevance, enforces negative keyword filtering, runs AI vision check, and enforces uniqueness.
  */
 export async function findStockFootage(
   primaryQuery: string,
   backupQuery?: string | null,
-  usedUrls?: Set<string>
+  usedUrls?: Set<string>,
+  options?: StockSearchFilterOptions
 ): Promise<StockVideo | null> {
   const q1 = cleanQuery(primaryQuery);
-  console.log(`🔎 Searching Real Stock B-Roll [Query: "${q1}"]...`);
+  const visualReq = options?.visualSubject || primaryQuery;
+  console.log(`🔎 Searching Real Stock B-Roll [Query: "${q1}"] [Subject: "${visualReq}"]...`);
 
   // Tier 1: Search all 4 providers for primary query
   const [pexels1, pixabay1, coverr1, mixkit1] = await Promise.allSettled([
-    searchPexels(q1, 6),
-    searchPixabay(q1, 6),
+    searchPexels(q1, 10),
+    searchPixabay(q1, 10),
     searchCoverr(q1),
     searchMixkit(q1),
   ]);
@@ -221,11 +380,27 @@ export async function findStockFootage(
     ...(mixkit1.status === 'fulfilled' ? mixkit1.value : []),
   ];
 
-  const available1 = pool1.filter((v) => !usedUrls?.has(v.url));
-  if (available1.length > 0) {
-    const best = available1[0]!;
-    usedUrls?.add(best.url);
-    return best;
+  // Filter and score candidates
+  const scored1 = pool1
+    .filter((v) => !usedUrls?.has(v.url))
+    .map((v) => ({
+      video: v,
+      score: computeMetadataRelevanceScore(v, q1, options?.visualSubject, options?.negativeKeywords),
+    }))
+    .filter((item) => item.score >= 0)
+    .sort((a, b) => b.score - a.score);
+
+  for (const item of scored1.slice(0, 3)) {
+    if (options?.useVisionVerification !== false && item.video.previewUrl) {
+      const visionResult = await verifyStockCandidateWithVision(item.video.previewUrl, visualReq, item.video.title);
+      if (!visionResult.matches) {
+        console.log(`  ❌ Rejected candidate [${item.video.source}]: "${item.video.title}" (Vision Reason: ${visionResult.reason})`);
+        continue;
+      }
+    }
+    usedUrls?.add(item.video.url);
+    console.log(`  ✅ Selected verified video [${item.video.source}]: "${item.video.title}" (Score: ${item.score})`);
+    return item.video;
   }
 
   // Tier 2: Try backup query if available
@@ -233,8 +408,8 @@ export async function findStockFootage(
     const q2 = cleanQuery(backupQuery);
     console.log(`  🔄 Trying Backup B-Roll Query [Query: "${q2}"]...`);
     const [pexels2, pixabay2, coverr2] = await Promise.allSettled([
-      searchPexels(q2, 4),
-      searchPixabay(q2, 4),
+      searchPexels(q2, 8),
+      searchPixabay(q2, 8),
       searchCoverr(q2),
     ]);
 
@@ -244,21 +419,36 @@ export async function findStockFootage(
       ...(coverr2.status === 'fulfilled' ? coverr2.value : []),
     ];
 
-    const available2 = pool2.filter((v) => !usedUrls?.has(v.url));
-    if (available2.length > 0) {
-      const best = available2[0]!;
-      usedUrls?.add(best.url);
-      return best;
+    const scored2 = pool2
+      .filter((v) => !usedUrls?.has(v.url))
+      .map((v) => ({
+        video: v,
+        score: computeMetadataRelevanceScore(v, q2, options?.visualSubject, options?.negativeKeywords),
+      }))
+      .filter((item) => item.score >= 0)
+      .sort((a, b) => b.score - a.score);
+
+    for (const item of scored2.slice(0, 3)) {
+      if (options?.useVisionVerification !== false && item.video.previewUrl) {
+        const visionResult = await verifyStockCandidateWithVision(item.video.previewUrl, visualReq, item.video.title);
+        if (!visionResult.matches) {
+          console.log(`  ❌ Rejected candidate [${item.video.source}]: "${item.video.title}" (Vision Reason: ${visionResult.reason})`);
+          continue;
+        }
+      }
+      usedUrls?.add(item.video.url);
+      console.log(`  ✅ Selected verified backup video [${item.video.source}]: "${item.video.title}" (Score: ${item.score})`);
+      return item.video;
     }
   }
 
-  // Tier 3: Core 2-word fallback
+  // Tier 3: Core keyword fallback with positive score requirement
   const coreWords = q1.split(' ').slice(0, 2).join(' ');
   if (coreWords && coreWords !== q1) {
     console.log(`  🔄 Trying Core Keyword Fallback [Query: "${coreWords}"]...`);
     const [pexels3, pixabay3] = await Promise.allSettled([
-      searchPexels(coreWords, 4),
-      searchPixabay(coreWords, 4),
+      searchPexels(coreWords, 6),
+      searchPixabay(coreWords, 6),
     ]);
 
     const pool3: StockVideo[] = [
@@ -266,9 +456,17 @@ export async function findStockFootage(
       ...(pixabay3.status === 'fulfilled' ? pixabay3.value : []),
     ];
 
-    const available3 = pool3.filter((v) => !usedUrls?.has(v.url));
-    if (available3.length > 0) {
-      const best = available3[0]!;
+    const scored3 = pool3
+      .filter((v) => !usedUrls?.has(v.url))
+      .map((v) => ({
+        video: v,
+        score: computeMetadataRelevanceScore(v, coreWords, options?.visualSubject, options?.negativeKeywords),
+      }))
+      .filter((item) => item.score >= 0)
+      .sort((a, b) => b.score - a.score);
+
+    if (scored3.length > 0) {
+      const best = scored3[0]!.video;
       usedUrls?.add(best.url);
       return best;
     }
@@ -281,7 +479,7 @@ export async function findStockFootage(
 async function searchPixabayPhotos(query: string, perPage = 25): Promise<StockPhoto[]> {
   const apiKey = process.env.PIXABAY_API_KEY;
   if (!apiKey) return [];
-  const q = compressQuery(query, 3);
+  const q = compressQuery(query, 4);
   if (!q) return [];
 
   try {
@@ -301,15 +499,19 @@ async function searchPixabayPhotos(query: string, perPage = 25): Promise<StockPh
         if (tagList.some((t: string) => BANNED_IMAGE_TAGS.has(t))) return false;
         return true;
       })
-      .map((p: any) => ({
-        source: 'pixabay' as any,
-        id: `pixabay_${p.id}`,
-        url: p.largeImageURL || p.fullHDURL || p.imageURL || p.webformatURL,
-        previewUrl: p.previewURL || '',
-        title: p.tags || q,
-        width: p.imageWidth || 1920,
-        height: p.imageHeight || 1080,
-      }))
+      .map((p: any) => {
+        const tagArray = String(p.tags || '').split(',').map((t: string) => t.trim().toLowerCase()).filter(Boolean);
+        return {
+          source: 'pixabay' as any,
+          id: `pixabay_${p.id}`,
+          url: p.largeImageURL || p.fullHDURL || p.imageURL || p.webformatURL,
+          previewUrl: p.previewURL || '',
+          title: p.tags || q,
+          tags: tagArray,
+          width: p.imageWidth || 1920,
+          height: p.imageHeight || 1080,
+        };
+      })
       .filter((p: StockPhoto) => p.url);
   } catch {
     return [];
@@ -318,16 +520,18 @@ async function searchPixabayPhotos(query: string, perPage = 25): Promise<StockPh
 
 /**
  * Search Pexels and Pixabay for ultra high-resolution real photography (4K/5K original resolution).
- * Enforces 100% uniqueness across the project by checking usedUrls against unique IDs and URLs.
+ * Enforces negative keyword filtering, semantic relevance scoring, and optional AI vision verification.
  */
 export async function findStockPhoto(
   rawQuery: string,
-  usedUrls?: Set<string>
+  usedUrls?: Set<string>,
+  options?: StockSearchFilterOptions
 ): Promise<StockPhoto | null> {
-  const q1 = compressQuery(rawQuery, 3);
+  const q1 = compressQuery(rawQuery, 4);
   if (!q1) return null;
 
-  console.log(`📷 Searching Ultra-HD Real Photography [Query: "${q1}"]...`);
+  const visualReq = options?.visualSubject || rawQuery;
+  console.log(`📷 Searching Ultra-HD Real Photography [Query: "${q1}"] [Subject: "${visualReq}"]...`);
 
   // Tier 1: Deep search Pexels (25) + Pixabay (25)
   const pexelsKey = process.env.PEXELS_API_KEY;
@@ -349,6 +553,7 @@ export async function findStockPhoto(
             url: photo.src?.large2x || photo.src?.large || photo.src?.original || '',
             previewUrl: photo.src?.medium || '',
             title: photo.alt || q1,
+            tags: (photo.alt || '').split(' '),
             width: photo.width || 1920,
             height: photo.height || 1080,
           }));
@@ -361,24 +566,35 @@ export async function findStockPhoto(
   const results = await Promise.allSettled(searchPromises);
   const pool: StockPhoto[] = results.flatMap((r) => (r.status === 'fulfilled' ? r.value : []));
 
-  // Filter out any photo already used in this video project
-  const available1 = pool.filter((p) => {
-    const isUsed = usedUrls?.has(p.url) || (p.id && usedUrls?.has(p.id));
-    return !isUsed;
-  });
+  // Filter out used items and score relevance
+  const scored1 = pool
+    .filter((p) => {
+      const isUsed = usedUrls?.has(p.url) || (p.id && usedUrls?.has(p.id));
+      return !isUsed;
+    })
+    .map((p) => ({
+      photo: p,
+      score: computeMetadataRelevanceScore(p, q1, options?.visualSubject, options?.negativeKeywords),
+    }))
+    .filter((item) => item.score >= 0)
+    .sort((a, b) => b.score - a.score);
 
-  if (available1.length > 0) {
-    available1.sort((a, b) => (b.width * b.height) - (a.width * a.height));
-    const best = available1[0]!;
-    usedUrls?.add(best.url);
-    if (best.id) usedUrls?.add(best.id);
-    console.log(`  ✓ Unique 4K/HD Photo Found [${best.source.toUpperCase()}] ${best.width}x${best.height} for "${q1}"`);
-    return best;
+  for (const item of scored1.slice(0, 3)) {
+    if (options?.useVisionVerification !== false && item.photo.previewUrl) {
+      const visionResult = await verifyStockCandidateWithVision(item.photo.previewUrl, visualReq, item.photo.title);
+      if (!visionResult.matches) {
+        console.log(`  ❌ Rejected photo candidate [${item.photo.source}]: "${item.photo.title}" (Vision Reason: ${visionResult.reason})`);
+        continue;
+      }
+    }
+    usedUrls?.add(item.photo.url);
+    if (item.photo.id) usedUrls?.add(item.photo.id);
+    console.log(`  ✅ Selected verified photo [${item.photo.source}]: "${item.photo.title}" (Score: ${item.score})`);
+    return item.photo;
   }
 
   // Tier 2: 2-word compressed query
   const coreWords = compressQuery(q1, 2);
-
   if (coreWords && coreWords !== q1) {
     console.log(`  🔄 Simplifying photo query: "${coreWords}"...`);
     const tier2Promises: Promise<any>[] = [];
@@ -398,6 +614,7 @@ export async function findStockPhoto(
               url: photo.src?.large2x || photo.src?.large || photo.src?.original || '',
               previewUrl: photo.src?.medium || '',
               title: photo.alt || coreWords,
+              tags: (photo.alt || '').split(' '),
               width: photo.width || 1920,
               height: photo.height || 1080,
             }));
@@ -407,66 +624,27 @@ export async function findStockPhoto(
     tier2Promises.push(searchPixabayPhotos(coreWords, 20));
     const tier2Results = await Promise.allSettled(tier2Promises);
     const pool2: StockPhoto[] = tier2Results.flatMap((r) => (r.status === 'fulfilled' ? r.value : []));
-    const available2 = pool2.filter((p) => {
-      const isUsed = usedUrls?.has(p.url) || (p.id && usedUrls?.has(p.id));
-      return !isUsed;
-    });
+    const scored2 = pool2
+      .filter((p) => {
+        const isUsed = usedUrls?.has(p.url) || (p.id && usedUrls?.has(p.id));
+        return !isUsed;
+      })
+      .map((p) => ({
+        photo: p,
+        score: computeMetadataRelevanceScore(p, coreWords, options?.visualSubject, options?.negativeKeywords),
+      }))
+      .filter((item) => item.score >= 0)
+      .sort((a, b) => b.score - a.score);
 
-    if (available2.length > 0) {
-      available2.sort((a, b) => (b.width * b.height) - (a.width * a.height));
-      const best = available2[0]!;
+    if (scored2.length > 0) {
+      const best = scored2[0]!.photo;
       usedUrls?.add(best.url);
       if (best.id) usedUrls?.add(best.id);
-      console.log(`  ✓ Unique 4K/HD Photo Found [${best.source.toUpperCase()}] ${best.width}x${best.height} for "${coreWords}"`);
       return best;
     }
   }
 
-  // Tier 3: Single primary subject noun
-  const singleWord = q1.split(' ')[0] || 'landscape';
-  console.log(`  🔄 Trying Core Subject: "${singleWord}"...`);
-  if (pexelsKey) {
-    try {
-      const res = await fetch(
-        `https://api.pexels.com/v1/search?query=${encodeURIComponent(singleWord)}&per_page=15&orientation=landscape`,
-        { headers: { Authorization: pexelsKey } }
-      );
-      if (res.ok) {
-        const data = (await res.json()) as any;
-        const available3 = (data.photos || []).filter((p: any) => {
-          const url = p.src?.original || p.src?.large2x || p.src?.large || '';
-          const id = `pexels_${p.id}`;
-          return url && !usedUrls?.has(url) && !usedUrls?.has(id) && (p.width || 1920) >= (p.height || 1080);
-        });
-        if (available3.length > 0) {
-          const photo = available3[0];
-          const chosenUrl = photo.src?.original || photo.src?.large2x || photo.src?.large || '';
-          const chosenId = `pexels_${photo.id}`;
-          usedUrls?.add(chosenUrl);
-          usedUrls?.add(chosenId);
-          return {
-            source: 'pexels',
-            id: chosenId,
-            url: chosenUrl,
-            previewUrl: photo.src?.medium || '',
-            title: photo.alt || singleWord,
-            width: photo.width || 1920,
-            height: photo.height || 1080,
-          };
-        }
-      }
-    } catch {}
-  }
-
-  // Absolute fallback: pick any unused photo from pool
-  const finalUnused = pool.find((p) => !usedUrls?.has(p.url));
-  if (finalUnused) {
-    usedUrls?.add(finalUnused.url);
-    if (finalUnused.id) usedUrls?.add(finalUnused.id);
-    return finalUnused;
-  }
-
-  return pool[0] || null;
+  return null;
 }
 
 /**
