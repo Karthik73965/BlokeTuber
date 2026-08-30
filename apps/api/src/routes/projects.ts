@@ -55,17 +55,46 @@ projectsRouter.get('/:id/chapters', (req: Request, res: Response) => {
   }
 });
 
+// GET /api/projects/:id/chapters/:chapterId — get single chapter
+projectsRouter.get('/:id/chapters/:chapterId', (req: Request, res: Response) => {
+  try {
+    const chapter = chaptersStore.findById(req.params.id!, req.params.chapterId!);
+    if (!chapter) return res.status(404).json({ error: 'Chapter not found' });
+    res.json({ chapter });
+  } catch (err) {
+    res.status(500).json({ error: String(err) });
+  }
+});
+
 // POST /api/projects/:id/chapters — create a new chapter under a project
 projectsRouter.post('/:id/chapters', (req: Request, res: Response) => {
   try {
-    const { title, scriptText, chapterIndex } = req.body;
+    const { title, description, scriptText, chapterIndex } = req.body;
     const chapter = chaptersStore.create(req.params.id!, {
       title: title?.trim() || 'New Chapter',
+      description: description?.trim() || '',
       scriptText: (scriptText || '').trim(),
       chapterIndex,
       status: 'draft',
     });
     if (!chapter) return res.status(404).json({ error: 'Project not found' });
+    res.json({ chapter });
+  } catch (err) {
+    res.status(500).json({ error: String(err) });
+  }
+});
+
+// PUT /api/projects/:id/chapters/:chapterId — update chapter details
+projectsRouter.put('/:id/chapters/:chapterId', (req: Request, res: Response) => {
+  try {
+    const { title, description, scriptText, status } = req.body;
+    const chapter = chaptersStore.update(req.params.id!, req.params.chapterId!, {
+      ...(title !== undefined && { title: title.trim() }),
+      ...(description !== undefined && { description: description.trim() }),
+      ...(scriptText !== undefined && { scriptText: scriptText.trim() }),
+      ...(status !== undefined && { status }),
+    });
+    if (!chapter) return res.status(404).json({ error: 'Chapter not found' });
     res.json({ chapter });
   } catch (err) {
     res.status(500).json({ error: String(err) });

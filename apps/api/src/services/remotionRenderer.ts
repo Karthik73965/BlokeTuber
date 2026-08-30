@@ -34,7 +34,7 @@ export async function ensureMediaServer(): Promise<number> {
       try {
         const decodedUrl = decodeURIComponent(req.url || '');
         let filePath = decodedUrl.startsWith('/') ? decodedUrl.slice(1) : decodedUrl;
-        if (filePath.includes('?')) filePath = filePath.split('?')[0];
+        if (filePath.includes('?')) filePath = filePath.split('?')[0] || '';
 
         // Windows drive letter normalization (e.g. C:/Users/...)
         let targetFile = path.resolve(filePath);
@@ -59,20 +59,39 @@ export async function ensureMediaServer(): Promise<number> {
           const stat = fs.statSync(targetFile);
 
           // Support HTTP range requests for instant seek/stream
-          const range = req.headers.range;
-          if (range) {
-            const parts = range.replace(/bytes=/, '').split('-');
-            const start = parseInt(parts[0], 10);
-            const end = parts[1] ? parseInt(parts[1], 10) : stat.size - 1;
-            const chunksize = end - start + 1;
-            const file = fs.createReadStream(targetFile, { start, end });
+          const rangeHeader = req.headers.range;
+          if (rangeHeader && rangeHeader.startsWith('bytes=')) {
+            const rangeSpec = rangeHeader.slice(6);
+            const [rawStart, rawEnd] = rangeSpec.split('-');
+            let start = rawStart ? parseInt(rawStart, 10) : NaN;
+            let end = rawEnd ? parseInt(rawEnd, 10) : NaN;
+
+            if (isNaN(start) && !isNaN(end)) {
+              start = Math.max(0, stat.size - end);
+              end = stat.size - 1;
+            } else if (!isNaN(start) && isNaN(end)) {
+              end = stat.size - 1;
+            }
+
+            if (isNaN(start) || isNaN(end) || start < 0 || start > end || start >= stat.size) {
+              res.writeHead(416, {
+                'Content-Range': `bytes */${stat.size}`,
+                'Accept-Ranges': 'bytes',
+              });
+              res.end();
+              return;
+            }
+
+            end = Math.min(end, stat.size - 1);
+            const chunkSize = end - start + 1;
+
             res.writeHead(206, {
               'Content-Range': `bytes ${start}-${end}/${stat.size}`,
               'Accept-Ranges': 'bytes',
-              'Content-Length': chunksize,
+              'Content-Length': chunkSize,
               'Content-Type': contentType,
             });
-            file.pipe(res);
+            fs.createReadStream(targetFile, { start, end }).pipe(res);
           } else {
             res.writeHead(200, {
               'Content-Length': stat.size,
@@ -123,19 +142,21 @@ export function resolveMediaUrl(rawPath: string | null | undefined, baseDir: str
     } catch {
       localFile = path.resolve(rawPath.replace('file:///', '').replace('file://', ''));
     }
-  } else if (path.isAbsolute(rawPath)) {
+  } else if (path.isAbsolute(rawPath) && fs.existsSync(rawPath)) {
     localFile = rawPath;
   } else {
-    localFile = path.resolve(baseDir, rawPath);
-    if (!fs.existsSync(localFile)) {
-      const candidate1 = path.join(process.cwd(), rawPath);
-      if (fs.existsSync(candidate1)) {
-        localFile = path.resolve(candidate1);
-      } else {
-        const candidate2 = path.join(baseDir, 'stock', path.basename(rawPath));
-        if (fs.existsSync(candidate2)) {
-          localFile = path.resolve(candidate2);
-        }
+    const candidates = [
+      path.resolve(baseDir, rawPath),
+      path.resolve(baseDir, path.basename(rawPath)),
+      path.resolve(baseDir, 'stock', path.basename(rawPath)),
+      path.resolve(process.cwd(), rawPath),
+      path.resolve(process.cwd(), 'apps', 'api', rawPath),
+      path.resolve(process.cwd(), 'apps', 'api', 'output', rawPath),
+    ];
+    for (const cand of candidates) {
+      if (fs.existsSync(cand) && fs.statSync(cand).isFile()) {
+        localFile = cand;
+        break;
       }
     }
   }
@@ -185,14 +206,60 @@ export async function renderTimelineVideo(
     throw new Error(`Timeline file not found: ${absoluteTimelinePath}`);
   }
 
-  const streamPort = await ensureMediaServer();
   const timelineDir = path.dirname(absoluteTimelinePath);
   const rawTimeline: Timeline = JSON.parse(fs.readFileSync(absoluteTimelinePath, 'utf-8'));
+
+  // Pre-flight: sanitize all MP4 clips (H.264, silent AAC if audio missing, +faststart) for instant zero-latency Chromium streaming
+  try {
+    const ffmpegStatic = require('ffmpeg-static');
+    const ffmpegBin = ffmpegStatic ? `"${ffmpegStatic}"` : 'ffmpeg';
+    const { execSync } = require('child_process');
+    for (const clip of rawTimeline.clips) {
+      const pathsToCheck = [clip.clipPath, clip.secondaryClipPath, ...(clip.additionalClipPaths || [])].filter(Boolean) as string[];
+      for (const p of pathsToCheck) {
+        if (typeof p === 'string' && /\.mp4$/i.test(p)) {
+          let abs = path.isAbsolute(p) ? p : path.resolve(timelineDir, p);
+          if (!fs.existsSync(abs)) {
+            const candidate = path.join(timelineDir, 'stock', path.basename(p));
+            if (fs.existsSync(candidate)) abs = candidate;
+          }
+          if (fs.existsSync(abs)) {
+            let hasAudio = false;
+            try {
+              const probe = execSync(`${ffmpegBin} -i "${abs}"`, { stdio: 'pipe' }).toString();
+              hasAudio = probe.includes('Audio:');
+            } catch (e: any) {
+              const probeErr = e.stderr?.toString() || '';
+              hasAudio = probeErr.includes('Audio:');
+            }
+
+            const tempFast = abs.replace(/\.mp4$/i, '_fast_tmp.mp4');
+            try {
+              if (hasAudio) {
+                execSync(`${ffmpegBin} -y -i "${abs}" -c copy -movflags +faststart "${tempFast}"`, { stdio: 'pipe' });
+              } else {
+                execSync(`${ffmpegBin} -y -i "${abs}" -f lavfi -i anullsrc=channel_layout=stereo:sample_rate=48000 -c:v copy -c:a aac -shortest -movflags +faststart "${tempFast}"`, { stdio: 'pipe' });
+              }
+              if (fs.existsSync(tempFast) && fs.statSync(tempFast).size > 0) {
+                fs.copyFileSync(tempFast, abs);
+                fs.unlinkSync(tempFast);
+              }
+            } catch {}
+          }
+        }
+      }
+    }
+  } catch {}
+
+  const streamPort = await ensureMediaServer();
+
+  const resolvedMasterAudio = resolveMediaUrl(rawTimeline.masterAudioPath, timelineDir, streamPort) || '';
+  console.log(`🎵 [RemotionRenderer] Master Audio Track: ${resolvedMasterAudio || '(NONE)'}`);
 
   // Resolve all clip paths and master audio path
   const resolvedTimeline: Timeline = {
     ...rawTimeline,
-    masterAudioPath: resolveMediaUrl(rawTimeline.masterAudioPath, timelineDir, streamPort) || '',
+    masterAudioPath: resolvedMasterAudio,
     clips: rawTimeline.clips.map((clip) => ({
       ...clip,
       clipPath: resolveMediaUrl(clip.clipPath, timelineDir, streamPort),
@@ -236,7 +303,7 @@ export async function renderTimelineVideo(
         '--disable-features=IsolateOrigins,site-per-process',
         '--autoplay-policy=no-user-gesture-required',
       ],
-    },
+    } as any,
   });
 
   await renderMedia({
@@ -248,7 +315,8 @@ export async function renderTimelineVideo(
     serveUrl: bundleUrl,
     codec: 'h264',
     outputLocation: finalOut,
-    everyFrameTimeoutInMilliseconds: 60000,
+    timeoutInMilliseconds: 120000,
+    enforceAudioTrack: true,
     inputProps: {
       timeline: resolvedTimeline,
       width: 1920,
@@ -257,14 +325,15 @@ export async function renderTimelineVideo(
       durationInFrames,
       durationInSeconds,
     },
-    onProgress: ({ renderedFrames, totalFrames }) => {
-      const percent = Math.round((renderedFrames / totalFrames) * 100);
+    onProgress: ({ renderedFrames, totalFrames }: any) => {
+      const safeTotal = totalFrames || durationInFrames || 1;
+      const percent = Math.min(100, Math.round((renderedFrames / safeTotal) * 100));
       const currentBeat = Math.min(
         resolvedTimeline.clips.length,
-        Math.floor((renderedFrames / totalFrames) * resolvedTimeline.clips.length) + 1
+        Math.max(1, Math.floor((renderedFrames / safeTotal) * resolvedTimeline.clips.length) + 1)
       );
-      if (renderedFrames % Math.round(fps * 2) === 0 || renderedFrames === totalFrames) {
-        console.log(`  ⚡ [Remotion] Rendering frame progress: ${percent}.0% (Beat ${currentBeat}/${resolvedTimeline.clips.length})`);
+      if (renderedFrames % Math.round(fps * 2) === 0 || renderedFrames === safeTotal) {
+        console.log(`  ⚡ [Remotion] Rendering frame progress: ${percent}% (Beat ${currentBeat}/${resolvedTimeline.clips.length} | Frame ${renderedFrames}/${safeTotal})`);
         if (onProgress) onProgress(currentBeat, resolvedTimeline.clips.length);
       }
     },
@@ -275,7 +344,7 @@ export async function renderTimelineVideo(
         '--disable-features=IsolateOrigins,site-per-process',
         '--autoplay-policy=no-user-gesture-required',
       ],
-    },
+    } as any,
   });
 
   console.log(`\n====================================================`);

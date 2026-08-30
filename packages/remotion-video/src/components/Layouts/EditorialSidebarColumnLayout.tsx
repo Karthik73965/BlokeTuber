@@ -33,6 +33,11 @@ export const EditorialSidebarColumnLayout: React.FC<LayoutProps> = ({
 
   const contextSrc = clip.additionalClipPaths?.[0] || clip.clipPath;
 
+  const dossierTitle = clip.layoutData?.title || clip.callout?.line1?.toUpperCase() || 'INVESTIGATIVE DOSSIER';
+  const surveillanceLabel = clip.layoutData?.tag || 'PRIMARY EVIDENCE';
+  const coordsLabel = clip.layoutData?.coords || (clip.callout?.line2 ? clip.callout.line2.toUpperCase() : 'CASE ARCHIVE RECORD');
+  const secondaryContextTag = clip.layoutData?.subtitle || 'SECONDARY CONTEXT // REF-A';
+
   return (
     <div
       style={{
@@ -63,7 +68,8 @@ export const EditorialSidebarColumnLayout: React.FC<LayoutProps> = ({
                 width: '100%',
                 height: '100%',
                 objectFit: 'cover',
-                transform: `scale(${heroScale})`,
+                transform: `scale(${heroScale}) translateZ(0)`,
+                willChange: 'transform',
                 filter: 'contrast(1.06) saturate(1.05)',
               }}
             />
@@ -74,7 +80,8 @@ export const EditorialSidebarColumnLayout: React.FC<LayoutProps> = ({
                 width: '100%',
                 height: '100%',
                 objectFit: 'cover',
-                transform: `scale(${heroScale})`,
+                transform: `scale(${heroScale}) translateZ(0)`,
+                willChange: 'transform',
                 filter: 'contrast(1.06) saturate(1.05)',
               }}
             />
@@ -146,14 +153,17 @@ export const EditorialSidebarColumnLayout: React.FC<LayoutProps> = ({
             <span
               style={{
                 fontFamily: 'Inter, sans-serif',
-                fontSize: 14,
+                fontSize: 13,
                 fontWeight: 900,
                 color: '#1C1917',
-                letterSpacing: '0.12em',
+                letterSpacing: '0.1em',
                 textTransform: 'uppercase',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap',
               }}
             >
-              INVESTIGATIVE DOSSIER
+              {dossierTitle}
             </span>
           </div>
 
@@ -172,7 +182,7 @@ export const EditorialSidebarColumnLayout: React.FC<LayoutProps> = ({
               </span>
               <div style={{ width: 6, height: 6, borderRadius: '50%', backgroundColor: '#D97706' }} />
               <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 700, color: '#44403C' }}>
-                PRIMARY SURVEILLANCE
+                {surveillanceLabel}
               </span>
             </div>
 
@@ -185,11 +195,11 @@ export const EditorialSidebarColumnLayout: React.FC<LayoutProps> = ({
                   color: '#A8A29E',
                 }}
               >
-                GPS LOC
+                LOC
               </span>
               <div style={{ width: 6, height: 6, borderRadius: '50%', backgroundColor: '#A8A29E' }} />
               <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 700, color: '#78716C' }}>
-                47.5925° N, 122.3168° W
+                {coordsLabel}
               </span>
             </div>
           </div>
@@ -208,7 +218,7 @@ export const EditorialSidebarColumnLayout: React.FC<LayoutProps> = ({
               marginBottom: 8,
             }}
           >
-            SECONDARY CONTEXT // REF-A
+            {secondaryContextTag}
           </div>
           <div
             style={{

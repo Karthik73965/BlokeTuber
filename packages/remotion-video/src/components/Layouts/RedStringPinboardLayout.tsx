@@ -60,6 +60,9 @@ export const RedStringPinboardLayout: React.FC<LayoutProps> = ({
     );
   };
 
+  const defaultNotes = ['EXHIBIT A // CLUE', 'LOCATION RECORD', 'PRIMARY EVIDENCE'];
+  const notes = clip.layoutData?.notes || defaultNotes;
+
   return (
     <div
       style={{
@@ -113,9 +116,9 @@ export const RedStringPinboardLayout: React.FC<LayoutProps> = ({
             top: 140,
             left: 200,
             width: 280,
-            height: 200,
+            height: 220,
             backgroundColor: '#FAF7F2',
-            padding: '10px 10px 14px',
+            padding: '10px 10px 28px',
             boxShadow: '0 16px 40px rgba(0,0,0,0.18)',
             transform: 'rotate(-4deg)',
             zIndex: 10,
@@ -138,8 +141,11 @@ export const RedStringPinboardLayout: React.FC<LayoutProps> = ({
               zIndex: 20,
             }}
           />
-          <div style={{ width: '100%', height: '100%', overflow: 'hidden' }}>
+          <div style={{ width: '100%', height: 165, overflow: 'hidden' }}>
             {renderSlotMedia(clueSrcA)}
+          </div>
+          <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 10, fontWeight: 800, color: '#44403C', marginTop: 4, textTransform: 'uppercase' }}>
+            {notes[0] || defaultNotes[0]}
           </div>
         </div>
 
@@ -147,12 +153,12 @@ export const RedStringPinboardLayout: React.FC<LayoutProps> = ({
         <div
           style={{
             position: 'absolute',
-            bottom: 140,
+            bottom: 120,
             left: 240,
             width: 260,
-            height: 190,
+            height: 210,
             backgroundColor: '#FAF7F2',
-            padding: '10px 10px 14px',
+            padding: '10px 10px 28px',
             boxShadow: '0 16px 40px rgba(0,0,0,0.18)',
             transform: 'rotate(5deg)',
             zIndex: 10,
@@ -175,8 +181,11 @@ export const RedStringPinboardLayout: React.FC<LayoutProps> = ({
               zIndex: 20,
             }}
           />
-          <div style={{ width: '100%', height: '100%', overflow: 'hidden' }}>
+          <div style={{ width: '100%', height: 155, overflow: 'hidden' }}>
             {renderSlotMedia(clueSrcB)}
+          </div>
+          <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 10, fontWeight: 800, color: '#44403C', marginTop: 4, textTransform: 'uppercase' }}>
+            {notes[1] || defaultNotes[1]}
           </div>
         </div>
 
@@ -188,9 +197,9 @@ export const RedStringPinboardLayout: React.FC<LayoutProps> = ({
             right: 220,
             transform: 'translateY(-50%) rotate(1.2deg)',
             width: 780,
-            height: 560,
+            height: 570,
             backgroundColor: '#FAF7F2',
-            padding: '16px 16px 24px',
+            padding: '16px 16px 36px',
             boxShadow: '0 30px 80px rgba(0,0,0,0.22), 0 6px 16px rgba(0,0,0,0.1)',
             zIndex: 20,
             overflow: 'hidden',
@@ -216,13 +225,16 @@ export const RedStringPinboardLayout: React.FC<LayoutProps> = ({
           <div
             style={{
               width: '100%',
-              height: '100%',
+              height: '92%',
               backgroundColor: '#1E1E24',
               overflow: 'hidden',
               position: 'relative',
             }}
           >
             {renderSlotMedia(heroSrc, true)}
+          </div>
+          <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, fontWeight: 800, color: '#1C1917', marginTop: 6, letterSpacing: '0.06em', textTransform: 'uppercase' }}>
+            {notes[2] || clip.callout?.line1?.toUpperCase() || defaultNotes[2]}
           </div>
         </div>
       </div>

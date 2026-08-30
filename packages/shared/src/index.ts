@@ -13,13 +13,26 @@ export interface Chapter {
   projectId: string;
   chapterIndex: number;
   title: string;
+  description?: string; // Pacing & Visual Director Note (e.g. "70yo elderly woman, van life, desert roads")
   scriptText?: string;
   voiceoverFileName?: string;
-  status: 'draft' | 'queued' | 'processing' | 'completed' | 'error';
+  status: 'draft' | 'staged' | 'queued' | 'processing' | 'completed' | 'error';
   jobId?: string;
   videoPath?: string;
+  timelineJson?: Timeline;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface StockSearchOption {
+  id: string;
+  url: string;
+  previewUrl: string;
+  title: string;
+  source: 'pexels' | 'pixabay' | 'coverr' | 'mixkit';
+  mediaType: 'video' | 'image';
+  width: number;
+  height: number;
 }
 
 export interface Project {
@@ -123,6 +136,18 @@ export type SceneLayoutType =
   | 'polaroid_scatter_desk'
   | 'magnifying_loupe_inspector';
 
+export interface SceneLayoutData {
+  title?: string;
+  subtitle?: string;
+  tag?: string;
+  badge?: string;
+  camLabels?: string[]; // e.g. ["DASHCAM // HIGHWAY 40", "CABIN REAR // LIVING AREA", "SIDE MIRROR // NIGHT", "OVERHEAD DRONE"]
+  notes?: string[]; // e.g. ["1995 FORD ECONOLINE", "FINAL EVICTION NOTICE", "SOCIAL SECURITY CHECK $820/MO"]
+  coords?: string; // e.g. "QUARTZSITE, AZ • 33.6642° N, 114.2272° W"
+  timestamp?: string; // e.g. "OCTOBER 1995 • 03:14 AM"
+  stamp?: string; // e.g. "FORENSIC BOUNDARY SURVEY"
+}
+
 export interface TimelineClip {
   beatIndex: number;
   chapterIndex: number;
@@ -135,6 +160,7 @@ export interface TimelineClip {
   mediaType?: 'video' | 'image';
   secondaryMediaType?: 'video' | 'image';
   layout?: SceneLayoutType;
+  layoutData?: SceneLayoutData;
   stockSource?: string;
   stockUrl?: string;
   kenBurns: boolean;

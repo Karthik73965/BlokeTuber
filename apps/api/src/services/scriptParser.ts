@@ -19,8 +19,8 @@ export interface Chapter {
 
 // Speaking rate: ~150 words/min = ~2.5 words/second
 const WORDS_PER_SECOND = 2.5;
-const TARGET_BEAT_SECONDS = 2; // Fast-paced 2-second visual cuts
-const TARGET_WORDS_PER_BEAT = Math.round(TARGET_BEAT_SECONDS * WORDS_PER_SECOND); // 5 words per beat
+const TARGET_BEAT_SECONDS = 3.5; // Natural documentary cadence (8-10 words per beat)
+const TARGET_WORDS_PER_BEAT = Math.round(TARGET_BEAT_SECONDS * WORDS_PER_SECOND); // ~9 words per beat
 
 /**
  * Split text into clauses/phrases using punctuation or commas.

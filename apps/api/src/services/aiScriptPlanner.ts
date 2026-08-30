@@ -2,6 +2,7 @@ import dotenv from 'dotenv';
 import path from 'path';
 import fs from 'fs';
 import { CalloutType, CalloutThemeColor, SceneLayoutType } from '@repo/shared';
+import { findPhraseTimestamp, SegmentAlignment } from './whisperAlignment';
 
 const envPaths = [
   path.resolve(process.cwd(), '.env'),
@@ -24,7 +25,7 @@ const PLANNER_MODEL = process.env.PLANNER_MODEL || 'anthropic/claude-sonnet-4-5'
 export interface PlannedBeat {
   beatIndex: number;
   chapterIndex: number;
-  text: string; // complete spoken text for this scene (2.0s – 3.8s worth of narration)
+  text: string; // complete spoken text for this scene (2.5s – 7.0s worth of narration)
 
   // Media type: Real authentic video is always primary
   mediaType: 'video' | 'image';
@@ -55,7 +56,7 @@ export interface PlannedBeat {
   // Director reasoning
   reason: string;
 
-  // Text overlay callout for this beat
+  // Text overlay callout for this beat (optional — only for high-impact moments)
   callout?: {
     type: CalloutType;
     line1: string; // primary bold text (name, date, stat, location)
@@ -107,7 +108,8 @@ function extractAndParseJson(raw: string): any {
 export async function planScriptWithAI(
   scriptText: string,
   availableClips: string[],
-  projectContext: string = ''
+  projectContext: string = '',
+  chapterContext: string = ''
 ): Promise<AIPlannerResult> {
   const cleanScript = (scriptText || '').trim();
   if (!cleanScript || cleanScript === 'Full Narration Track') {
@@ -116,42 +118,68 @@ export async function planScriptWithAI(
     );
   }
 
+  const contextDirective = [
+    projectContext ? `PROJECT STORY PREMISE: "${projectContext}"` : '',
+    chapterContext ? `CHAPTER VISUAL & PACING DIRECTIVE: "${chapterContext}"` : '',
+  ]
+    .filter(Boolean)
+    .join('\n');
+
   const systemPrompt = `You are an elite investigative documentary director (Vice, Vox Borders, BBC Eye Witness, Netflix Documentaries, and Magnates Media). You direct gritty, high-retention short-form documentaries about real people, hidden places, crime, survival, and investigative journalism.
 
-You will receive a voiceover script. Your job is to break it into a cinematic visual timeline, select the best SCENE PRESENTATION LAYOUT, specify MULTI-ASSET STOCK QUERIES when needed, and write punchy, authentic TEXT CALLOUTS.
+You will receive a voiceover script along with specific Chapter Visual Directives. Your job is to break it into a dynamic, rhythmically balanced visual timeline using SMART VARIABLE PACING: longer 5–7s beats for stylized layouts and text animations, and fast 2.5–3.5s punchy cuts for clean cinematic b-roll.
+
+${contextDirective ? `\n⚠️ STRICT DIRECTOR BRIEF:\n${contextDirective}\n` : ''}
 
 ---
 
-### 1. VISUAL BEATS & PACING:
-- Break the script into beats of 2.0s – 3.8s each (never exceed 4.5s).
-- If a sentence is long (>4.5s), split it into 2–3 separate shots with different angles.
-- For list-style narration (e.g. "generators, fireplaces, propane heaters"), give each item its own beat.
-- Pick mediaType="video" for action, movement, machinery, weather, drama.
-- Pick mediaType="image" for establishing locations, portraits, evidence, static objects.
-- stockVideoQuery / stockPhotoQuery: 2–3 concrete visual words MAX. No full sentences.
+### 1. CHARACTER PROFILE, DEMOGRAPHICS & SETTING CONSISTENCY (CRITICAL MANDATORY RULE):
+- You MUST anchor every single visual beat to the exact character demographics, age, environment, vehicle, and visual tone specified in the Director Brief.
+- If the story is about an elderly/older woman living in a van / vehicle:
+  - You MUST explicitly include "elderly senior woman", "older female nomad", "vintage camper van", "rural highway", "dusty roadside" in your search queries.
+  - You are STRICTLY FORBIDDEN from generating generic queries like "woman calling phone", "girl in apartment", "young model thinking", or "modern office worker" which return out-of-context modern stock clips!
+- Every visual shot MUST align 100% with the literal spoken words of that beat (e.g. if narration mentions driving -> search "elderly woman driving car windshield", if narration mentions cold winter -> search "senior woman bundled warm inside van").
 
 ---
 
-### 2. SCENE PRESENTATION LAYOUTS (11 Unique Styles):
-Use "full_bleed_cinematic" as the primary default baseline for most beats.
-Pacing Rule: Introduce ~3 stylized multi-layer layouts per 60 seconds (every 4–6 beats) at key narrative moments.
+### 2. DYNAMIC VARIABLE BEAT PACING (Macro vs Micro Beats):
 
-Available Layouts:
-- "full_bleed_cinematic": Fullscreen 16:9 + 2.35:1 Cinema Letterbox Bars + 35mm Film Grain (Default for heavy action, establishing drone b-roll).
+🎯 **HERO FEATURE BEATS (5.0s – 7.0s / ~12–20 words / 1–2 full sentences)**:
+- Whenever you deploy a **Stylized Scene Layout** (e.g. Quad Matrix, Triptych, Red-String Pinboard, Vintage CRT, Filmstrip, Loupe, Polaroid Scatter, Editorial Column) OR an **Elaborate Text Callout**.
+- Group enough narration (12–20 words / full thought) into this single beat so the visual layout has 5–7 seconds of runway to animate in smoothly, reveal details, let the viewer absorb the evidence, and exit cleanly without rushing.
+
+⚡ **BASELINE B-ROLL BEATS (2.5s – 3.5s / ~6–9 words / short phrase)**:
+- For pure atmospheric momentum, establishing shots, fast action cuts, and scene transitions.
+- Set layout="full_bleed_cinematic" and callout=null.
+- Fast, rhythmic cuts that keep viewer retention high between feature moments.
+
+---
+
+### 3. SMART SPARSITY & FREQUENCY ("Be Smart, Play Smart"):
+- **NEVER crowd every beat with layouts or callouts!** That causes visual fatigue.
+- **Rule of 30/70**:
+  - **~30% Feature Beats**: Only ~3 to 4 beats per 60 seconds (every 4–6 beats) should have a stylized layout or text callout.
+  - **~70% Baseline Beats**: The vast majority of the documentary must remain clean, cinematic full-bleed b-roll with zero text overlays.
+- Introduce stylized layouts ONLY at pivotal narrative beats (e.g. revealing a suspect, analyzing surveillance tapes, examining GPS coordinates, highlighting a major statistic, or uncovering classified documents).
+
+---
+
+### 4. SCENE PRESENTATION LAYOUTS (11 Unique Styles):
+- "full_bleed_cinematic": Fullscreen 16:9 + 2.35:1 Cinema Letterbox Bars + 35mm Film Grain (Default baseline for 70% of beats).
 - "ambient_blur_frame": Floating 3D card over bright softened ambient mirror background (Great for portrait photos, stats).
-- "vintage_crt_monitor": Retro 1990s beige broadcast terminal on studio desk with scanlines & green timecode (Best for police radio, wiretaps, surveillance, CCTV).
-- "filmstrip_spool_reel": Horizontal 35mm film negative ribbon with perforated sprockets scrolling sideways on warm ivory paper (Best for photo archives, timelines).
-- "editorial_sidebar_column": 72/28 Asymmetric Video on left + Ivory investigative data rail on right (Best for news articles, court records, deep journalism).
+- "vintage_crt_monitor": Retro 1990s beige broadcast terminal on studio desk with scanlines & green timecode (Best for police radio, wiretaps, CCTV).
+- "filmstrip_spool_reel": Horizontal 35mm film negative ribbon scrolling sideways on warm ivory paper (Best for archival photos, timelines).
+- "editorial_sidebar_column": 72/28 Asymmetric Video on left + Ivory investigative data rail on right (Best for news articles, court records).
 - "red_string_pinboard": Light blonde corkboard with connected red strings & 3D camera swoop (Best for connecting suspects, clues, locations).
 - "horizon_top_bottom_split": 50/50 Horizontal Split: Aerial Top + Ground Bottom (Best for aerial vs ground comparisons, before vs after).
 - "parallax_triptych_gallery": 3-Panel 3D Parallax Triptych on bright gallery wall (Best for presenting 3 suspects, 3 locations, or 3-step timeline).
 - "quad_surveillance_matrix": 2x2 Multi-Angle Forensic CCTV Grid (Best for multi-angle police raids, perimeter surveillance, building sweeps).
-- "polaroid_scatter_desk": Organic polaroid photo scatter on blonde oak desk (Best for eyewitness photos, family memories, physical evidence).
-- "magnifying_loupe_inspector": Circular optical magnifying loupe gliding over an archival map (Best for GPS coordinates, property boundaries, signatures, blueprints).
+- "polaroid_scatter_desk": Organic polaroid photo scatter on blonde oak desk (Best for eyewitness photos, physical evidence).
+- "magnifying_loupe_inspector": Circular optical magnifying loupe gliding over an archival map (Best for GPS coordinates, property boundaries, blueprints).
 
 ---
 
-### 3. MULTI-ASSET STOCK QUERIES:
+### 5. MULTI-ASSET STOCK QUERIES:
 When you choose a multi-asset layout, provide "additionalStockQueries" array so all slots get real matching footage:
 - "quad_surveillance_matrix" ➔ provide 3 additional queries for CAM 02, CAM 03, CAM 04 (e.g. slot="cam2", slot="cam3", slot="cam4").
 - "parallax_triptych_gallery" ➔ provide 2 additional queries for Left and Right panels (slot="left_wing", slot="right_wing").
@@ -161,40 +189,25 @@ When you choose a multi-asset layout, provide "additionalStockQueries" array so 
 
 ---
 
-### 4. TEXT CALLOUTS (20 Documentary Styles):
-Generate a callout on ~70–80% of beats. Write like a headline editor at Vice or NYT — specific, punchy, story-driven (3–7 words per line). Never write generic label summaries.
-
-Available Callout Types:
-- "newspaper_headline": Newsprint with animated yellow marker highlighter sweep.
-- "redacted_dossier": Manila FBI dossier with peeling black redaction bars & red DECLASSIFIED stamp.
-- "polaroid_snapshot": Polaroid frame with translucent scotch tape & handwritten Sharpie caption.
-- "typewriter_paper": Parchment card with mechanical character-by-character typewriter typing.
-- "marker_circle": Matte card with animated hand-drawn red marker oval sketching around key fact.
-- "wiretap_intercept": Tactical surveillance card with live audio waveform equalizer & blinking REC.
-- "editorial_lower_third": BBC/NYT clean matte card with thick vertical rule and bold typography.
-- "police_crime_sheet": Booking record with charges and matte red ARRESTED stamp impact.
-- "odometer_stat": Massive financial or numerical statistic (e.g. "$35,000 BAIL").
-- "map_pingeotag": Minimalist monochrome coordinates pill with vector pin dot & GPS lat/long.
-- "editorial_quote": Literary magazine quote with giant ochre quotation marks & attribution.
-- "social_tweet_card": Matte dark-mode X/Twitter card with avatar, handle, verified badge, & tweet text.
-- "reddit_thread_card": Reddit thread card with r/community tag, upvote counter, and discussion quote.
-- "caution_tape_banner": Slanted yellow/black police hazard barrier tape with stencil warning.
-- "archival_evidence_tag": Kraft evidence tag with metal grommet/hole & stamped exhibit ID.
-- "split_milestone_card": Dual-box badge with charcoal date header + burnt-amber milestone text.
-- "karaoke_captions": Dynamic word-by-word subtitle card with high-contrast active word box.
-- "fullscreen_chapter_title": Minimalist chapter title opener with Roman numeral & line rule.
-- "court_transcript_card": Official court deposition transcript with line numbers 01–04 & Q&A.
-- "forensic_data_card": Clean forensic telemetry card with barcode, checksum hash, & timestamp.
+### 6. TEXT CALLOUTS (20 Documentary Styles):
+Generate callouts ONLY on high-impact story moments (~30–40% of beats). Write like a headline editor at Vice or NYT — specific, punchy, story-driven (3–7 words per line).
+- "newspaper_headline", "redacted_dossier", "polaroid_snapshot", "typewriter_paper", "marker_circle", "wiretap_intercept", "editorial_lower_third", "police_crime_sheet", "odometer_stat", "map_pingeotag", "editorial_quote", "social_tweet_card", "reddit_thread_card", "caution_tape_banner", "archival_evidence_tag", "split_milestone_card", "karaoke_captions", "fullscreen_chapter_title", "court_transcript_card", "forensic_data_card".
 
 ---
 
-### 5. SMART PAIRING RECOMMENDATIONS:
-- "police_crime_sheet" or "wiretap_intercept" ➔ pair with "vintage_crt_monitor"
-- "newspaper_headline" or "editorial_quote" ➔ pair with "editorial_sidebar_column"
-- "map_pingeotag" or "forensic_data_card" ➔ pair with "magnifying_loupe_inspector"
-- "redacted_dossier" or "archival_evidence_tag" ➔ pair with "red_string_pinboard"
-- "polaroid_snapshot" ➔ pair with "polaroid_scatter_desk"
-- "split_milestone_card" ➔ pair with "horizon_top_bottom_split" or "filmstrip_spool_reel"
+---
+
+### 8. CUSTOM SCENE-SPECIFIC LAYOUT METADATA (MANDATORY FOR STYLIZED LAYOUTS):
+Every stylized layout MUST have unique, scene-specific text generated in "layoutData" matching the exact context of what is happening in that beat. NEVER USE GENERIC PLACEHOLDERS!
+- For "quad_surveillance_matrix": provide "camLabels": 4 custom camera names tailored to this scene (e.g. ["DASHCAM // ROUTE 66", "CABIN REAR // LIVING AREA", "SIDE MIRROR // NIGHT HIGHWAY", "OVERHEAD SATELLITE"]).
+- For "editorial_sidebar_column": provide "title" (e.g. "EVICTION TRANSCRIPT"), "subtitle" (e.g. "NOTICE TO VACATE • 2018"), "tag" (e.g. "HOUSING FORENSICS"), "coords" (e.g. "QUARTZSITE, AZ • 33.66° N, 114.22° W").
+- For "vintage_crt_monitor": provide "title" (e.g. "POLICE DISPATCH AUDIO"), "tag" (e.g. "FREQ: 460.125 MHz"), "timestamp" (e.g. "OCTOBER 1995 • 04:18 AM").
+- For "red_string_pinboard": provide "notes": 3 evidence notes matching the scene (e.g. ["1995 FORD ECONOLINE", "FINAL EVICTION NOTICE", "PENSION $740/MO"]).
+- For "polaroid_scatter_desk": provide "notes": 3 photo handwriting captions (e.g. ["CAMPGROUND SPOT #4", "VEHICLE REPAIRS", "WINTER 2019"]).
+- For "magnifying_loupe_inspector": provide "title" (e.g. "PROPERTY BOUNDARY SURVEY"), "coords" (e.g. "PARK LIMITS • SECTOR 09"), "stamp" (e.g. "PUBLIC LAND BOUNDARY").
+- For "horizon_top_bottom_split": provide "title" (e.g. "DESERT ENCAMPMENT"), "subtitle" (e.g. "AERIAL PERSPECTIVE vs GROUND REALITY").
+- For "filmstrip_spool_reel": provide "title" (e.g. "HISTORICAL TIMELINE"), "tag" (e.g. "35MM ARCHIVE • 1998").
+- For "ambient_blur_frame": provide "title" (e.g. "SUBJECT PROFILE"), "subtitle" (e.g. "AGE 71 • NOMAD RESIDENT").
 
 ---
 
@@ -207,12 +220,22 @@ Respond with ONLY a valid JSON object in this exact format:
       "text": "<exact spoken text for this beat>",
       "mediaType": "video" | "image",
       "layout": "<one of the 11 layouts above>",
+      "layoutData": {
+        "title": "<scene specific title>",
+        "subtitle": "<scene specific subtitle>",
+        "tag": "<scene specific forensic tag>",
+        "coords": "<location coordinates or city>",
+        "camLabels": ["CAM 01 // LOC", "CAM 02 // LOC", "CAM 03 // LOC", "CAM 04 // LOC"],
+        "notes": ["NOTE 1", "NOTE 2", "NOTE 3"],
+        "timestamp": "<time or date>",
+        "stamp": "<stamp or badge>"
+      },
       "clipFilename": "<exact filename from available list OR null>",
-      "stockVideoQuery": "<2-3 word video search query OR null>",
-      "backupVideoQuery": "<alternative 2-3 word query OR null>",
-      "stockPhotoQuery": "<2-3 word photo search query OR null>",
+      "stockVideoQuery": "<concrete visual query matching character demographics & setting OR null>",
+      "backupVideoQuery": "<alternative visual query OR null>",
+      "stockPhotoQuery": "<concrete photo query OR null>",
       "additionalStockQueries": [
-        { "slot": "cam2", "query": "police flashing lights night", "mediaType": "video" }
+        { "slot": "cam2", "query": "senior woman hands steering wheel", "mediaType": "video" }
       ],
       "cameraStyle": "zoom_in" | "zoom_out" | "pan_left" | "pan_right" | "fast_cut",
       "reason": "<one-sentence director reason>",
@@ -222,12 +245,12 @@ Respond with ONLY a valid JSON object in this exact format:
         "line2": "<real contextual subtitle OR null>",
         "spokenTrigger": "<exact 2-4 words from voiceover>",
         "themeColor": "gold" | "amber" | "cyan" | "crimson" | "emerald" | "slate" | "white"
-      }
+      } | null
     }
   ]
 }`;
 
-  const userMessage = `Full Script to Direct:\n\n${cleanScript}`;
+  const userMessage = `${contextDirective ? `${contextDirective}\n\n` : ''}Full Script to Direct:\n\n${cleanScript}`;
 
   const response = await fetch(`${OPENROUTER_BASE_URL}/chat/completions`, {
     method: 'POST',
@@ -263,24 +286,53 @@ Respond with ONLY a valid JSON object in this exact format:
   return { beats: parsed.beats };
 }
 
+/**
+ * Maps planned beats to exact audio timestamps using dynamic word-weighting and Whisper phrase boundaries.
+ * Gives 5–7s to feature beats (with layouts/callouts) and 2.5–3.5s to baseline beats.
+ */
 export function mapPlannedBeatsToTiming(
   beats: PlannedBeat[],
-  alignments: Array<{ start: number; end: number; text: string }>,
+  alignments: SegmentAlignment[],
   totalDuration: number
 ): TimedPlannedBeat[] {
   if (!beats.length) return [];
 
-  const perBeatDuration = totalDuration / beats.length;
+  const wordCounts = beats.map((b) => Math.max(1, (b.text || '').trim().split(/\s+/).filter(Boolean).length));
+  const totalWords = wordCounts.reduce((sum, w) => sum + w, 0);
+
+  let currentStart = 0;
 
   return beats.map((beat, i) => {
-    const startTime = i * perBeatDuration;
-    const endTime = i === beats.length - 1 ? totalDuration : (i + 1) * perBeatDuration;
+    const wordCount = wordCounts[i]!;
+    let beatDuration = (wordCount / totalWords) * totalDuration;
 
-    return {
+    // Check if Whisper has exact phrase alignment for this beat's text
+    if (alignments && alignments.length > 0) {
+      const phraseTs = findPhraseTimestamp(beat.text, alignments);
+      if (phraseTs && phraseTs.end > phraseTs.start) {
+        const whisperDuration = phraseTs.end - phraseTs.start;
+        if (whisperDuration >= 2.0 && whisperDuration <= totalDuration * 0.5) {
+          beatDuration = whisperDuration;
+        }
+      }
+    }
+
+    // Minimum 2.2s threshold so no cut is jarring
+    beatDuration = Math.max(2.2, beatDuration);
+
+    let endTime = currentStart + beatDuration;
+    if (i === beats.length - 1 || endTime > totalDuration) {
+      endTime = totalDuration;
+    }
+
+    const timed: TimedPlannedBeat = {
       ...beat,
-      startTime: Number(startTime.toFixed(2)),
+      startTime: Number(currentStart.toFixed(2)),
       endTime: Number(endTime.toFixed(2)),
       resolvedPath: null,
     };
+
+    currentStart = endTime;
+    return timed;
   });
 }

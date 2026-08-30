@@ -471,6 +471,7 @@ export async function findStockPhoto(
 
 /**
  * Download a stock video to local disk.
+ * Automatically ensures faststart (moov atom at head) for instant, seamless decoding in Chromium & Remotion.
  */
 export async function downloadStockVideo(
   video: StockVideo,
@@ -481,6 +482,37 @@ export async function downloadStockVideo(
 
   const buffer = await response.arrayBuffer();
   fs.writeFileSync(outputPath, Buffer.from(buffer));
+
+  // Run standardization: ensure H.264, silent AAC if audio missing, and faststart moov atom
+  try {
+    const ffmpegStatic = require('ffmpeg-static');
+    const ffmpegBin = ffmpegStatic ? `"${ffmpegStatic}"` : 'ffmpeg';
+    const tempOpt = outputPath.replace(/\.mp4$/i, '_std.mp4');
+    const { execSync } = require('child_process');
+
+    let hasAudio = false;
+    try {
+      const probe = execSync(`${ffmpegBin} -i "${outputPath}"`, { stdio: 'pipe' }).toString();
+      hasAudio = probe.includes('Audio:');
+    } catch (e: any) {
+      const probeErr = e.stderr?.toString() || '';
+      hasAudio = probeErr.includes('Audio:');
+    }
+
+    if (hasAudio) {
+      execSync(`${ffmpegBin} -y -i "${outputPath}" -c:v libx264 -pix_fmt yuv420p -c:a aac -movflags +faststart "${tempOpt}"`, { stdio: 'pipe' });
+    } else {
+      execSync(`${ffmpegBin} -y -i "${outputPath}" -f lavfi -i anullsrc=channel_layout=stereo:sample_rate=48000 -c:v libx264 -pix_fmt yuv420p -c:a aac -shortest -movflags +faststart "${tempOpt}"`, { stdio: 'pipe' });
+    }
+
+    if (fs.existsSync(tempOpt) && fs.statSync(tempOpt).size > 0) {
+      fs.copyFileSync(tempOpt, outputPath);
+      fs.unlinkSync(tempOpt);
+    }
+  } catch (e) {
+    // Non-fatal, original MP4 is still in place
+  }
+
   return outputPath;
 }
 
@@ -497,5 +529,104 @@ export async function downloadStockPhoto(
   const buffer = await response.arrayBuffer();
   fs.writeFileSync(outputPath, Buffer.from(buffer));
   return outputPath;
+}
+
+export interface StockSearchOption {
+  id: string;
+  url: string;
+  previewUrl: string;
+  title: string;
+  source: 'pexels' | 'pixabay' | 'coverr' | 'mixkit';
+  mediaType: 'video' | 'image';
+  width: number;
+  height: number;
+}
+
+/**
+ * Search alternative stock footage or photos on-the-fly for the visual storyboard clip swapper.
+ */
+export async function searchAlternativeStock(
+  rawQuery: string,
+  mediaType: 'video' | 'image' = 'video',
+  count: number = 8,
+  usedUrls?: Set<string>
+): Promise<StockSearchOption[]> {
+  const q = rawQuery.trim();
+  if (!q) return [];
+
+  if (mediaType === 'video') {
+    const [pexels, pixabay, coverr] = await Promise.allSettled([
+      searchPexels(q, count * 2),
+      searchPixabay(q, count * 2),
+      searchCoverr(q),
+    ]);
+
+    const pool: StockVideo[] = [
+      ...(pexels.status === 'fulfilled' ? pexels.value : []),
+      ...(pixabay.status === 'fulfilled' ? pixabay.value : []),
+      ...(coverr.status === 'fulfilled' ? coverr.value : []),
+    ];
+
+    const filtered = pool
+      .filter((v) => !usedUrls?.has(v.url))
+      .slice(0, count)
+      .map((v) => ({
+        id: v.url,
+        url: v.url,
+        previewUrl: v.previewUrl || v.url,
+        title: v.title || q,
+        source: v.source,
+        mediaType: 'video' as const,
+        width: v.width || 1920,
+        height: v.height || 1080,
+      }));
+
+    return filtered;
+  } else {
+    const pexelsKey = process.env.PEXELS_API_KEY;
+    const searchPromises: Promise<any>[] = [];
+
+    if (pexelsKey) {
+      searchPromises.push(
+        fetch(
+          `https://api.pexels.com/v1/search?query=${encodeURIComponent(q)}&per_page=${count * 2}&orientation=landscape`,
+          { headers: { Authorization: pexelsKey } }
+        ).then(async (res) => {
+          if (!res.ok) return [];
+          const data = (await res.json()) as any;
+          return (data.photos || []).map((p: any) => ({
+            id: `pexels_${p.id}`,
+            url: p.src?.large2x || p.src?.large || p.src?.original || '',
+            previewUrl: p.src?.medium || p.src?.small || '',
+            title: p.alt || q,
+            source: 'pexels' as const,
+            mediaType: 'image' as const,
+            width: p.width || 1920,
+            height: p.height || 1080,
+          }));
+        }).catch(() => [])
+      );
+    }
+
+    searchPromises.push(
+      searchPixabayPhotos(q, count * 2).then((photos) =>
+        photos.map((p) => ({
+          id: p.id || `pixabay_${Math.random()}`,
+          url: p.url,
+          previewUrl: p.previewUrl || p.url,
+          title: p.title || q,
+          source: 'pixabay' as const,
+          mediaType: 'image' as const,
+          width: p.width || 1920,
+          height: p.height || 1080,
+        }))
+      )
+    );
+
+    const results = await Promise.allSettled(searchPromises);
+    const pool: StockSearchOption[] = results.flatMap((r) => (r.status === 'fulfilled' ? r.value : []));
+
+    return pool.filter((p) => !usedUrls?.has(p.url)).slice(0, count);
+  }
 }
 

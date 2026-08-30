@@ -34,6 +34,10 @@ export const VintageCrtMonitorLayout: React.FC<LayoutProps> = ({
   const framesMod = String(frame % 30).padStart(2, '0');
   const secondsMod = String(totalSeconds % 60).padStart(2, '0');
 
+  const channelLabel = clip.layoutData?.title || 'REC • CH-03';
+  const bottomOsd = clip.layoutData?.tag || clip.layoutData?.timestamp || 'SP PLAY ◄◄ 4:3 ARCHIVE';
+  const monitorModel = clip.layoutData?.stamp || 'TRINITRON MONITOR • 1994';
+
   return (
     <div
       style={{
@@ -158,7 +162,7 @@ export const VintageCrtMonitorLayout: React.FC<LayoutProps> = ({
                   backgroundColor: frame % 30 < 18 ? '#EF4444' : 'transparent',
                 }}
               />
-              <span>REC • CH-03</span>
+              <span>{channelLabel}</span>
             </div>
             <div>TAPE: 00:{secondsMod}:{framesMod}</div>
           </div>
@@ -177,7 +181,7 @@ export const VintageCrtMonitorLayout: React.FC<LayoutProps> = ({
               pointerEvents: 'none',
             }}
           >
-            SP PLAY ◄◄ 4:3 ARCHIVE
+            {bottomOsd}
           </div>
         </div>
 
@@ -195,7 +199,7 @@ export const VintageCrtMonitorLayout: React.FC<LayoutProps> = ({
             color: '#78716C',
           }}
         >
-          <span>TRINITRON MONITOR • 1994</span>
+          <span>{monitorModel}</span>
           <div style={{ display: 'flex', gap: 6 }}>
             <div style={{ width: 6, height: 6, borderRadius: '50%', backgroundColor: '#22C55E' }} />
             <div style={{ width: 6, height: 6, borderRadius: '50%', backgroundColor: '#A8A29E' }} />

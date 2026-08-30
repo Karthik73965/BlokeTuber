@@ -93,7 +93,7 @@ export const FilmstripSpoolReelLayout: React.FC<LayoutProps> = ({
                     letterSpacing: '0.1em',
                   }}
                 >
-                  KODAK 400 • {i + 10}A
+                  {clip.layoutData?.tag || clip.layoutData?.title || '35MM ARCHIVE'} • {i + 10}A
                 </span>
               )}
             </div>

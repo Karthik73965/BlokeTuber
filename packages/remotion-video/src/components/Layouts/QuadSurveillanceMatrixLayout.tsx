@@ -22,11 +22,14 @@ export const QuadSurveillanceMatrixLayout: React.FC<LayoutProps> = ({
   const progress = durationInFrames > 0 ? frame / durationInFrames : 0;
   const matrixScale = interpolate(progress, [0, 1], [0.99, 1.02]);
 
+  const defaultLabels = ['PRIMARY ANGLE', 'ROADWAY VIEW', 'REAR PERSPECTIVE', 'OVERHEAD DRONE'];
+  const customLabels = clip.layoutData?.camLabels || [];
+
   const cams = [
-    { id: 'CAM 01', loc: 'PERIMETER NORTH', path: clip.clipPath },
-    { id: 'CAM 02', loc: 'PRIMARY ROADWAY', path: clip.additionalClipPaths?.[0] || clip.clipPath },
-    { id: 'CAM 03', loc: 'STRUCTURE REAR', path: clip.additionalClipPaths?.[1] || clip.clipPath },
-    { id: 'CAM 04', loc: 'OVERHEAD DRONE', path: clip.additionalClipPaths?.[2] || clip.clipPath },
+    { id: 'CAM 01', loc: customLabels[0] || defaultLabels[0]!, path: clip.clipPath },
+    { id: 'CAM 02', loc: customLabels[1] || defaultLabels[1]!, path: clip.additionalClipPaths?.[0] || clip.clipPath },
+    { id: 'CAM 03', loc: customLabels[2] || defaultLabels[2]!, path: clip.additionalClipPaths?.[1] || clip.clipPath },
+    { id: 'CAM 04', loc: customLabels[3] || defaultLabels[3]!, path: clip.additionalClipPaths?.[2] || clip.clipPath },
   ];
 
   return (

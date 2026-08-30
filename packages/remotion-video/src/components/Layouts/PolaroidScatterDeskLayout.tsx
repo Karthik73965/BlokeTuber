@@ -34,6 +34,9 @@ export const PolaroidScatterDeskLayout: React.FC<LayoutProps> = ({
   const photo1 = clip.additionalClipPaths?.[0] || clip.clipPath;
   const photo2 = clip.additionalClipPaths?.[1] || clip.clipPath;
 
+  const defaultNotes = ['EXHIBIT A // EVIDENCE', 'SCENE ARCHIVE', 'PRIMARY RECORD'];
+  const notes = clip.layoutData?.notes || defaultNotes;
+
   return (
     <div
       style={{
@@ -64,7 +67,7 @@ export const PolaroidScatterDeskLayout: React.FC<LayoutProps> = ({
             left: 180,
             width: 320,
             backgroundColor: '#FAF8F5',
-            padding: '12px 12px 30px',
+            padding: '12px 12px 28px',
             borderRadius: 2,
             boxShadow: '0 16px 40px rgba(0,0,0,0.14)',
             transform: 'rotate(-9deg)',
@@ -76,6 +79,9 @@ export const PolaroidScatterDeskLayout: React.FC<LayoutProps> = ({
               <img src={photo1} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
             )}
           </div>
+          <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 700, color: '#44403C', marginTop: 6, textTransform: 'uppercase' }}>
+            {notes[0] || defaultNotes[0]}
+          </div>
         </div>
 
         {/* SCATTERED POLAROID 2 (Bottom-Left) */}
@@ -86,7 +92,7 @@ export const PolaroidScatterDeskLayout: React.FC<LayoutProps> = ({
             left: 260,
             width: 300,
             backgroundColor: '#FAF8F5',
-            padding: '12px 12px 30px',
+            padding: '12px 12px 28px',
             borderRadius: 2,
             boxShadow: '0 16px 40px rgba(0,0,0,0.14)',
             transform: 'rotate(11deg)',
@@ -97,6 +103,9 @@ export const PolaroidScatterDeskLayout: React.FC<LayoutProps> = ({
             {photo2 && (
               <img src={photo2} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
             )}
+          </div>
+          <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 700, color: '#44403C', marginTop: 6, textTransform: 'uppercase' }}>
+            {notes[1] || defaultNotes[1]}
           </div>
         </div>
 
@@ -152,6 +161,9 @@ export const PolaroidScatterDeskLayout: React.FC<LayoutProps> = ({
             ) : (
               <div style={{ width: '100%', height: '100%', backgroundColor: '#18181B' }} />
             )}
+          </div>
+          <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 14, fontWeight: 800, color: '#1C1917', marginTop: 10, letterSpacing: '0.04em', textTransform: 'uppercase' }}>
+            {notes[2] || clip.callout?.line1?.toUpperCase() || defaultNotes[2]}
           </div>
         </div>
       </div>

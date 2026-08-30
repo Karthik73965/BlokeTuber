@@ -93,7 +93,7 @@ export const MuseumArchiveMatteLayout: React.FC<LayoutProps> = ({
                   width: '100%',
                   height: '100%',
                   objectFit: 'cover',
-                  filter: 'contrast(1.05) saturate(1.04)',
+                  filter: 'contrast(1.06) saturate(1.05)',
                 }}
               />
             )

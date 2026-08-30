@@ -82,7 +82,7 @@ export const ParallaxTriptychGalleryLayout: React.FC<LayoutProps> = ({
           width: 380,
           height: '75%',
           backgroundColor: '#FAF8F5',
-          padding: '12px 12px 20px',
+          padding: '12px 12px 28px',
           borderRadius: 4,
           border: '1px solid #DCD6C8',
           boxShadow: '0 20px 50px rgba(0,0,0,0.12)',
@@ -91,8 +91,11 @@ export const ParallaxTriptychGalleryLayout: React.FC<LayoutProps> = ({
           overflow: 'hidden',
         }}
       >
-        <div style={{ width: '100%', height: '100%', borderRadius: 2, overflow: 'hidden' }}>
+        <div style={{ width: '100%', height: '90%', borderRadius: 2, overflow: 'hidden' }}>
           {renderMedia(leftSrc)}
+        </div>
+        <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 10, fontWeight: 800, color: '#78716C', marginTop: 4, textTransform: 'uppercase' }}>
+          {clip.layoutData?.notes?.[0] || 'WING A // PERSPECTIVE'}
         </div>
       </div>
 
@@ -102,7 +105,7 @@ export const ParallaxTriptychGalleryLayout: React.FC<LayoutProps> = ({
           width: 780,
           height: '84%',
           backgroundColor: '#FAF8F5',
-          padding: '18px 18px 30px',
+          padding: '18px 18px 36px',
           borderRadius: 6,
           border: '1px solid #D5CEBF',
           boxShadow:
@@ -115,7 +118,7 @@ export const ParallaxTriptychGalleryLayout: React.FC<LayoutProps> = ({
         <div
           style={{
             width: '100%',
-            height: '100%',
+            height: '90%',
             backgroundColor: '#18181B',
             borderRadius: 3,
             overflow: 'hidden',
@@ -123,6 +126,9 @@ export const ParallaxTriptychGalleryLayout: React.FC<LayoutProps> = ({
           }}
         >
           {renderMedia(centerSrc, true)}
+        </div>
+        <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, fontWeight: 800, color: '#1C1917', marginTop: 6, letterSpacing: '0.04em', textTransform: 'uppercase' }}>
+          {clip.layoutData?.title || clip.layoutData?.notes?.[2] || clip.callout?.line1?.toUpperCase() || 'DOCUMENTARY GALLERY // PRIMARY'}
         </div>
       </div>
 
@@ -132,7 +138,7 @@ export const ParallaxTriptychGalleryLayout: React.FC<LayoutProps> = ({
           width: 380,
           height: '75%',
           backgroundColor: '#FAF8F5',
-          padding: '12px 12px 20px',
+          padding: '12px 12px 28px',
           borderRadius: 4,
           border: '1px solid #DCD6C8',
           boxShadow: '0 20px 50px rgba(0,0,0,0.12)',
@@ -141,8 +147,11 @@ export const ParallaxTriptychGalleryLayout: React.FC<LayoutProps> = ({
           overflow: 'hidden',
         }}
       >
-        <div style={{ width: '100%', height: '100%', borderRadius: 2, overflow: 'hidden' }}>
+        <div style={{ width: '100%', height: '90%', borderRadius: 2, overflow: 'hidden' }}>
           {renderMedia(rightSrc)}
+        </div>
+        <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 10, fontWeight: 800, color: '#78716C', marginTop: 4, textTransform: 'uppercase' }}>
+          {clip.layoutData?.notes?.[1] || 'WING B // CHRONICLE'}
         </div>
       </div>
 

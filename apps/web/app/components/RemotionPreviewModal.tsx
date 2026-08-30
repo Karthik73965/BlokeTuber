@@ -33,7 +33,7 @@ export const RemotionPreviewModal: React.FC<RemotionPreviewModalProps> = ({
       style={{
         position: 'fixed',
         inset: 0,
-        backgroundColor: 'rgba(0, 0, 0, 0.85)',
+        backgroundColor: 'rgba(15, 23, 42, 0.65)',
         backdropFilter: 'blur(8px)',
         WebkitBackdropFilter: 'blur(8px)',
         zIndex: 9999,
@@ -46,10 +46,10 @@ export const RemotionPreviewModal: React.FC<RemotionPreviewModalProps> = ({
     >
       <div
         style={{
-          backgroundColor: '#09090B',
-          border: '1px solid rgba(255, 255, 255, 0.12)',
-          borderRadius: 14,
-          boxShadow: '0 25px 60px rgba(0,0,0,0.9), 0 0 30px rgba(6, 182, 212, 0.2)',
+          backgroundColor: '#FFFFFF',
+          border: '1px solid #E2E8F0',
+          borderRadius: 16,
+          boxShadow: '0 25px 50px -12px rgba(15, 23, 42, 0.25)',
           maxWidth: 1100,
           width: '100%',
           overflow: 'hidden',
@@ -65,15 +65,16 @@ export const RemotionPreviewModal: React.FC<RemotionPreviewModalProps> = ({
             alignItems: 'center',
             justifyContent: 'space-between',
             padding: '16px 24px',
-            borderBottom: '1px solid rgba(255, 255, 255, 0.08)',
-            backgroundColor: '#0e0e12',
+            borderBottom: '1px solid #E2E8F0',
+            backgroundColor: '#FAF9F6',
           }}
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
             <span
               style={{
-                backgroundColor: 'rgba(6, 182, 212, 0.15)',
-                color: '#06B6D4',
+                backgroundColor: '#FEF3C7',
+                color: '#B45309',
+                border: '1px solid #FDE68A',
                 fontSize: 11,
                 fontFamily: 'JetBrains Mono, monospace',
                 padding: '4px 8px',
@@ -88,7 +89,7 @@ export const RemotionPreviewModal: React.FC<RemotionPreviewModalProps> = ({
                 fontFamily: 'Space Grotesk, sans-serif',
                 fontSize: 16,
                 fontWeight: 700,
-                color: '#FFFFFF',
+                color: '#0F172A',
                 margin: 0,
               }}
             >
@@ -98,13 +99,19 @@ export const RemotionPreviewModal: React.FC<RemotionPreviewModalProps> = ({
 
           <button
             style={{
-              background: 'transparent',
-              border: 'none',
-              color: '#A1A1AA',
+              background: '#F1F5F9',
+              border: '1px solid #E2E8F0',
+              borderRadius: '50%',
+              width: 32,
+              height: 32,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: '#475569',
               cursor: 'pointer',
-              fontSize: 20,
+              fontSize: 14,
               fontWeight: 700,
-              padding: '4px 8px',
+              transition: 'all 0.15s ease',
             }}
             onClick={onClose}
           >
@@ -141,22 +148,23 @@ export const RemotionPreviewModal: React.FC<RemotionPreviewModalProps> = ({
         {/* Footer Info */}
         <div
           style={{
-            padding: '12px 24px',
-            backgroundColor: '#0e0e12',
+            padding: '14px 24px',
+            backgroundColor: '#FAF9F6',
+            borderTop: '1px solid #E2E8F0',
             display: 'flex',
             justifyContent: 'space-between',
             alignItems: 'center',
             fontSize: 12,
             fontFamily: 'JetBrains Mono, monospace',
-            color: '#71717A',
+            color: '#64748B',
           }}
         >
           <span>
-            Clips: {timeline?.clips?.length || 0} | Duration:{' '}
-            {(durationInFrames / fps).toFixed(1)}s
+            Clips: <strong>{timeline?.clips?.length || 0}</strong> • Duration:{' '}
+            <strong>{(durationInFrames / fps).toFixed(1)}s</strong>
           </span>
-          <span style={{ color: '#F59E0B' }}>
-            ⚡ Real-time React preview with animated callouts & Ken Burns
+          <span style={{ color: '#D97706', fontWeight: 600 }}>
+            ⚡ Real-time React preview with animated documentary layouts & synced callouts
           </span>
         </div>
       </div>

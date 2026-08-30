@@ -26,31 +26,32 @@ export const AmbientBlurFrameLayout: React.FC<LayoutProps> = ({
 
   const progress = durationInFrames > 0 ? frame / durationInFrames : 0;
 
-  // Floating 3D card motion
-  const rotateX = interpolate(progress, [0, 1], [3, -2]);
-  const rotateY = interpolate(progress, [0, 1], [-4, 3]);
-  const scale = interpolate(progress, [0, 1], [0.98, 1.03]);
+  // Gentle 3D floating animation
+  const rotateX = interpolate(progress, [0, 1], [-2, 2]);
+  const rotateY = interpolate(progress, [0, 1], [3, -3]);
+  const scale = interpolate(progress, [0, 1], [0.98, 1.02]);
 
   return (
     <div
       style={{
         position: 'absolute',
         inset: 0,
-        backgroundColor: '#FAF8F5',
-        overflow: 'hidden',
-        perspective: 1200,
+        backgroundColor: '#0F172A',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
+        overflow: 'hidden',
+        perspective: 1200,
       }}
     >
-      {/* ── AMBIENT BLURRED MIRROR BACKGROUND ──────────────────────── */}
+      {/* ── AMBIENT BLURRED BACKDROP ─────────────────────────────────── */}
       <div
         style={{
           position: 'absolute',
           inset: -40,
           filter: 'blur(50px) brightness(1.1) saturate(1.2)',
-          transform: 'scale(1.2)',
+          transform: 'scale(1.2) translateZ(0)',
+          willChange: 'transform',
           opacity: 0.65,
           pointerEvents: 'none',
         }}
@@ -59,7 +60,10 @@ export const AmbientBlurFrameLayout: React.FC<LayoutProps> = ({
           isImage ? (
             <img src={clip.clipPath} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
           ) : (
-            <OffthreadVideo src={clip.clipPath} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+            <OffthreadVideo
+              src={clip.clipPath}
+              style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+            />
           )
         ) : (
           <div style={{ width: '100%', height: '100%', backgroundColor: '#E5E7EB' }} />
@@ -69,7 +73,8 @@ export const AmbientBlurFrameLayout: React.FC<LayoutProps> = ({
       {/* ── FLOATING 3D HERO CARD ──────────────────────────────────── */}
       <div
         style={{
-          transform: `scale(${scale}) rotateX(${rotateX}deg) rotateY(${rotateY}deg)`,
+          transform: `scale(${scale}) rotateX(${rotateX}deg) rotateY(${rotateY}deg) translateZ(0)`,
+          willChange: 'transform',
           width: '78%',
           height: '78%',
           borderRadius: 16,
@@ -105,6 +110,34 @@ export const AmbientBlurFrameLayout: React.FC<LayoutProps> = ({
           )
         ) : (
           <div style={{ width: '100%', height: '100%', backgroundColor: '#18181B' }} />
+        )}
+
+        {/* Optional Ambient Subject Badge */}
+        {(clip.layoutData?.title || clip.layoutData?.badge) && (
+          <div
+            style={{
+              position: 'absolute',
+              top: 20,
+              left: 24,
+              backgroundColor: 'rgba(15, 23, 42, 0.82)',
+              backdropFilter: 'blur(8px)',
+              padding: '6px 14px',
+              borderRadius: 6,
+              border: '1px solid rgba(255, 255, 255, 0.15)',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 2,
+            }}
+          >
+            <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, fontWeight: 900, color: '#FFF', letterSpacing: '0.08em', textTransform: 'uppercase' }}>
+              {clip.layoutData.title}
+            </span>
+            {clip.layoutData.subtitle && (
+              <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 10, fontWeight: 600, color: '#94A3B8' }}>
+                {clip.layoutData.subtitle}
+              </span>
+            )}
+          </div>
         )}
       </div>
 

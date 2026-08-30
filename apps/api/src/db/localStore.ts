@@ -152,9 +152,11 @@ export const chaptersStore = {
       projectId,
       chapterIndex: typeof data.chapterIndex === 'number' ? data.chapterIndex : (project.chapters?.length || 0) + 1,
       title: data.title || `Chapter ${(project.chapters?.length || 0) + 1}`,
+      description: data.description || '',
       scriptText: data.scriptText || '',
       voiceoverFileName: data.voiceoverFileName,
       status: data.status || 'draft',
+      timelineJson: data.timelineJson,
       createdAt: now,
       updatedAt: now,
     };

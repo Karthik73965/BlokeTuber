@@ -127,6 +127,7 @@ export type TimedPlannedBeat = PlannedBeat & {
   endTime: number;
   /** Resolved absolute path on disk (video or image file) */
   resolvedPath: string | null;
+  additionalClipPaths?: string[];
 };
 
 /**
@@ -226,10 +227,11 @@ export function buildTimeline(params: {
         }
       }
 
-      // Clamp to clip bounds — never start after 80% of clip, hold for at least 2.4s
+      // Clamp to clip bounds — never start after 75% of clip
       startOffset = Math.min(startOffset, clipDuration * 0.75);
-      const holdDuration = 2.4;
-      const endOffset = Math.min(clipDuration - 0.05, Math.max(startOffset + 0.8, startOffset + holdDuration));
+      // For longer 5-7s clips, let the callout hold for 3.5s - 4.8s so the viewer can absorb the text & animations comfortably
+      const holdDuration = Math.min(clipDuration - startOffset - 0.2, Math.max(2.8, clipDuration * 0.65));
+      const endOffset = Math.min(clipDuration - 0.05, startOffset + holdDuration);
 
       clipCallout = {
         type: rawCallout.type,
@@ -253,6 +255,7 @@ export function buildTimeline(params: {
       mediaType: beat.mediaType,
       clipPath: beat.resolvedPath,
       layout: (beat as any).layout,
+      layoutData: (beat as any).layoutData,
       additionalClipPaths: (beat as any).additionalClipPaths || [],
       // Images get smooth fluid motion
       kenBurns: isImage,

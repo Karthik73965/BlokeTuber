@@ -57,7 +57,12 @@ export const HeroGraphicCenterpieceLayout: React.FC<LayoutProps> = ({
           ) : (
             <OffthreadVideo
               src={clip.clipPath}
-              style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+              style={{
+                width: '100%',
+                height: '100%',
+                objectFit: 'cover',
+                filter: 'contrast(1.05) saturate(1.05)',
+              }}
             />
           )}
         </div>

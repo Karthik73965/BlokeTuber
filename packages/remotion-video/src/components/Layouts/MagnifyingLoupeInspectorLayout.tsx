@@ -149,17 +149,25 @@ export const MagnifyingLoupeInspectorLayout: React.FC<LayoutProps> = ({
           style={{
             position: 'absolute',
             bottom: 24,
-            backgroundColor: 'rgba(0, 0, 0, 0.75)',
-            padding: '3px 12px',
+            backgroundColor: 'rgba(0, 0, 0, 0.85)',
+            padding: '4px 14px',
             borderRadius: 3,
             fontFamily: '"Courier New", Courier, monospace',
-            fontSize: 12,
+            fontSize: 11,
             fontWeight: 900,
             color: '#F59E0B',
-            letterSpacing: '0.12em',
+            letterSpacing: '0.1em',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
           }}
         >
-          2.5x OPTICAL LOUPE // FORENSIC ZOOM
+          <span>{clip.layoutData?.stamp || clip.layoutData?.title || '2.5x OPTICAL LOUPE // FORENSIC ZOOM'}</span>
+          {clip.layoutData?.coords && (
+            <span style={{ color: '#E2E8F0', borderLeft: '1px solid #64748B', paddingLeft: 8 }}>
+              {clip.layoutData.coords}
+            </span>
+          )}
         </div>
       </div>
 

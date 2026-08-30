@@ -102,7 +102,7 @@ export const HorizonTopBottomSplitLayout: React.FC<LayoutProps> = ({
             letterSpacing: '0.1em',
           }}
         >
-          AERIAL PERSPECTIVE // 01
+          {clip.layoutData?.title || 'WIDE PERSPECTIVE // 01'}
         </div>
       </div>
 
@@ -163,7 +163,7 @@ export const HorizonTopBottomSplitLayout: React.FC<LayoutProps> = ({
             letterSpacing: '0.1em',
           }}
         >
-          GROUND RECON // 02
+          {clip.layoutData?.subtitle || 'GROUND PERSPECTIVE // 02'}
         </div>
       </div>
 
