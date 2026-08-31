@@ -33,7 +33,8 @@ async function runTest() {
   console.log('\n2. Testing Real Stock Video Search with compressed queries...');
   const usedUrls = new Set<string>();
 
-  const video1 = await findStockFootage('excavator digging dirt', 'heavy machinery', usedUrls);
+  const result1 = await findStockFootage('excavator digging dirt', 'heavy machinery', usedUrls);
+  const video1 = result1?.video;
   if (!video1 || !video1.url) {
     console.warn('  ⚠️ Pexels/Pixabay video search returned null (check API keys or network)');
   } else {

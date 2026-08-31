@@ -272,9 +272,9 @@ export function buildTimeline(params: {
 
       // Clamp to clip bounds — never start after 75% of clip
       startOffset = Math.min(startOffset, clipDuration * 0.75);
-      // For longer 5-7s clips, let the callout hold for 3.5s - 4.8s so the viewer can absorb the text & animations comfortably
-      const holdDuration = Math.min(clipDuration - startOffset - 0.2, Math.max(2.8, clipDuration * 0.65));
-      const endOffset = Math.min(clipDuration - 0.05, startOffset + holdDuration);
+      // Let the callout hold for the full duration of the clip until right before the scene cut
+      const holdDuration = Math.max(2.8, clipDuration - startOffset - 0.3);
+      const endOffset = Math.min(clipDuration - 0.1, startOffset + holdDuration);
 
       clipCallout = {
         type: rawCallout.type,

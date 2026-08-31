@@ -69,7 +69,8 @@ async function runSmokeTest() {
   // 4. Test Multi-Source Real Stock Footage Search
   console.log('\n4️⃣ Testing Multi-Source Stock Footage Engine (Pexels, Pixabay, Coverr, Mixkit)...');
   try {
-    const stock = await findStockFootage('aerial drone railway tracks dusk', 'train tracks sunset');
+    const stockRes = await findStockFootage('aerial drone railway tracks dusk', 'train tracks sunset');
+    const stock = stockRes?.video;
     if (stock) {
       console.log(`   ✓ Stock Video Found! [${stock.source.toUpperCase()}] ${stock.width}x${stock.height} - URL: ${stock.url.slice(0, 60)}...`);
     } else {

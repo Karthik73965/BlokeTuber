@@ -11,7 +11,7 @@ stockRouter.get('/search', async (req: Request, res: Response) => {
 
     const result = await findStockFootage(query);
     if (!result) return res.json({ video: null, message: 'No results found' });
-    res.json({ video: result });
+    res.json({ video: result.video, isWeak: result.isWeak });
   } catch (err) {
     res.status(500).json({ error: String(err) });
   }

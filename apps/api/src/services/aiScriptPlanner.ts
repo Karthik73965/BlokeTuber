@@ -171,9 +171,11 @@ ${contextDirective ? `\n⚠️ STRICT DIRECTOR BRIEF:\n${contextDirective}\n` : 
 
 ### 2. DYNAMIC VARIABLE BEAT PACING (Macro vs Micro Beats):
 
-🎯 **HERO FEATURE BEATS (5.0s – 7.0s / ~12–20 words / 1–2 full sentences)**:
-- Whenever you deploy a **Stylized Scene Layout** (e.g. Quad Matrix, Triptych, Red-String Pinboard, Vintage CRT, Filmstrip, Loupe, Polaroid Scatter, Editorial Column) OR an **Elaborate Text Callout**.
-- Group enough narration (12–20 words / full thought) into this single beat so the visual layout has 5–7 seconds of runway to animate in smoothly, reveal details, let the viewer absorb the evidence, and exit cleanly without rushing.
+🎯 **HERO FEATURE BEATS & TEXT/SCREEN LAYOUTS (MANDATORY AT LEAST 7.0s LONG / ~18–28 words / 1–2 complete sentences)**:
+- Whenever you deploy a **Stylized Scene Layout** (e.g. Quad Matrix, Triptych, Red-String Pinboard, Vintage CRT, Filmstrip, Loupe, Polaroid Scatter, Editorial Column, Horizon Split, Ambient Blur) OR a **Text Callout Overlay** OR layoutData with text.
+- **CRITICAL DURATION MANDATE**: You MUST group at least 18–28 spoken words into this single beat so the visual layout and text overlays have AT LEAST 7.0 SECONDS of runway!
+- Text overlays and complex multi-asset layouts must NEVER flash like a flash. Viewers need at least 7 seconds to read the text, examine forensic labels, and absorb the evidence.
+- NEVER assign a stylized layout or text callout to a short 3-6 word phrase.
 
 ⚡ **BASELINE B-ROLL BEATS (2.5s – 3.5s / ~6–9 words / short phrase)**:
 - For pure atmospheric momentum, establishing shots, fast action cuts, and scene transitions.
@@ -318,7 +320,7 @@ Respond with ONLY a valid JSON object in this exact format:
 
 /**
  * Maps planned beats to exact audio timestamps using dynamic word-weighting and Whisper phrase boundaries.
- * Gives 5–7s to feature beats (with layouts/callouts) and 2.5–3.5s to baseline beats.
+ * Enforces at least 7.0s for beats with text overlays or stylized screen layouts, and 2.5–3.5s for baseline cuts.
  */
 export function mapPlannedBeatsToTiming(
   beats: PlannedBeat[],
@@ -327,28 +329,60 @@ export function mapPlannedBeatsToTiming(
 ): TimedPlannedBeat[] {
   if (!beats.length) return [];
 
-  const wordCounts = beats.map((b) => Math.max(1, (b.text || '').trim().split(/\s+/).filter(Boolean).length));
-  const totalWords = wordCounts.reduce((sum, w) => sum + w, 0);
+  // Helper to determine if a beat has text overlays or a stylized screen layout
+  const hasTextOrLayout = (beat: PlannedBeat): boolean => {
+    const isStylizedLayout = Boolean(beat.layout && beat.layout !== 'full_bleed_cinematic');
+    const hasCallout = Boolean(beat.callout && (beat.callout.line1 || beat.callout.type));
+    const hasLayoutData = Boolean(beat.layoutData && Object.keys(beat.layoutData).length > 0);
+    return isStylizedLayout || hasCallout || hasLayoutData;
+  };
 
-  let currentStart = 0;
+  const MIN_FEATURE_DURATION = 7.0; // Text/screen layout beats must be at least 7.0s long
+  const MIN_BASELINE_DURATION = 2.5; // Baseline b-roll cuts hold for at least 2.5s
 
-  return beats.map((beat, i) => {
-    const wordCount = wordCounts[i]!;
-    let beatDuration = (wordCount / totalWords) * totalDuration;
+  // Compute raw target duration for each beat
+  const rawDurations: number[] = beats.map((beat) => {
+    const isFeature = hasTextOrLayout(beat);
+    let target = isFeature ? MIN_FEATURE_DURATION : MIN_BASELINE_DURATION;
 
     // Check if Whisper has exact phrase alignment for this beat's text
     if (alignments && alignments.length > 0) {
       const phraseTs = findPhraseTimestamp(beat.text, alignments);
       if (phraseTs && phraseTs.end > phraseTs.start) {
         const whisperDuration = phraseTs.end - phraseTs.start;
-        if (whisperDuration >= 2.0 && whisperDuration <= totalDuration * 0.5) {
-          beatDuration = whisperDuration;
+        if (isFeature) {
+          target = Math.max(MIN_FEATURE_DURATION, whisperDuration);
+        } else if (whisperDuration >= MIN_BASELINE_DURATION) {
+          target = whisperDuration;
         }
       }
+    } else {
+      // Word count estimation if no whisper alignment (~2.5 words per second)
+      const wordCount = Math.max(1, (beat.text || '').trim().split(/\s+/).filter(Boolean).length);
+      const estimatedSecs = wordCount / 2.5;
+      target = isFeature ? Math.max(MIN_FEATURE_DURATION, estimatedSecs) : Math.max(MIN_BASELINE_DURATION, estimatedSecs);
     }
 
-    // Minimum 2.2s threshold so no cut is jarring
-    beatDuration = Math.max(2.2, beatDuration);
+    return target;
+  });
+
+  const sumRaw = rawDurations.reduce((sum, d) => sum + d, 0);
+
+  // Normalize durations so sum of all beats exactly matches totalDuration
+  let currentStart = 0;
+
+  return beats.map((beat, i) => {
+    let beatDuration = totalDuration > 0 && sumRaw > 0
+      ? (rawDurations[i]! / sumRaw) * totalDuration
+      : rawDurations[i]!;
+
+    // If total audio is long enough, enforce the 7.0s minimum floor on feature beats
+    const isFeature = hasTextOrLayout(beat);
+    if (isFeature && totalDuration >= beats.length * 3.5) {
+      beatDuration = Math.max(Math.min(MIN_FEATURE_DURATION, totalDuration * 0.4), beatDuration);
+    } else if (totalDuration >= beats.length * 2.2) {
+      beatDuration = Math.max(MIN_BASELINE_DURATION, beatDuration);
+    }
 
     let endTime = currentStart + beatDuration;
     if (i === beats.length - 1 || endTime > totalDuration) {
@@ -366,3 +400,4 @@ export function mapPlannedBeatsToTiming(
     return timed;
   });
 }
+

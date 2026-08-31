@@ -225,16 +225,23 @@ async function searchInternetArchive(query: string, rows = 10): Promise<StockVid
   const q = compressQuery(query, 3);
   if (!q) return [];
 
+  // Title patterns that indicate music videos, personal vlogs, or irrelevant content
+  const ARCHIVE_TITLE_BANS = [
+    /\brulез\b/i, /\brulz\b/i, /trollop/i, /\bofficial\s*(music)?\s*video\b/i,
+    /\(lyrics?\)/i, /\(official\)/i, /news\s+broadcast/i, /\btalk\s+show\b/i,
+    /\bthe\s+day\s+you\b/i, /\bvevo\b/i, /\bMTV\b/i,
+  ];
+
   try {
     // Search only the movies mediatype, filter for HD landscape, sort by downloads (popularity)
     const searchUrl = new URL('https://archive.org/advancedsearch.php');
     searchUrl.searchParams.set(
       'q',
-      `${q} AND mediatype:movies AND -subject:"animation" AND -subject:"cartoon"`
+      `${q} AND mediatype:movies AND -subject:"animation" AND -subject:"cartoon" AND -subject:"music video"`
     );
     searchUrl.searchParams.set('fl[]', 'identifier,title,description,subject,downloads');
     searchUrl.searchParams.set('sort[]', 'downloads desc');
-    searchUrl.searchParams.set('rows', String(rows));
+    searchUrl.searchParams.set('rows', String(rows + 10)); // fetch extra to allow filtering
     searchUrl.searchParams.set('start', '0');
     searchUrl.searchParams.set('output', 'json');
 
@@ -248,19 +255,28 @@ async function searchInternetArchive(query: string, rows = 10): Promise<StockVid
     const docs: any[] = data?.response?.docs || [];
     if (docs.length === 0) return [];
 
-    // For each result, build the direct MP4 download URL and thumbnail
-    // Archive.org URL patterns:
-    //   video:   https://archive.org/download/{id}/{id}.mp4
-    //   thumb:   https://archive.org/services/img/{id}
     const results: StockVideo[] = [];
 
     for (const doc of docs) {
+      if (results.length >= rows) break;
+
       const id: string = doc.identifier;
       if (!id) continue;
 
+      // Skip YouTube-mirrored items — their actual file is usually .mkv, not .mp4
+      // and the standard download URL pattern fails silently
+      if (id.startsWith('youtube-') || id.startsWith('youtube_')) continue;
+
+      // Skip very low-download items (likely low quality, obscure, or irrelevant)
+      const downloads = Number(doc.downloads || 0);
+      if (downloads < 50) continue;
+
+      // Skip items with banned title patterns (music, personal vlogs, etc.)
+      const title: string = doc.title || q;
+      if (ARCHIVE_TITLE_BANS.some((pattern) => pattern.test(title))) continue;
+
       const videoUrl = `https://archive.org/download/${id}/${id}.mp4`;
       const previewUrl = `https://archive.org/services/img/${id}`;
-      const title: string = doc.title || q;
       const tags: string[] = [];
       if (doc.subject) {
         const raw = Array.isArray(doc.subject) ? doc.subject : [doc.subject];
@@ -273,8 +289,6 @@ async function searchInternetArchive(query: string, rows = 10): Promise<StockVid
         previewUrl,
         title,
         tags,
-        // We don't know resolution upfront; assume 1280x720 minimum
-        // The download process will validate the file
         width: 1280,
         height: 720,
       });
@@ -346,43 +360,55 @@ export function computeMetadataRelevanceScore(
 /**
  * AI Vision Verification using OpenRouter (gpt-4o-mini).
  * Inspects the candidate thumbnail and returns a confidence score 0–100.
- * Clips scoring below VISION_SIMILARITY_THRESHOLD (50) are rejected.
+ *
+ * 60% Threshold:
+ *   ≥ 60% → Accepted as authentic documentary match
+ *   < 60% → Rejected outright (pipeline falls back to custom AI image generation)
  */
-const VISION_SIMILARITY_THRESHOLD = 50;
+export const VISION_SIMILARITY_THRESHOLD = 60;
 
 export async function verifyStockCandidateWithVision(
   previewUrl: string,
   visualRequirement: string,
-  candidateTitle: string
-): Promise<{ matches: boolean; confidence: number; reason: string }> {
+  candidateTitle: string,
+  storyContext?: string  // Full documentary premise — prevents wrong-demographic clips from passing
+): Promise<{ matches: boolean; confidence: number; isWeak: boolean; reason: string }> {
   const openrouterKey = process.env.OPENROUTER_API_KEY;
   if (!openrouterKey || !previewUrl || !previewUrl.startsWith('http')) {
-    return { matches: true, confidence: 100, reason: 'Vision verification skipped (no key or URL)' };
+    return { matches: true, confidence: 100, isWeak: false, reason: 'Vision verification skipped (no key or URL)' };
   }
 
   try {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 4000);
 
-    const prompt = `You are a strict documentary visual quality editor.
-We need a stock footage clip/photo that visually portrays: "${visualRequirement}".
+    const storyLine = storyContext
+      ? `\nDOCUMENTARY STORY CONTEXT: "${storyContext}"\nIMPORTANT: Reject footage that contradicts the story's demographics, economic status, setting, or tone. For example, if the story is about poverty, reject luxury cars, modern offices, or upscale apartments. If the story features a cargo van, reject BMWs, SUVs, or delivery trucks.\n`
+      : '';
+
+    const prompt = `You are an elite, strict documentary visual quality director (Vice, HBO, Netflix).
+${storyLine}
+We need stock footage/photo for this specific visual: "${visualRequirement}".
 Candidate metadata: "${candidateTitle}".
 
-Look at the image preview. How well does it match the requested visual subject?
+Look at the image preview carefully. Score 0–100 how well it fits BOTH the requested visual subject AND the story context.
 
-Score 0–100 where:
-  0  = completely wrong scene (e.g. kitchen when we need a car seat)
-  50 = loosely related but not ideal
-  100 = perfect match to the requested subject
+Score 0–100:
+  0–39  = Completely wrong or contradicts story context (e.g. luxury BMW in a poverty documentary, kitchen when asking for car, delivery van)
+  40–59 = Weak or loose match — lacks documentary precision, wrong vibe/demographics
+  60–79 = Good match — correct scene and approximately correct context
+  80–100 = Perfect authentic match — exact subject, matching demographics, believable setting, tone, and environment
 
-Rules:
-- Reject (score < 50) if the scene shows a completely different environment, wrong demographics, or unrelated subject matter.
-- Accept (score >= 50) if the core visual subject is present even if not perfect.
+STRICT RULES:
+- Score >= 60 if the image matches BOTH the requested subject and the story context with reasonable visual accuracy.
+- Score < 60 if demographics or socioeconomic context is wrong (e.g. BMW/Tesla interior for a homeless person story)
+- Score < 60 if the scene is loosely related or generic (delivery van exterior ≠ homeless family sleeping inside van)
+- Score < 60 if it's a vector graphic, cartoon, illustration, or news broadcast chyron
 
 Respond ONLY in JSON:
 {
   "confidence": <integer 0-100>,
-  "reason": "<one sentence>"
+  "reason": "<one sentence — must mention what you actually see in the image>"
 }`;
 
     const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
@@ -404,7 +430,7 @@ Respond ONLY in JSON:
           },
         ],
         temperature: 0.1,
-        max_tokens: 120,
+        max_tokens: 150,
       }),
       signal: controller.signal,
     });
@@ -412,7 +438,7 @@ Respond ONLY in JSON:
     clearTimeout(timeout);
 
     if (!res.ok) {
-      return { matches: true, confidence: 100, reason: 'Vision fallback on HTTP error' };
+      return { matches: true, confidence: 100, isWeak: false, reason: 'Vision fallback on HTTP error' };
     }
 
     const data = (await res.json()) as any;
@@ -426,10 +452,11 @@ Respond ONLY in JSON:
     return {
       matches,
       confidence,
+      isWeak: false,
       reason: parsed.reason || `Confidence: ${confidence}%`,
     };
   } catch (err: any) {
-    return { matches: true, confidence: 100, reason: `Vision skipped: ${err.message}` };
+    return { matches: true, confidence: 100, isWeak: false, reason: `Vision skipped: ${err.message}` };
   }
 }
 
@@ -438,25 +465,29 @@ export interface StockSearchFilterOptions {
   visualSubject?: string;
   negativeKeywords?: string[];
   useVisionVerification?: boolean;
+  storyContext?: string; // Full documentary premise for context-aware vision rejection
 }
 
 /**
  * Searches all configured stock footage platforms simultaneously.
  * Sources: Pexels, Pixabay, Coverr, Mixkit, Internet Archive
- * Automatically ranks results by relevance, enforces negative keyword filtering,
- * runs AI vision check, and enforces uniqueness.
+ *
+ * Strict 80% acceptance:
+ *  - ≥ 80% vision confidence → accepted
+ *  - < 80% vision confidence → rejected, returns null (caller generates AI image)
  */
 export async function findStockFootage(
   primaryQuery: string,
   backupQuery?: string | null,
   usedUrls?: Set<string>,
   options?: StockSearchFilterOptions
-): Promise<StockVideo | null> {
-  const q1 = compressQuery(primaryQuery, 4); // use full 4-word for routing
+): Promise<{ video: StockVideo; isWeak: boolean } | null> {
+  const q1 = compressQuery(primaryQuery, 4);
   const visualReq = options?.visualSubject || primaryQuery;
-  console.log(`🔎 Searching Stock B-Roll [Query: "${q1}"] [Subject: "${visualReq}"]...`);
+  const storyCtx = options?.storyContext;
+  console.log(`🔎 Searching Stock B-Roll [Query: "${q1}"] [Subject: "${visualReq}"] (Min 60% match)...`);
 
-  // Tier 1: Search all 5 providers in parallel for primary query
+  // ── TIER 1: All 5 providers on primary query ──────────────────────────────
   const [pexels1, pixabay1, coverr1, mixkit1, archive1] = await Promise.allSettled([
     searchPexels(q1, 10),
     searchPixabay(q1, 10),
@@ -473,7 +504,6 @@ export async function findStockFootage(
     ...(archive1.status === 'fulfilled' ? archive1.value : []),
   ];
 
-  // Filter and score candidates
   const scored1 = pool1
     .filter((v) => !usedUrls?.has(v.url))
     .map((v) => ({
@@ -483,23 +513,23 @@ export async function findStockFootage(
     .filter((item) => item.score >= 0)
     .sort((a, b) => b.score - a.score);
 
-  for (const item of scored1.slice(0, 3)) {
+  for (const item of scored1.slice(0, 5)) {
     if (options?.useVisionVerification !== false && item.video.previewUrl) {
-      const visionResult = await verifyStockCandidateWithVision(item.video.previewUrl, visualReq, item.video.title);
+      const visionResult = await verifyStockCandidateWithVision(item.video.previewUrl, visualReq, item.video.title, storyCtx);
       if (!visionResult.matches) {
-        console.log(`  ❌ Rejected [${item.video.source}]: "${item.video.title}" (Confidence: ${visionResult.confidence}% — ${visionResult.reason})`);
+        console.log(`  ❌ Rejected [${item.video.source}]: "${item.video.title}" (Confidence: ${visionResult.confidence}% < 60% threshold — ${visionResult.reason})`);
         continue;
       }
       usedUrls?.add(item.video.url);
       console.log(`  ✅ Selected [${item.video.source}]: "${item.video.title}" (Confidence: ${visionResult.confidence}% | Metadata: ${item.score})`);
-      return item.video;
+      return { video: item.video, isWeak: false };
     }
     usedUrls?.add(item.video.url);
     console.log(`  ✅ Selected [${item.video.source}]: "${item.video.title}" (Metadata Score: ${item.score})`);
-    return item.video;
+    return { video: item.video, isWeak: false };
   }
 
-  // Tier 2: Try backup query if available
+  // ── TIER 2: Backup query — all providers with full vision check ───────────
   if (backupQuery) {
     const q2 = compressQuery(backupQuery, 4);
     console.log(`  🔄 Trying Backup Query ["${q2}"]...`);
@@ -526,21 +556,24 @@ export async function findStockFootage(
       .filter((item) => item.score >= 0)
       .sort((a, b) => b.score - a.score);
 
-    for (const item of scored2.slice(0, 3)) {
+    for (const item of scored2.slice(0, 5)) {
       if (options?.useVisionVerification !== false && item.video.previewUrl) {
-        const visionResult = await verifyStockCandidateWithVision(item.video.previewUrl, visualReq, item.video.title);
+        const visionResult = await verifyStockCandidateWithVision(item.video.previewUrl, visualReq, item.video.title, storyCtx);
         if (!visionResult.matches) {
-          console.log(`  ❌ Rejected [${item.video.source}]: "${item.video.title}" (Confidence: ${visionResult.confidence}% — ${visionResult.reason})`);
+          console.log(`  ❌ Rejected [${item.video.source}]: "${item.video.title}" (Confidence: ${visionResult.confidence}% < 60% threshold — ${visionResult.reason})`);
           continue;
         }
+        usedUrls?.add(item.video.url);
+        console.log(`  ✅ Backup match [${item.video.source}]: "${item.video.title}" (Confidence: ${visionResult.confidence}% | Metadata: ${item.score})`);
+        return { video: item.video, isWeak: false };
       }
       usedUrls?.add(item.video.url);
-      console.log(`  ✅ Backup match [${item.video.source}]: "${item.video.title}" (Score: ${item.score})`);
-      return item.video;
+      console.log(`  ✅ Backup match [${item.video.source}]: "${item.video.title}" (Metadata Score: ${item.score})`);
+      return { video: item.video, isWeak: false };
     }
   }
 
-  // Tier 3: Core 2-keyword fallback — Pexels + Pixabay + Archive only
+  // ── TIER 3: 2-keyword core fallback ──────────────────────────────────────
   const coreWords = compressQuery(q1, 2);
   if (coreWords && coreWords !== q1) {
     console.log(`  🔄 Core Keyword Fallback ["${coreWords}"]...`);
@@ -565,16 +598,28 @@ export async function findStockFootage(
       .filter((item) => item.score >= 0)
       .sort((a, b) => b.score - a.score);
 
-    if (scored3.length > 0) {
-      const best = scored3[0]!.video;
-      usedUrls?.add(best.url);
-      console.log(`  ✅ Core fallback [${best.source}]: "${best.title}"`);
-      return best;
+    for (const item of scored3.slice(0, 3)) {
+      if (options?.useVisionVerification !== false && item.video.previewUrl) {
+        const visionResult = await verifyStockCandidateWithVision(item.video.previewUrl, visualReq, item.video.title, storyCtx);
+        if (!visionResult.matches) {
+          console.log(`  ❌ Rejected [${item.video.source}]: "${item.video.title}" (Confidence: ${visionResult.confidence}% < 60% threshold — ${visionResult.reason})`);
+          continue;
+        }
+        usedUrls?.add(item.video.url);
+        console.log(`  ✅ Core fallback [${item.video.source}]: "${item.video.title}" (Confidence: ${visionResult.confidence}%)`);
+        return { video: item.video, isWeak: false };
+      }
+      usedUrls?.add(item.video.url);
+      console.log(`  ✅ Core fallback [${item.video.source}]: "${item.video.title}"`);
+      return { video: item.video, isWeak: false };
     }
   }
 
   return null;
 }
+
+
+
 
 // --- PIXABAY (High Resolution Real Photos) ---
 async function searchPixabayPhotos(query: string, perPage = 25): Promise<StockPhoto[]> {
@@ -680,11 +725,11 @@ export async function findStockPhoto(
     .filter((item) => item.score >= 0)
     .sort((a, b) => b.score - a.score);
 
-  for (const item of scored1.slice(0, 3)) {
+  for (const item of scored1.slice(0, 5)) {
     if (options?.useVisionVerification !== false && item.photo.previewUrl) {
-      const visionResult = await verifyStockCandidateWithVision(item.photo.previewUrl, visualReq, item.photo.title);
+      const visionResult = await verifyStockCandidateWithVision(item.photo.previewUrl, visualReq, item.photo.title, options?.storyContext);
       if (!visionResult.matches) {
-        console.log(`  ❌ Rejected photo [${item.photo.source}]: "${item.photo.title}" (Confidence: ${visionResult.confidence}% — ${visionResult.reason})`);
+        console.log(`  ❌ Rejected photo [${item.photo.source}]: "${item.photo.title}" (Confidence: ${visionResult.confidence}% < 60% threshold — ${visionResult.reason})`);
         continue;
       }
       usedUrls?.add(item.photo.url);
@@ -701,7 +746,7 @@ export async function findStockPhoto(
   // Tier 2: 2-word compressed query fallback
   const coreWords = compressQuery(q1, 2);
   if (coreWords && coreWords !== q1) {
-    console.log(`  🔄 Simplifying photo query: "${coreWords}"...`);
+    console.log(`  🔄 Simplifying photo query: "${coreWords}" (Min 60% match)...`);
     const tier2Promises: Promise<any>[] = [];
     if (pexelsKey) {
       tier2Promises.push(
@@ -741,11 +786,17 @@ export async function findStockPhoto(
       .filter((item) => item.score >= 0)
       .sort((a, b) => b.score - a.score);
 
-    if (scored2.length > 0) {
-      const best = scored2[0]!.photo;
-      usedUrls?.add(best.url);
-      if (best.id) usedUrls?.add(best.id);
-      return best;
+    for (const item of scored2.slice(0, 3)) {
+      if (options?.useVisionVerification !== false && item.photo.previewUrl) {
+        const visionResult = await verifyStockCandidateWithVision(item.photo.previewUrl, visualReq, item.photo.title, options?.storyContext);
+        if (!visionResult.matches) {
+          console.log(`  ❌ Rejected fallback photo [${item.photo.source}]: "${item.photo.title}" (Confidence: ${visionResult.confidence}% < 60% threshold)`);
+          continue;
+        }
+      }
+      usedUrls?.add(item.photo.url);
+      if (item.photo.id) usedUrls?.add(item.photo.id);
+      return item.photo;
     }
   }
 
@@ -820,7 +871,7 @@ export interface StockSearchOption {
   url: string;
   previewUrl: string;
   title: string;
-  source: 'pexels' | 'pixabay' | 'coverr' | 'mixkit' | 'archive';
+  source: 'pexels' | 'pixabay' | 'coverr' | 'mixkit' | 'archive' | 'ai_generated';
   mediaType: 'video' | 'image';
   width: number;
   height: number;

@@ -14,9 +14,10 @@ export const StatCallout: React.FC<CalloutProps> = ({ callout, clipDurationInSec
   const theme = getTheme(callout.themeColor);
 
   const startFrame = Math.max(0, Math.round((callout.startTime ?? 0.05) * fps));
+  const defaultEndTime = Math.max(clipDurationInSeconds - 0.4, (callout.startTime ?? 0.05) + 6.0);
   const endFrame = Math.min(
     Math.round(clipDurationInSeconds * fps),
-    Math.round((callout.endTime ?? (callout.startTime ?? 0.05) + 2.4) * fps)
+    Math.round((callout.endTime ?? defaultEndTime) * fps)
   );
 
   const localFrame = frame - startFrame;

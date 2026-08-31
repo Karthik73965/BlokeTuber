@@ -39,7 +39,8 @@ async function testFullProductionPipeline() {
 
     // Search real video
     if (beat.stockVideoQuery || beat.backupVideoQuery) {
-      const vid = await findStockFootage(beat.stockVideoQuery || '', beat.backupVideoQuery, usedMediaUrls);
+      const stockResult = await findStockFootage(beat.stockVideoQuery || '', beat.backupVideoQuery, usedMediaUrls);
+      const vid = stockResult?.video;
       if (vid) {
         const dest = path.join(stockDir, `beat_${i}_main.mp4`);
         try {

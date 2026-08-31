@@ -12,9 +12,10 @@ export const BreakingNews: React.FC<CalloutProps> = ({ callout, clipDurationInSe
   const { fps } = useVideoConfig();
 
   const startFrame = Math.max(0, Math.round((callout.startTime ?? 0.05) * fps));
+  const defaultEndTime = Math.max(clipDurationInSeconds - 0.4, (callout.startTime ?? 0.05) + 6.0);
   const endFrame = Math.min(
     Math.round(clipDurationInSeconds * fps),
-    Math.round((callout.endTime ?? (callout.startTime ?? 0.05) + 3.0) * fps)
+    Math.round((callout.endTime ?? defaultEndTime) * fps)
   );
 
   const localFrame = frame - startFrame;

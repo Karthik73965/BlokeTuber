@@ -15,6 +15,7 @@ import {
   searchAlternativeStock,
 } from '../services/stockFootage';
 import { planScriptWithAI, mapPlannedBeatsToTiming } from '../services/aiScriptPlanner';
+import { generateDocumentaryImage } from '../services/aiImageGenerator';
 import { buildTimeline, TimedPlannedBeat } from '../services/timelineBuilder';
 import { renderTimelineVideo } from '../services/remotionRenderer';
 import { Timeline } from '@repo/shared';
@@ -275,6 +276,40 @@ pipelineRouter.get('/search-stock', async (req: Request, res: Response) => {
   try {
     const results = await searchAlternativeStock(query, mediaType, 8);
     res.json({ results });
+  } catch (err) {
+    res.status(500).json({ error: String(err) });
+  }
+});
+
+// ── POST /api/pipeline/generate-image ──────────────────────────────────────────
+// Generates a custom documentary image on demand using OpenRouter
+pipelineRouter.post('/generate-image', async (req: Request, res: Response) => {
+  try {
+    const { projectId, prompt, visualSubject, text, negativeKeywords, chapterId } = req.body;
+    const project = projectId ? projectsStore.findById(projectId) : null;
+    const chapter = projectId && chapterId ? chaptersStore.findById(projectId, chapterId) : null;
+    const tempFile = path.join(OUTPUT_DIR, `manual_gen_${Date.now()}.png`);
+
+    const result = await generateDocumentaryImage({
+      visualSubject: visualSubject || prompt,
+      text: text || prompt || '',
+      projectContext: project?.description || project?.scriptText?.slice(0, 300) || '',
+      chapterContext: chapter?.description || '',
+      negativeKeywords,
+      outputPath: tempFile,
+    });
+
+    if (!result.success || !result.outputPath) {
+      return res.status(500).json({ error: result.error || 'Image generation failed' });
+    }
+
+    res.json({
+      success: true,
+      imagePath: result.outputPath,
+      source: 'ai_generated',
+      prompt: result.prompt,
+      cost: result.cost,
+    });
   } catch (err) {
     res.status(500).json({ error: String(err) });
   }
@@ -789,10 +824,19 @@ async function runPipeline(params: {
 
     let resolvedPath: string | null = null;
 
+    // Build a story context string so the vision AI can reject wrong-demographic clips
+    // (e.g. BMW interior for a homeless family story)
+    const chapterObj = chapterId ? chaptersStore.findById(project.id, chapterId) : null;
+    const storyContext = [
+      (project as any).description || '',
+      chapterObj?.description || '',
+    ].filter(Boolean).join(' | ').slice(0, 400) || undefined;
+
     const searchOptions = {
       visualSubject: beat.visualSubject,
       negativeKeywords: beat.negativeKeywords,
       useVisionVerification: true,
+      storyContext,
     };
 
     if (beat.mediaType === 'video') {
@@ -805,10 +849,12 @@ async function runPipeline(params: {
         }
       }
 
-      // 2. Multi-tier Stock video search (Pexels, Pixabay, Coverr, Mixkit) with uniqueness tracking & AI vision verification
+      // 2. Multi-tier Stock video search with uniqueness tracking & AI vision verification
       if (!resolvedPath && (beat.stockVideoQuery || beat.backupVideoQuery)) {
-        const video = await findStockFootage(beat.stockVideoQuery || '', beat.backupVideoQuery, usedMediaUrls, searchOptions);
-        if (video) {
+        const stockResult = await findStockFootage(beat.stockVideoQuery || '', beat.backupVideoQuery, usedMediaUrls, searchOptions);
+        // If isWeak, skip stock and let AI generation handle it (weak = 50–64% confidence)
+        if (stockResult && !stockResult.isWeak) {
+          const video = stockResult.video;
           const dest = path.join(stockDir, `video_${i}.mp4`);
           try {
             await downloadStockVideo(video, dest);
@@ -824,6 +870,8 @@ async function runPipeline(params: {
             });
             console.log(`  📹 Real Stock Video [${video.source}]: ${video.title.slice(0, 40)}`);
           } catch { /* fall through */ }
+        } else if (stockResult?.isWeak) {
+          console.log(`  ⚠️  Skipping weak stock match (50–64%) — will try AI image generation instead`);
         }
       }
 
@@ -886,8 +934,9 @@ async function runPipeline(params: {
 
       // 3. Fallback to stock video if photo fails
       if (!resolvedPath && (beat.stockVideoQuery || beat.backupVideoQuery)) {
-        const video = await findStockFootage(beat.stockVideoQuery || beat.stockPhotoQuery || '', beat.backupVideoQuery, usedMediaUrls, searchOptions);
-        if (video) {
+        const stockResult = await findStockFootage(beat.stockVideoQuery || beat.stockPhotoQuery || '', beat.backupVideoQuery, usedMediaUrls, searchOptions);
+        if (stockResult && !stockResult.isWeak) {
+          const video = stockResult.video;
           const dest = path.join(stockDir, `video_${i}.mp4`);
           try {
             await downloadStockVideo(video, dest);
@@ -908,6 +957,35 @@ async function runPipeline(params: {
       }
     }
 
+    // 4. Ultimate Fallback: Context-Aware AI Image Generation
+    // Triggers when: (a) no stock found at all, OR (b) stock was a weak 50–64% match (not good enough)
+    if (!resolvedPath) {
+      console.log(`  🎨 Stock returned no high-confidence match — generating custom AI documentary visual for Beat #${i}...`);
+      const genDest = path.join(stockDir, `ai_photo_${i}.png`);
+      const genResult = await generateDocumentaryImage({
+        visualSubject: beat.visualSubject || beat.stockPhotoQuery || undefined,
+        text: beat.text,
+        projectContext: (project as any).description || project.scriptText?.slice(0, 300) || '',
+        chapterContext: chapterObj?.description || '',
+        negativeKeywords: beat.negativeKeywords,
+        outputPath: genDest,
+      });
+
+      if (genResult.success && genResult.outputPath) {
+        resolvedPath = genResult.outputPath;
+        (beat as any).mediaType = 'image';
+        newlyUsedMedia.push({
+          id: `ai_gen_${i}_${Date.now()}`,
+          url: genDest,
+          source: 'ai_generated',
+          mediaType: 'image',
+          chapterIndex: chapterIndex || 1,
+          query: beat.visualSubject || beat.stockPhotoQuery || beat.text.slice(0, 40),
+          usedAt: new Date().toISOString(),
+        });
+      }
+    }
+
     // Auto-generate additional queries for layouts if not provided by planner
     if (!beat.additionalStockQueries || beat.additionalStockQueries.length === 0) {
       if (beat.layout === 'editorial_sidebar_column') {
@@ -923,19 +1001,21 @@ async function runPipeline(params: {
       }
     }
 
-    // 4. Fetch additional multi-asset stock items for multi-angle layouts (Quad Surveillance, Triptych, etc.)
+    // 5. Fetch additional multi-asset stock items for multi-angle layouts (Quad Surveillance, Triptych, etc.)
     const additionalClipPaths: string[] = [];
     if (beat.additionalStockQueries && beat.additionalStockQueries.length > 0) {
       for (let sIdx = 0; sIdx < beat.additionalStockQueries.length; sIdx++) {
         const sub = beat.additionalStockQueries[sIdx];
         if (!sub) continue;
         if (sub.mediaType === 'video') {
-          const v = await findStockFootage(sub.query, null, usedMediaUrls, {
+          const slotResult = await findStockFootage(sub.query, null, usedMediaUrls, {
             visualSubject: sub.query,
             negativeKeywords: beat.negativeKeywords,
             useVisionVerification: true,
+            storyContext,
           });
-          if (v) {
+          if (slotResult && !slotResult.isWeak) {
+            const v = slotResult.video;
             const dest = path.join(stockDir, `video_${i}_sub_${sIdx}.mp4`);
             try {
               await downloadStockVideo(v, dest);
@@ -956,6 +1036,7 @@ async function runPipeline(params: {
             visualSubject: sub.query,
             negativeKeywords: beat.negativeKeywords,
             useVisionVerification: true,
+            storyContext,
           });
           if (p) {
             const dest = path.join(stockDir, `photo_${i}_sub_${sIdx}.jpg`);
@@ -972,6 +1053,31 @@ async function runPipeline(params: {
                 usedAt: new Date().toISOString(),
               });
             } catch { /* ignore */ }
+          }
+        }
+
+        // Slot AI image generation fallback if stock failed for this slot
+        if (additionalClipPaths.length <= sIdx) {
+          const slotDest = path.join(stockDir, `ai_photo_${i}_sub_${sIdx}.png`);
+          const slotGen = await generateDocumentaryImage({
+            visualSubject: sub.query,
+            text: beat.text,
+            projectContext: (project as any).description || '',
+            chapterContext: chapterObj?.description || '',
+            negativeKeywords: beat.negativeKeywords,
+            outputPath: slotDest,
+          });
+          if (slotGen.success && slotGen.outputPath) {
+            additionalClipPaths.push(slotDest);
+            newlyUsedMedia.push({
+              id: `ai_gen_${i}_sub_${sIdx}_${Date.now()}`,
+              url: slotDest,
+              source: 'ai_generated',
+              mediaType: 'image',
+              chapterIndex: chapterIndex || 1,
+              query: sub.query,
+              usedAt: new Date().toISOString(),
+            });
           }
         }
       }
