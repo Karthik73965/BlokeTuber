@@ -281,6 +281,80 @@ pipelineRouter.get('/search-stock', async (req: Request, res: Response) => {
   }
 });
 
+// ── GET /api/pipeline/local-clips ────────────────────────────────────────────
+// Lists all .mp4/.mov files in a given server-side folder for the swap modal
+pipelineRouter.get('/local-clips', (req: Request, res: Response) => {
+  const folder = (req.query.folder as string) || '';
+  if (!folder.trim()) return res.json({ clips: [] });
+
+  try {
+    if (!fs.existsSync(folder)) {
+      return res.status(404).json({ error: `Folder not found: ${folder}` });
+    }
+    const files = fs.readdirSync(folder).filter((f) => /\.(mp4|mov|webm|mkv|avi|m4v)$/i.test(f));
+    const clips = files.map((filename) => ({
+      filename,
+      // Serve via a new /local-clip-file endpoint
+      url: `/api/pipeline/local-clip-file?folder=${encodeURIComponent(folder)}&file=${encodeURIComponent(filename)}`,
+      localPath: path.join(folder, filename),
+    }));
+    res.json({ clips });
+  } catch (err) {
+    res.status(500).json({ error: String(err) });
+  }
+});
+
+// ── GET /api/pipeline/local-clip-file ─────────────────────────────────────────
+// Streams a specific local clip file to the browser for preview & swap
+pipelineRouter.get('/local-clip-file', (req: Request, res: Response) => {
+  const folder = (req.query.folder as string) || '';
+  const file = (req.query.file as string) || '';
+  if (!folder || !file) return res.status(400).json({ error: 'folder and file are required' });
+
+  // Security: only allow reading files that are inside the requested folder (no path traversal)
+  const safePath = path.resolve(folder, path.basename(file));
+  if (!safePath.startsWith(path.resolve(folder))) {
+    return res.status(403).json({ error: 'Path traversal not allowed' });
+  }
+
+  if (!fs.existsSync(safePath)) {
+    return res.status(404).json({ error: 'File not found' });
+  }
+
+  const ext = path.extname(file).toLowerCase();
+  const mimeTypes: Record<string, string> = {
+    '.mp4': 'video/mp4',
+    '.mov': 'video/quicktime',
+    '.webm': 'video/webm',
+    '.mkv': 'video/x-matroska',
+    '.avi': 'video/x-msvideo',
+    '.m4v': 'video/mp4',
+  };
+  const mime = mimeTypes[ext] || 'video/mp4';
+
+  const stat = fs.statSync(safePath);
+  const fileSize = stat.size;
+  const range = req.headers.range;
+
+  if (range) {
+    const parts = range.replace(/bytes=/, '').split('-');
+    const start = parseInt(parts[0]!, 10);
+    const end = parts[1] ? parseInt(parts[1], 10) : fileSize - 1;
+    const chunksize = end - start + 1;
+    const fileStream = fs.createReadStream(safePath, { start, end });
+    res.writeHead(206, {
+      'Content-Range': `bytes ${start}-${end}/${fileSize}`,
+      'Accept-Ranges': 'bytes',
+      'Content-Length': chunksize,
+      'Content-Type': mime,
+    });
+    fileStream.pipe(res);
+  } else {
+    res.writeHead(200, { 'Content-Length': fileSize, 'Content-Type': mime });
+    fs.createReadStream(safePath).pipe(res);
+  }
+});
+
 // ── POST /api/pipeline/generate-image ──────────────────────────────────────────
 // Generates a custom documentary image on demand using OpenRouter
 pipelineRouter.post('/generate-image', async (req: Request, res: Response) => {
@@ -319,7 +393,7 @@ pipelineRouter.post('/generate-image', async (req: Request, res: Response) => {
 // Instantly replaces a stock clip/image inside a chapter's staged timeline
 pipelineRouter.post('/swap-clip', async (req: Request, res: Response) => {
   try {
-    const { projectId, chapterId, clipIndex, slotIndex, mediaUrl, mediaType, stockSource } = req.body;
+    const { projectId, chapterId, clipIndex, slotIndex, mediaUrl, mediaType, stockSource, isLocalClip } = req.body;
     if (!projectId || !chapterId || typeof clipIndex !== 'number' || !mediaUrl) {
       return res.status(400).json({ error: 'Missing required parameters (projectId, chapterId, clipIndex, mediaUrl)' });
     }
@@ -372,8 +446,15 @@ pipelineRouter.post('/swap-clip', async (req: Request, res: Response) => {
       `swap_beat_${clipIndex}_slot_${slotIndex ?? 'main'}_${Date.now()}.${ext}`
     );
 
-    // Download chosen asset
-    if (mediaType === 'image') {
+    // Download OR copy chosen asset
+    if (isLocalClip && mediaUrl) {
+      // mediaUrl is the local absolute path for local clip swaps
+      const srcPath = mediaUrl;
+      if (!fs.existsSync(srcPath)) {
+        return res.status(404).json({ error: `Local clip not found: ${srcPath}` });
+      }
+      fs.copyFileSync(srcPath, destPath);
+    } else if (mediaType === 'image') {
       await downloadStockPhoto(
         {
           source: stockSource || 'pexels',
@@ -458,6 +539,7 @@ pipelineRouter.post(
       chapter = chaptersStore.create(projectId, {
         scriptText: scriptText || '',
         pacing: pacing || 'medium',
+        clipLibraryRoot: clipLibraryRoot || '',
         status: 'processing',
       });
     }
@@ -477,6 +559,7 @@ pipelineRouter.post(
         scriptText: scriptText || chapter.scriptText,
         voiceoverFileName: voiceoverFiles.length ? path.basename(voiceoverFiles[0]!) : chapter.voiceoverFileName,
         pacing: pacing || chapter.pacing || 'medium',
+        clipLibraryRoot: clipLibraryRoot || chapter.clipLibraryRoot || '',
       });
     }
 
@@ -773,19 +856,29 @@ async function runPipeline(params: {
   }
 
   const chapter = chapterId ? chaptersStore.findById(project.id, chapterId) : null;
-  const clipFilenames = clipsStore.forProject(project.id).map((c) => c.filename);
+  let clipFilenames = clipsStore.forProject(project.id).map((c) => c.filename);
+  if (clipLibraryRoot && fs.existsSync(clipLibraryRoot)) {
+    try {
+      const localFiles = fs.readdirSync(clipLibraryRoot).filter((f) => /\.(mp4|mov|webm|mkv|avi|m4v)$/i.test(f));
+      clipFilenames = Array.from(new Set([...clipFilenames, ...localFiles]));
+      console.log(`[Job ${jobId}] 📁 Loaded ${localFiles.length} local clips from ${clipLibraryRoot} for AI planning:`, localFiles);
+    } catch (err) {
+      console.warn(`[Job ${jobId}] Could not read local clipLibraryRoot:`, err);
+    }
+  }
+  const masterDuration = timingMap[timingMap.length - 1]?.end || 45;
   const plan = await planScriptWithAI(
     effectiveScript,
     clipFilenames,
     project.name,
     chapter?.description || '',
-    pacing || chapter?.pacing || 'medium'
+    pacing || chapter?.pacing || 'medium',
+    masterDuration
   );
 
   // ── 4. Snap beat timings to Whisper word boundaries ───────────────────────
   step('timing_alignment');
-  const masterDuration = timingMap[timingMap.length - 1]?.end || 45;
-  const timedBeatsRaw = mapPlannedBeatsToTiming(plan.beats, alignments, masterDuration);
+  const timedBeatsRaw = mapPlannedBeatsToTiming(plan.beats, alignments, masterDuration, pacing || chapter?.pacing || 'medium');
 
   // ── 5. Resolve media for every beat ──────────────────────────────────────
   // Fallback chain:
@@ -1079,6 +1172,30 @@ async function runPipeline(params: {
               usedAt: new Date().toISOString(),
             });
           }
+        }
+      }
+    }
+
+    // Fix: For polaroid_scatter_desk layout, guarantee all 3 photo slots are filled.
+    // If additionalClipPaths doesn't have 2 side photos, AI-generate them to avoid black boxes.
+    if ((beat as any).layout === 'polaroid_scatter_desk') {
+      const slotsNeeded = 2;
+      while (additionalClipPaths.length < slotsNeeded) {
+        const slotIdx = additionalClipPaths.length;
+        const slotDest = path.join(stockDir, `ai_polaroid_${i}_slot${slotIdx}_${Date.now()}.png`);
+        console.log(`  🎨 [Polaroid Fix] Generating AI photo for empty polaroid slot ${slotIdx + 1}...`);
+        const slotGen = await generateDocumentaryImage({
+          visualSubject: beat.visualSubject || beat.stockPhotoQuery || undefined,
+          text: beat.text,
+          projectContext: (project as any).description || project.scriptText?.slice(0, 300) || '',
+          chapterContext: chapterObj?.description || '',
+          negativeKeywords: beat.negativeKeywords,
+          outputPath: slotDest,
+        });
+        if (slotGen.success && slotGen.outputPath) {
+          additionalClipPaths.push(slotDest);
+        } else {
+          break; // Don't infinite loop if AI gen is failing
         }
       }
     }

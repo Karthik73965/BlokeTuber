@@ -94,6 +94,7 @@ export default function ChapterStudioPage({
   const [scriptInput, setScriptInput] = useState('');
   const [voiceoverFiles, setVoiceoverFiles] = useState<File[]>([]);
   const [pacing, setPacing] = useState<PacingSpeed>('medium');
+  const [clipLibraryRoot, setClipLibraryRoot] = useState('');
 
   // Pipeline execution & telemetry
   const [jobStatus, setJobStatus] = useState<JobStatus | null>(null);
@@ -107,6 +108,7 @@ export default function ChapterStudioPage({
     slotIndex?: number;
     query: string;
     mediaType: 'video' | 'image';
+    clipLibraryRoot?: string;
   } | null>(null);
 
   const pollTimer = useRef<any>(null);
@@ -134,6 +136,7 @@ export default function ChapterStudioPage({
         setDescInput(ch.description || '');
         setScriptInput(ch.scriptText || '');
         if (ch.pacing) setPacing(ch.pacing);
+        if (ch.clipLibraryRoot) setClipLibraryRoot(ch.clipLibraryRoot);
       }
 
       if (timelineRes.ok) {
@@ -224,6 +227,7 @@ export default function ChapterStudioPage({
     formData.append('chapterId', chapterId);
     formData.append('scriptText', scriptInput || chapter?.scriptText || '');
     formData.append('pacing', pacing);
+    formData.append('clipLibraryRoot', clipLibraryRoot);
 
     for (const f of voiceoverFiles) {
       formData.append('voiceovers', f);
@@ -614,6 +618,22 @@ export default function ChapterStudioPage({
               </div>
             )}
 
+
+            {/* Local Clip Library Folder */}
+            <div className={styles.formGroup} style={{ marginBottom: 12 }}>
+              <label className={styles.formLabel} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <span>📁</span> Local Clip Library Folder <span style={{ color: 'var(--text-muted)', fontWeight: 400, fontSize: 11 }}>(optional — server-side absolute path to your .mp4 clip folder)</span>
+              </label>
+              <input
+                type="text"
+                className={styles.formInput}
+                value={clipLibraryRoot}
+                onChange={(e) => setClipLibraryRoot(e.target.value)}
+                placeholder="e.g. C:\\Users\\karth\\Videos\\BlokeTuberClips or /home/user/clips"
+                style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 12 }}
+              />
+            </div>
+
             {/* Pacing Speed Selector */}
             <div className={styles.pacingSelectorGroup}>
               <div className={styles.pacingHeader}>
@@ -629,7 +649,7 @@ export default function ChapterStudioPage({
                   onClick={() => setPacing('low')}
                 >
                   <span className={styles.pacingTitle}>🐢 Relaxed</span>
-                  <span className={styles.pacingDuration}>6–8.5s / clip</span>
+                  <span className={styles.pacingDuration}>5–7.5s / clip</span>
                 </div>
                 <div
                   className={[
@@ -639,7 +659,7 @@ export default function ChapterStudioPage({
                   onClick={() => setPacing('medium')}
                 >
                   <span className={styles.pacingTitle}>⚖️ Balanced</span>
-                  <span className={styles.pacingDuration}>3.5–5.5s / clip</span>
+                  <span className={styles.pacingDuration}>3–4.5s / clip</span>
                 </div>
                 <div
                   className={[
@@ -649,7 +669,7 @@ export default function ChapterStudioPage({
                   onClick={() => setPacing('high')}
                 >
                   <span className={styles.pacingTitle}>⚡ Fast & Punchy</span>
-                  <span className={styles.pacingDuration}>2–3.2s / clip</span>
+                  <span className={styles.pacingDuration}>1–3s / clip (max 5s)</span>
                 </div>
               </div>
             </div>
@@ -882,6 +902,7 @@ export default function ChapterStudioPage({
                                     slotIndex: sIdx + 1,
                                     query: clip.text?.slice(0, 30) || '',
                                     mediaType: slotPath.endsWith('.jpg') ? 'image' : 'video',
+                                    clipLibraryRoot,
                                   })
                                 }
                                 title="Click to swap this slot angle"
@@ -906,6 +927,7 @@ export default function ChapterStudioPage({
                             clipIndex: idx,
                             query: clip.text?.slice(0, 40) || descInput || '',
                             mediaType: clip.mediaType || 'video',
+                            clipLibraryRoot,
                           })
                         }
                       >
@@ -929,6 +951,7 @@ export default function ChapterStudioPage({
           slotIndex={swapModalClip.slotIndex}
           currentQuery={swapModalClip.query}
           currentMediaType={swapModalClip.mediaType}
+          clipLibraryRoot={swapModalClip.clipLibraryRoot || clipLibraryRoot}
           onClose={() => setSwapModalClip(null)}
           onSwapped={(updatedTimeline) => setTimeline(updatedTimeline)}
         />

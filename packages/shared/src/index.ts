@@ -19,6 +19,7 @@ export interface Chapter {
   scriptText?: string;
   voiceoverFileName?: string;
   pacing?: PacingSpeed;
+  clipLibraryRoot?: string;
   status: 'draft' | 'staged' | 'queued' | 'processing' | 'completed' | 'error';
   jobId?: string;
   videoPath?: string;

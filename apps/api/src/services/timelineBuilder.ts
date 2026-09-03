@@ -201,6 +201,21 @@ export function buildTimeline(params: {
   const clips: TimelineClip[] = timedBeats.map((beat, i) => {
     const callout = numberCallouts.find((c) => c.beatIndex === beat.beatIndex);
 
+    // Enforce: Beat 0 (video intro) MUST always have a callout.
+    // If the AI planner didn't assign one, inject a default subject-profile intro callout.
+    const rawBeat = beat as any;
+    if (i === 0 && (!rawBeat.callout || !rawBeat.callout.line1)) {
+      // Extract a punchy title from the first line of narration text
+      const firstWords = beat.text.split(/\s+/).slice(0, 5).join(' ').replace(/[.,!?;:]+$/, '');
+      rawBeat.callout = {
+        type: 'editorial_lower_third',
+        line1: firstWords.toUpperCase(),
+        line2: null,
+        spokenTrigger: beat.text.split(/\s+/).slice(0, 3).join(' '),
+        themeColor: 'gold',
+      };
+    }
+
     // Number overlays — use word-level alignment for precision
     const numberOverlays: NumberOverlay[] = [];
     if (callout && callout.texts.length > 0) {
@@ -222,10 +237,7 @@ export function buildTimeline(params: {
     const rawCallout = (beat as any).callout;
     if (rawCallout && rawCallout.line1) {
       const clipDuration = Math.max(0.5, beat.endTime - beat.startTime);
-      // SYNC CORRECTION: Whisper timestamps lag ~1.5s behind actual vocal onset.
-      // We add a 1.8s grace delay so text appears WITH the spoken word, not 2s before.
-      const SYNC_CORRECTION = 1.8;
-      let startOffset = SYNC_CORRECTION;
+      let startOffset = 0.1; // default: appear almost immediately at clip start
 
       // 1. Check spokenTrigger first, then line1, line2
       const searchPhrases: string[] = [
@@ -243,12 +255,8 @@ export function buildTimeline(params: {
       }
 
       if (foundTs && foundTs.start >= beat.startTime - 0.3 && foundTs.start <= beat.endTime + 0.3) {
-        // Real Whisper match — use the precise timestamp with a small cognitive lead buffer
-        startOffset = Math.max(0.1, foundTs.start - beat.startTime + 0.1);
-        // If Whisper is returning very early timestamps (< 0.5s into the clip), apply sync correction
-        if (startOffset < 0.5 && clipDuration > 2.0) {
-          startOffset = Math.min(startOffset + SYNC_CORRECTION, clipDuration * 0.5);
-        }
+        // Real Whisper match — callout appears right as the word is spoken (0.1s cognitive lead)
+        startOffset = Math.max(0.05, foundTs.start - beat.startTime - 0.1);
       } else {
         // 2. Word-ratio fallback: calculate relative word position of trigger inside beat text
         const beatWords = beat.text.toLowerCase().replace(/[^a-z0-9 ]/g, '').split(/\s+/).filter(Boolean);
@@ -262,11 +270,10 @@ export function buildTimeline(params: {
 
         if (wordIdx > 0 && beatWords.length > 1) {
           const ratio = wordIdx / beatWords.length;
-          startOffset = Math.max(SYNC_CORRECTION, Math.min(clipDuration - 0.6, ratio * clipDuration + SYNC_CORRECTION));
-        } else if (wordIdx === 0) {
-          startOffset = SYNC_CORRECTION;
+          startOffset = Math.max(0.1, Math.min(clipDuration - 0.6, ratio * clipDuration));
         } else {
-          startOffset = Math.min(clipDuration * 0.5, SYNC_CORRECTION);
+          // No match at all — appear at 20% into clip as safe default
+          startOffset = Math.min(clipDuration * 0.2, 0.5);
         }
       }
 

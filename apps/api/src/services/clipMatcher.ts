@@ -15,7 +15,7 @@ for (const p of envPaths) {
 }
 
 const OPENROUTER_BASE_URL = 'https://openrouter.ai/api/v1';
-const MODEL = process.env.CLIP_MATCH_MODEL || 'openai/gpt-4o-mini';
+const MODEL = process.env.CLIP_MATCH_MODEL || 'google/gemini-2.5-flash-lite';
 
 export interface ClipMatch {
   clipPath: string | null; // null means use stock footage
@@ -79,7 +79,7 @@ Pick the best matching clip.`;
       'HTTP-Referer': 'https://bloketuber.app',
     },
     body: JSON.stringify({
-      model: process.env.CLIP_MATCH_MODEL || 'openai/gpt-4o-mini',
+      model: process.env.CLIP_MATCH_MODEL || 'google/gemini-2.5-flash-lite',
       messages: [
         { role: 'system', content: systemPrompt },
         { role: 'user', content: userMessage },
@@ -91,7 +91,7 @@ Pick the best matching clip.`;
 
   // If specified model returns 404 (e.g. retired model name), fallback to openai/gpt-4o-mini
   if (response.status === 404) {
-    console.warn(`[ClipMatcher] Model "${process.env.CLIP_MATCH_MODEL}" returned 404. Retrying with "openai/gpt-4o-mini"...`);
+    console.warn(`[ClipMatcher] Model "${process.env.CLIP_MATCH_MODEL}" returned 404. Retrying with "google/gemini-2.5-flash-lite"...`);
     response = await fetch(`${OPENROUTER_BASE_URL}/chat/completions`, {
       method: 'POST',
       headers: {
@@ -100,7 +100,7 @@ Pick the best matching clip.`;
         'HTTP-Referer': 'https://bloketuber.app',
       },
       body: JSON.stringify({
-        model: 'openai/gpt-4o-mini',
+        model: 'google/gemini-2.5-flash-lite',
         messages: [
           { role: 'system', content: systemPrompt },
           { role: 'user', content: userMessage },

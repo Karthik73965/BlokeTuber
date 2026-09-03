@@ -17,7 +17,7 @@ for (const p of envPaths) {
 }
 
 const OPENROUTER_BASE_URL = 'https://openrouter.ai/api/v1';
-const PLANNER_MODEL = process.env.PLANNER_MODEL || 'anthropic/claude-sonnet-4-5';
+const PLANNER_MODEL = process.env.PLANNER_MODEL || 'google/gemini-2.5-flash';
 
 /**
  * A single cohesive visual scene produced by the AI Director.
@@ -117,7 +117,8 @@ export async function planScriptWithAI(
   availableClips: string[],
   projectContext: string = '',
   chapterContext: string = '',
-  pacing: 'low' | 'medium' | 'high' = 'medium'
+  pacing: 'low' | 'medium' | 'high' = 'medium',
+  audioDuration?: number
 ): Promise<AIPlannerResult> {
   const cleanScript = (scriptText || '').trim();
   if (!cleanScript || cleanScript === 'Full Narration Track') {
@@ -127,22 +128,34 @@ export async function planScriptWithAI(
   }
 
   const pacingDirectives = {
-    low: `⏱️ TARGET PACING DIRECTIVE: RELAXED / CINEMATIC (LOW PACING: ~6.0s – 8.5s per clip / ~15–25 words per beat).
+    low: `⏱️ TARGET PACING DIRECTIVE: RELAXED / CINEMATIC (LOW PACING: ~5.0s – 7.5s per baseline clip / ~12–20 words per beat).
 - Let scenes linger and breathe. Hold shots for emotional weight and evidence absorption.
 - Combine 1–2 full thoughts/sentences into a single continuous visual beat. Fewer total cuts.
-- Stylized layouts should have 7–9s of runway. Baseline b-roll should hold for 5–7s.`,
-    medium: `⏱️ TARGET PACING DIRECTIVE: BALANCED INVESTIGATIVE (MEDIUM PACING: ~3.5s – 5.5s per clip / ~9–15 words per beat).
-- Standard investigative documentary rhythm. 5–7s for feature layouts/callouts, 3–4s for punchy baseline b-roll cuts.`,
-    high: `⏱️ TARGET PACING DIRECTIVE: FAST & PUNCHY (HIGH PACING: ~2.0s – 3.2s per clip / ~5–8 words per beat).
-- High visual velocity, rapid cuts, punchy retention pacing.
-- Break narration into short dynamic phrases (~5–8 words per cut).
-- Feature layouts hold for 3.5–4.5s max, baseline b-roll cuts rapidly every 2–3s.`,
+- Stylized layouts and text callouts have 6.0s–9.0s of runway. Baseline b-roll holds for 5–7s.`,
+    medium: `⏱️ TARGET PACING DIRECTIVE: BALANCED INVESTIGATIVE (MEDIUM PACING: ~3.0s – 4.5s per baseline clip / ~7–11 words per beat).
+- Standard investigative documentary rhythm. 4.5s–6.0s for feature layouts/callouts, 3.0s–4.0s for punchy baseline b-roll cuts.`,
+    high: `⏱️ TARGET PACING DIRECTIVE: FAST & PUNCHY (HIGH PACING: ~1.0s – 3.0s per baseline clip / ~2–6 words per beat; MAXIMUM 5.0s for text callouts & layouts).
+- High visual velocity, rapid cuts (TikTok / Reels / Vox Borders / high-octane YouTube style).
+- Break narration into short punchy micro-beats (2–6 words per cut, 1.0s–3.0s per clip).
+- Feature layouts and text callouts MUST NEVER exceed 5.0s (target ~3.0s – 5.0s max).
+- Baseline b-roll cuts rapidly every 1.0s to 3.0s.
+- NO clip may EVER exceed 5.0 seconds under any circumstances!`,
   }[pacing] || '';
+
+  let audioTimingDirective = '';
+  if (audioDuration && audioDuration > 0) {
+    const targetCutAvg = pacing === 'high' ? 2.2 : pacing === 'medium' ? 3.8 : 6.0;
+    const estCuts = Math.max(6, Math.round(audioDuration / targetCutAvg));
+    const minCuts = Math.max(5, Math.round(estCuts * 0.8));
+    const maxCuts = Math.round(estCuts * 1.25);
+    audioTimingDirective = `⏱️ AUDIO TIMING & CUT FREQUENCY DIRECTIVE:\n- Total narration audio duration is ~${Math.round(audioDuration)} seconds.\n- For ${pacing.toUpperCase()} pacing, you MUST produce approximately ${minCuts} to ${maxCuts} distinct scene cuts!\n- Break the script into tight, snappy beats. DO NOT group multiple full sentences into single giant beats!`;
+  }
 
   const contextDirective = [
     projectContext ? `PROJECT STORY PREMISE: "${projectContext}"` : '',
     chapterContext ? `CHAPTER VISUAL & PACING DIRECTIVE: "${chapterContext}"` : '',
     pacingDirectives,
+    audioTimingDirective,
   ]
     .filter(Boolean)
     .join('\n\n');
@@ -170,17 +183,37 @@ ${contextDirective ? `\n⚠️ STRICT DIRECTOR BRIEF:\n${contextDirective}\n` : 
 ---
 
 ### 2. DYNAMIC VARIABLE BEAT PACING (Macro vs Micro Beats):
+${
+  pacing === 'high'
+    ? `⚡ **FAST & PUNCHY PACING RULES (MANDATORY)**:
+- Baseline B-Roll Beats: 1.0s – 3.0s (~2–6 words per cut). Rapid cuts, fast scene transitions, high visual velocity.
+- Feature Layouts & Text Callouts: MAXIMUM 5.0s RUNWAY (~6–10 words max).
+  - CRITICAL CEILING: NEVER create a beat longer than 5.0 seconds!
+  - If a sentence is long, BREAK IT UP into multiple short visual cuts!
+- Total cut velocity must be high: plan roughly 20–30 cuts per minute of narration.`
+    : pacing === 'low'
+    ? `🎯 **HERO FEATURE BEATS & TEXT/SCREEN LAYOUTS (6.0s – 9.0s / ~15–25 words)**:
+- Whenever you deploy a Stylized Scene Layout OR a Text Callout Overlay, give it 6.0s–9.0s of runway.
+- Text overlays and complex multi-asset layouts need sufficient time for viewers to absorb the evidence.
 
-🎯 **HERO FEATURE BEATS & TEXT/SCREEN LAYOUTS (MANDATORY AT LEAST 7.0s LONG / ~18–28 words / 1–2 complete sentences)**:
-- Whenever you deploy a **Stylized Scene Layout** (e.g. Quad Matrix, Triptych, Red-String Pinboard, Vintage CRT, Filmstrip, Loupe, Polaroid Scatter, Editorial Column, Horizon Split, Ambient Blur) OR a **Text Callout Overlay** OR layoutData with text.
-- **CRITICAL DURATION MANDATE**: You MUST group at least 18–28 spoken words into this single beat so the visual layout and text overlays have AT LEAST 7.0 SECONDS of runway!
-- Text overlays and complex multi-asset layouts must NEVER flash like a flash. Viewers need at least 7 seconds to read the text, examine forensic labels, and absorb the evidence.
-- NEVER assign a stylized layout or text callout to a short 3-6 word phrase.
+⚡ **BASELINE B-ROLL BEATS (5.0s – 7.5s / ~12–20 words)**:
+- Let scenes linger and breathe. Hold shots for emotional weight.`
+    : `🎯 **HERO FEATURE BEATS & TEXT/SCREEN LAYOUTS (4.5s – 6.5s / ~10–16 words)**:
+- Whenever you deploy a Stylized Scene Layout OR a Text Callout Overlay, give it 4.5s–6.5s of runway.
+- Text overlays and complex multi-asset layouts need sufficient time for viewers to absorb the evidence.
 
-⚡ **BASELINE B-ROLL BEATS (2.5s – 3.5s / ~6–9 words / short phrase)**:
+⚡ **BASELINE B-ROLL BEATS (3.0s – 4.5s / ~7–11 words)**:
 - For pure atmospheric momentum, establishing shots, fast action cuts, and scene transitions.
-- Set layout="full_bleed_cinematic" and callout=null.
-- Fast, rhythmic cuts that keep viewer retention high between feature moments.
+- Fast, rhythmic cuts that keep viewer retention high between feature moments.`
+}
+
+---
+
+### 3. MANDATORY INTRO CALLOUT (CRITICAL — NEVER SKIP):
+- **beatIndex 0 (the very first beat) MUST ALWAYS have a callout.** No exceptions.
+- The intro callout should be a bold, punchy editorial_lower_third or newspaper_headline that immediately hooks the viewer.
+- Use the subject's name, location, or a single explosive fact from the opening narration.
+- This is the viewer's first impression — make it count.
 
 ---
 
@@ -298,6 +331,7 @@ Respond with ONLY a valid JSON object in this exact format:
         { role: 'user', content: userMessage },
       ],
       temperature: 0.35,
+      max_tokens: 4000,
       response_format: { type: 'json_object' },
     }),
   });
@@ -309,25 +343,64 @@ Respond with ONLY a valid JSON object in this exact format:
 
   const rawJson = await response.json();
   const rawContent = rawJson.choices?.[0]?.message?.content || '';
+  const finishReason = rawJson.choices?.[0]?.finish_reason;
   const parsed = extractAndParseJson(rawContent);
 
   if (!parsed || !Array.isArray(parsed.beats) || parsed.beats.length === 0) {
+    console.error(`[AI Planner Error] finish_reason: "${finishReason}", raw length: ${rawContent.length}`);
+    console.error(`[AI Planner Error] Raw response start:\n${rawContent.slice(0, 400)}`);
+    console.error(`[AI Planner Error] Raw response end:\n${rawContent.slice(-400)}`);
     throw new Error('AI Director failed to produce valid scene beats.');
   }
 
   return { beats: parsed.beats };
 }
 
+export interface PacingConfig {
+  minBaseline: number;
+  maxBaseline: number;
+  minFeature: number;
+  maxFeature: number;
+  hardCap: number;
+}
+
+export const PACING_CONFIGS: Record<'low' | 'medium' | 'high', PacingConfig> = {
+  high: {
+    minBaseline: 1.0,
+    maxBaseline: 3.0,
+    minFeature: 2.8,
+    maxFeature: 5.0,
+    hardCap: 5.0,
+  },
+  medium: {
+    minBaseline: 2.5,
+    maxBaseline: 4.5,
+    minFeature: 4.5,
+    maxFeature: 6.5,
+    hardCap: 7.0,
+  },
+  low: {
+    minBaseline: 4.0,
+    maxBaseline: 7.5,
+    minFeature: 6.0,
+    maxFeature: 9.5,
+    hardCap: 10.0,
+  },
+};
+
 /**
- * Maps planned beats to exact audio timestamps using dynamic word-weighting and Whisper phrase boundaries.
- * Enforces at least 7.0s for beats with text overlays or stylized screen layouts, and 2.5–3.5s for baseline cuts.
+ * Maps planned beats to exact audio timestamps using dynamic word-weighting, Whisper phrase boundaries,
+ * and automatic beat subdivision to strictly enforce the target pacing limits (e.g. max 5.0s on Fast & Punchy).
  */
 export function mapPlannedBeatsToTiming(
   beats: PlannedBeat[],
   alignments: SegmentAlignment[],
-  totalDuration: number
+  totalDuration: number,
+  pacing: 'low' | 'medium' | 'high' = 'medium'
 ): TimedPlannedBeat[] {
   if (!beats.length) return [];
+
+  const config = PACING_CONFIGS[pacing] || PACING_CONFIGS.medium;
 
   // Helper to determine if a beat has text overlays or a stylized screen layout
   const hasTextOrLayout = (beat: PlannedBeat): boolean => {
@@ -337,67 +410,207 @@ export function mapPlannedBeatsToTiming(
     return isStylizedLayout || hasCallout || hasLayoutData;
   };
 
-  const MIN_FEATURE_DURATION = 7.0; // Text/screen layout beats must be at least 7.0s long
-  const MIN_BASELINE_DURATION = 2.5; // Baseline b-roll cuts hold for at least 2.5s
+  const allWords = (alignments || []).flatMap((s) => s.words || []);
+  const totalWords = beats.reduce(
+    (sum, b) => sum + Math.max(1, (b.text || '').split(/\s+/).filter(Boolean).length),
+    0
+  );
 
-  // Compute raw target duration for each beat
-  const rawDurations: number[] = beats.map((beat) => {
-    const isFeature = hasTextOrLayout(beat);
-    let target = isFeature ? MIN_FEATURE_DURATION : MIN_BASELINE_DURATION;
+  // ── Step 1: Initial timestamp assignment using Whisper word cursor or proportional word count ──
+  let currentStart = 0;
+  let wordSearchCursor = 0;
 
-    // Check if Whisper has exact phrase alignment for this beat's text
-    if (alignments && alignments.length > 0) {
-      const phraseTs = findPhraseTimestamp(beat.text, alignments);
-      if (phraseTs && phraseTs.end > phraseTs.start) {
-        const whisperDuration = phraseTs.end - phraseTs.start;
-        if (isFeature) {
-          target = Math.max(MIN_FEATURE_DURATION, whisperDuration);
-        } else if (whisperDuration >= MIN_BASELINE_DURATION) {
-          target = whisperDuration;
+  const initialTimedBeats: Array<PlannedBeat & { startTime: number; endTime: number; duration: number }> = beats.map((beat, i) => {
+    const beatWords = (beat.text || '').split(/\s+/).filter(Boolean);
+    const wordCount = Math.max(1, beatWords.length);
+    let matchedEndTime: number | null = null;
+
+    if (allWords.length > 0 && wordSearchCursor < allWords.length) {
+      const cleanBeatWords = beatWords.map((w) => w.toLowerCase().replace(/[^a-z0-9]/g, '')).filter(Boolean);
+      const targetEndWord = cleanBeatWords[cleanBeatWords.length - 1];
+      const targetSecondEndWord = cleanBeatWords[cleanBeatWords.length - 2];
+
+      if (targetEndWord) {
+        const searchLimit = Math.min(allWords.length, wordSearchCursor + wordCount * 3 + 6);
+        let bestMatchIdx: number | null = null;
+
+        for (let wIdx = wordSearchCursor; wIdx < searchLimit; wIdx++) {
+          const currentWordClean = allWords[wIdx]?.word.toLowerCase().replace(/[^a-z0-9]/g, '');
+          if (currentWordClean === targetEndWord) {
+            bestMatchIdx = wIdx;
+          }
+        }
+
+        if (bestMatchIdx === null && targetSecondEndWord) {
+          for (let wIdx = wordSearchCursor; wIdx < searchLimit; wIdx++) {
+            const currentWordClean = allWords[wIdx]?.word.toLowerCase().replace(/[^a-z0-9]/g, '');
+            if (currentWordClean === targetSecondEndWord) {
+              bestMatchIdx = wIdx;
+            }
+          }
+        }
+
+        if (bestMatchIdx !== null) {
+          matchedEndTime = allWords[bestMatchIdx]!.end;
+          wordSearchCursor = bestMatchIdx + 1;
         }
       }
+    }
+
+    const estimatedDuration = totalWords > 0 ? (wordCount / totalWords) * totalDuration : totalDuration / beats.length;
+    let endTime: number;
+
+    if (matchedEndTime !== null && matchedEndTime > currentStart + 0.5) {
+      endTime = matchedEndTime;
     } else {
-      // Word count estimation if no whisper alignment (~2.5 words per second)
-      const wordCount = Math.max(1, (beat.text || '').trim().split(/\s+/).filter(Boolean).length);
-      const estimatedSecs = wordCount / 2.5;
-      target = isFeature ? Math.max(MIN_FEATURE_DURATION, estimatedSecs) : Math.max(MIN_BASELINE_DURATION, estimatedSecs);
+      endTime = currentStart + estimatedDuration;
     }
 
-    return target;
-  });
-
-  const sumRaw = rawDurations.reduce((sum, d) => sum + d, 0);
-
-  // Normalize durations so sum of all beats exactly matches totalDuration
-  let currentStart = 0;
-
-  return beats.map((beat, i) => {
-    let beatDuration = totalDuration > 0 && sumRaw > 0
-      ? (rawDurations[i]! / sumRaw) * totalDuration
-      : rawDurations[i]!;
-
-    // If total audio is long enough, enforce the 7.0s minimum floor on feature beats
-    const isFeature = hasTextOrLayout(beat);
-    if (isFeature && totalDuration >= beats.length * 3.5) {
-      beatDuration = Math.max(Math.min(MIN_FEATURE_DURATION, totalDuration * 0.4), beatDuration);
-    } else if (totalDuration >= beats.length * 2.2) {
-      beatDuration = Math.max(MIN_BASELINE_DURATION, beatDuration);
-    }
-
-    let endTime = currentStart + beatDuration;
     if (i === beats.length - 1 || endTime > totalDuration) {
       endTime = totalDuration;
     }
 
-    const timed: TimedPlannedBeat = {
+    if (endTime <= currentStart) {
+      endTime = Math.min(totalDuration, currentStart + Math.max(1.0, estimatedDuration));
+    }
+
+    const duration = Math.max(0.5, endTime - currentStart);
+    const timed = {
       ...beat,
-      startTime: Number(currentStart.toFixed(2)),
-      endTime: Number(endTime.toFixed(2)),
-      resolvedPath: null,
+      startTime: Number(currentStart.toFixed(3)),
+      endTime: Number(endTime.toFixed(3)),
+      duration: Number(duration.toFixed(3)),
     };
 
     currentStart = endTime;
     return timed;
   });
+
+  // ── Step 2: Auto-subdivide any beat exceeding the pacing threshold ──
+  // For Fast & Punchy: any baseline > 3.0s is cut into 1.0–3.0s cuts; feature > 5.0s is capped to ~4.5s with baseline b-roll cuts
+  const subdivided: Array<PlannedBeat & { duration: number }> = [];
+
+  for (const beat of initialTimedBeats) {
+    const isFeature = hasTextOrLayout(beat);
+    const dur = beat.duration;
+
+    if (isFeature && dur > config.maxFeature) {
+      // Split feature: first portion retains callout/layout (capped <= maxFeature)
+      const featureDur = Math.min(config.maxFeature, Math.max(config.minFeature, 4.5));
+      const remDur = dur - featureDur;
+
+      const rawCallout = beat.callout as any;
+      const featureCallout = rawCallout ? {
+        ...rawCallout,
+        startTime: Math.min(rawCallout.startTime || 0.1, featureDur * 0.2),
+        endTime: Math.min(featureDur - 0.15, (rawCallout.endTime || featureDur)),
+      } : null;
+
+      subdivided.push({
+        ...beat,
+        layout: beat.layout,
+        layoutData: beat.layoutData,
+        callout: featureCallout,
+        duration: featureDur,
+      });
+
+      // Remainder becomes baseline b-roll cuts
+      const numBaseline = Math.max(1, Math.ceil(remDur / config.maxBaseline));
+      const eachDur = remDur / numBaseline;
+      const beatWords = (beat.text || '').split(/\s+/).filter(Boolean);
+      const halfWords = Math.ceil(beatWords.length / 2);
+
+      for (let b = 0; b < numBaseline; b++) {
+        subdivided.push({
+          ...beat,
+          text: beatWords.slice(halfWords).join(' ') || beat.text,
+          layout: 'full_bleed_cinematic',
+          layoutData: undefined,
+          callout: null,
+          stockVideoQuery: beat.backupVideoQuery || `${beat.stockVideoQuery || beat.visualSubject || 'cinematic'} cut ${b + 1}`,
+          backupVideoQuery: `${beat.visualSubject || 'cinematic b-roll'} angle ${b + 2}`,
+          additionalStockQueries: [],
+          duration: eachDur,
+        });
+      }
+    } else if (!isFeature && dur > config.maxBaseline) {
+      // Split baseline into multiple cuts <= maxBaseline
+      const numCuts = Math.max(2, Math.ceil(dur / config.maxBaseline));
+      const eachDur = dur / numCuts;
+      const beatWords = (beat.text || '').split(/\s+/).filter(Boolean);
+      const wordsPerCut = Math.max(1, Math.ceil(beatWords.length / numCuts));
+
+      for (let b = 0; b < numCuts; b++) {
+        const sliceText = beatWords.slice(b * wordsPerCut, (b + 1) * wordsPerCut).join(' ') || beat.text;
+        subdivided.push({
+          ...beat,
+          text: sliceText,
+          layout: 'full_bleed_cinematic',
+          layoutData: undefined,
+          callout: null,
+          stockVideoQuery: b === 0 ? beat.stockVideoQuery : (beat.backupVideoQuery || `${beat.stockVideoQuery || beat.visualSubject || 'cinematic'} cut ${b + 1}`),
+          backupVideoQuery: `${beat.visualSubject || 'cinematic'} angle ${b + 2}`,
+          additionalStockQueries: [],
+          duration: eachDur,
+        });
+      }
+    } else {
+      subdivided.push({
+        ...beat,
+        duration: dur,
+      });
+    }
+  }
+
+  // ── Step 3: Final timestamping with absolute hard cap enforcement ──
+  let timeCursor = 0;
+  const finalBeats: TimedPlannedBeat[] = [];
+
+  for (let i = 0; i < subdivided.length; i++) {
+    const b = subdivided[i]!;
+    let dur = b.duration;
+    let end = timeCursor + dur;
+
+    if (i === subdivided.length - 1) {
+      end = totalDuration;
+      dur = end - timeCursor;
+
+      if (dur > config.hardCap) {
+        // Last clip would exceed hard cap! Split it into two
+        const half = dur / 2;
+        finalBeats.push({
+          ...b,
+          beatIndex: finalBeats.length,
+          startTime: Number(timeCursor.toFixed(2)),
+          endTime: Number((timeCursor + half).toFixed(2)),
+          resolvedPath: null,
+        });
+        timeCursor += half;
+
+        finalBeats.push({
+          ...b,
+          beatIndex: finalBeats.length,
+          layout: 'full_bleed_cinematic',
+          layoutData: undefined,
+          callout: null,
+          startTime: Number(timeCursor.toFixed(2)),
+          endTime: Number(totalDuration.toFixed(2)),
+          resolvedPath: null,
+        });
+        break;
+      }
+    }
+
+    finalBeats.push({
+      ...b,
+      beatIndex: finalBeats.length,
+      startTime: Number(timeCursor.toFixed(2)),
+      endTime: Number(end.toFixed(2)),
+      resolvedPath: null,
+    });
+    timeCursor = end;
+  }
+
+  return finalBeats;
 }
 

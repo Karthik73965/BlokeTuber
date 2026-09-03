@@ -137,7 +137,7 @@ async function searchPixabay(query: string, perPage = 15): Promise<StockVideo[]>
 
     return (data.hits || [])
       .map((v: any) => {
-        const medium = v.videos?.large || v.videos?.medium || v.videos?.small;
+        const medium = v.videos?.medium || v.videos?.small || v.videos?.large;
         const tagArray = String(v.tags || '').split(',').map((t: string) => t.trim().toLowerCase()).filter(Boolean);
         return {
           source: 'pixabay' as const,
@@ -233,8 +233,7 @@ async function searchInternetArchive(query: string, rows = 10): Promise<StockVid
   ];
 
   try {
-    // Search only the movies mediatype, filter for HD landscape, sort by downloads (popularity)
-    const searchUrl = new URL('https://archive.org/advancedsearch.php');
+    return []; // Bypass archive.org: prone to multi-gigabyte files and slow CDN
     searchUrl.searchParams.set(
       'q',
       `${q} AND mediatype:movies AND -subject:"animation" AND -subject:"cartoon" AND -subject:"music video"`
@@ -419,7 +418,7 @@ Respond ONLY in JSON:
         'HTTP-Referer': 'https://bloketuber.app',
       },
       body: JSON.stringify({
-        model: process.env.CLIP_MATCH_MODEL || 'openai/gpt-4o-mini',
+        model: process.env.CLIP_MATCH_MODEL || 'google/gemini-2.5-flash',
         messages: [
           {
             role: 'user',
@@ -812,40 +811,35 @@ export async function downloadStockVideo(
   video: StockVideo,
   outputPath: string
 ): Promise<string> {
-  const response = await fetch(video.url);
+  const response = await fetch(video.url, { signal: AbortSignal.timeout(10000) });
   if (!response.ok) throw new Error(`Failed to download stock video: ${video.url}`);
 
+  const contentLength = Number(response.headers.get('content-length') || 0);
+  if (contentLength > 100 * 1024 * 1024) {
+    throw new Error(`Video file too large (${(contentLength / 1024 / 1024).toFixed(1)}MB): ${video.url}`);
+  }
+
   const buffer = await response.arrayBuffer();
+  if (buffer.byteLength > 100 * 1024 * 1024) {
+    throw new Error(`Video file too large (${(buffer.byteLength / 1024 / 1024).toFixed(1)}MB): ${video.url}`);
+  }
   fs.writeFileSync(outputPath, Buffer.from(buffer));
 
-  // Run standardization: ensure H.264, silent AAC if audio missing, and faststart moov atom
+  // Optional faststart: quick stream copy without re-encoding
   try {
     const ffmpegStatic = require('ffmpeg-static');
     const ffmpegBin = ffmpegStatic ? `"${ffmpegStatic}"` : 'ffmpeg';
     const tempOpt = outputPath.replace(/\.mp4$/i, '_std.mp4');
     const { execSync } = require('child_process');
 
-    let hasAudio = false;
-    try {
-      const probe = execSync(`${ffmpegBin} -i "${outputPath}"`, { stdio: 'pipe' }).toString();
-      hasAudio = probe.includes('Audio:');
-    } catch (e: any) {
-      const probeErr = e.stderr?.toString() || '';
-      hasAudio = probeErr.includes('Audio:');
-    }
-
-    if (hasAudio) {
-      execSync(`${ffmpegBin} -y -i "${outputPath}" -c:v libx264 -pix_fmt yuv420p -c:a aac -movflags +faststart "${tempOpt}"`, { stdio: 'pipe' });
-    } else {
-      execSync(`${ffmpegBin} -y -i "${outputPath}" -f lavfi -i anullsrc=channel_layout=stereo:sample_rate=48000 -c:v libx264 -pix_fmt yuv420p -c:a aac -shortest -movflags +faststart "${tempOpt}"`, { stdio: 'pipe' });
-    }
+    execSync(`${ffmpegBin} -nostdin -y -i "${outputPath}" -c copy -movflags +faststart "${tempOpt}"`, { stdio: 'ignore', timeout: 5000 });
 
     if (fs.existsSync(tempOpt) && fs.statSync(tempOpt).size > 0) {
       fs.copyFileSync(tempOpt, outputPath);
       fs.unlinkSync(tempOpt);
     }
   } catch (e) {
-    // Non-fatal, original MP4 is still in place
+    // Non-fatal, original MP4 is still in place and playable
   }
 
   return outputPath;
