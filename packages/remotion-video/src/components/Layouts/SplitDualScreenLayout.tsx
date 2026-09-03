@@ -19,6 +19,8 @@ export const SplitDualScreenLayout: React.FC<LayoutProps> = ({
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
 
+  const secondaryPath = clip.secondaryClipPath || clip.additionalClipPaths?.[0] || clip.clipPath;
+
   const isPrimaryImage =
     clip.mediaType === 'image' ||
     (clip.clipPath && /\.(jpg|jpeg|png|webp|avif)$/i.test(clip.clipPath)) ||
@@ -26,8 +28,8 @@ export const SplitDualScreenLayout: React.FC<LayoutProps> = ({
 
   const isSecondaryImage =
     clip.secondaryMediaType === 'image' ||
-    (clip.secondaryClipPath && /\.(jpg|jpeg|png|webp|avif)$/i.test(clip.secondaryClipPath)) ||
-    !clip.secondaryClipPath;
+    (secondaryPath && /\.(jpg|jpeg|png|webp|avif)$/i.test(secondaryPath)) ||
+    !secondaryPath;
 
   const progress = durationInFrames > 0 ? frame / durationInFrames : 0;
 
@@ -124,10 +126,10 @@ export const SplitDualScreenLayout: React.FC<LayoutProps> = ({
           transform: `translateX(${rightTranslateX}px)`,
         }}
       >
-        {clip.secondaryClipPath || clip.clipPath ? (
+        {secondaryPath ? (
           isSecondaryImage ? (
             <Img
-              src={clip.secondaryClipPath || clip.clipPath!}
+              src={secondaryPath}
               style={{
                 width: '100%',
                 height: '100%',
@@ -138,7 +140,7 @@ export const SplitDualScreenLayout: React.FC<LayoutProps> = ({
             />
           ) : (
             <OffthreadVideo
-              src={clip.secondaryClipPath || clip.clipPath!}
+              src={secondaryPath}
               style={{
                 width: '100%',
                 height: '100%',

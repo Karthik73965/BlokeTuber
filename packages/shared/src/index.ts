@@ -138,7 +138,14 @@ export type SceneLayoutType =
   | 'parallax_triptych_gallery'
   | 'quad_surveillance_matrix'
   | 'polaroid_scatter_desk'
-  | 'magnifying_loupe_inspector';
+  | 'magnifying_loupe_inspector'
+  | 'split_dual_screen'
+  | 'open_case_binder'
+  | 'forensic_drafting_table'
+  | 'illuminated_lightbox'
+  | 'museum_archive_matte'
+  | 'desktop_corkboard'
+  | 'hero_graphic_centerpiece';
 
 export interface SceneLayoutData {
   title?: string;

@@ -217,32 +217,38 @@ ${
 
 ---
 
-### 3. SMART SPARSITY & FREQUENCY ("Be Smart, Play Smart"):
-- **NEVER crowd every beat with layouts or callouts!** That causes visual fatigue.
-- **Rule of 30/70**:
-  - **~30% Feature Beats**: Only ~3 to 4 beats per 60 seconds (every 4–6 beats) should have a stylized layout or text callout.
-  - **~70% Baseline Beats**: The vast majority of the documentary must remain clean, cinematic full-bleed b-roll with zero text overlays.
-- Introduce stylized layouts ONLY at pivotal narrative beats (e.g. revealing a suspect, analyzing surveillance tapes, examining GPS coordinates, highlighting a major statistic, or uncovering classified documents).
+### 3. BALANCED 50/50 MOTION GRAPHIC SCREEN LAYOUT RHYTHM (CRITICAL):
+- **~50% Motion Graphic Screen Layouts**: Every other beat (approximately 1 out of every 2 beats) MUST deploy a stylized motion graphic screen layout!
+- **Alternating Rhythm**: Alternate dynamically between a rich motion graphic layout beat (split dual screen, ambient blur frame, open case binder, illuminated lightbox, vintage CRT, museum matte, polaroid desk scatter, filmstrip reel, forensic drafting table, etc.) and a clean full-bleed cinematic b-roll beat.
+- Viewers crave visual stimulation, rich textures, physical evidence desks, and multi-panel motion design. DO NOT leave the video in plain full-bleed b-roll.
 
 ---
 
-### 4. SCENE PRESENTATION LAYOUTS (11 Unique Styles):
-- "full_bleed_cinematic": Fullscreen 16:9 + 2.35:1 Cinema Letterbox Bars + 35mm Film Grain (Default baseline for 70% of beats).
-- "ambient_blur_frame": Floating 3D card over bright softened ambient mirror background (Great for portrait photos, stats).
-- "vintage_crt_monitor": Retro 1990s beige broadcast terminal on studio desk with scanlines & green timecode (Best for police radio, wiretaps, CCTV).
-- "filmstrip_spool_reel": Horizontal 35mm film negative ribbon scrolling sideways on warm ivory paper (Best for archival photos, timelines).
-- "editorial_sidebar_column": 72/28 Asymmetric Video on left + Ivory investigative data rail on right (Best for news articles, court records).
+### 4. SCENE PRESENTATION LAYOUTS (18 Unique Styles):
+- "full_bleed_cinematic": Fullscreen 16:9 + 2.35:1 Cinema Letterbox Bars + 35mm Film Grain (Baseline full-bleed cut).
+- "split_dual_screen": 50/50 Dual Screen Split with golden vertical accent line & independent Ken Burns (Best for before vs after, comparing two perspectives, subject vs environment).
+- "open_case_binder": 3D Manila case file folder with metal 2-hole top prongs on warm blonde oak desk (Best for official records, legal files, transcripts, medical paperwork).
+- "forensic_drafting_table": Blueprint technical drafting paper with GPS grid crosshairs & bottom measurement ruler (Best for site plans, maps, industrial facilities, architectural layouts).
+- "illuminated_lightbox": Backlit light table with 35mm slide mount frame & Kodak Tri-X stamps (Best for photo slides, historical archives, portraits, inspection).
+- "museum_archive_matte": Warm ivory museum wall with framed gallery mat card & subtle camera pull-back (Best for fine art photos, historic moments, formal documents).
+- "desktop_corkboard": Dark mahogany detective desk with blueprint grid overlay and taped evidence (Best for crime scene notes, suspect tracking, evidence photos).
+- "hero_graphic_centerpiece": Floating hero centerpiece frame over deep ambient blurred background (Best for key evidence, hero documents, featured subjects).
+- "ambient_blur_frame": Floating 3D card over bright softened ambient mirror background (Great for portrait photos, stats, human profiles).
+- "vintage_crt_monitor": Retro 1990s beige broadcast terminal on studio desk with scanlines & green timecode (Best for police radio, wiretaps, CCTV, dispatch).
+- "filmstrip_spool_reel": Horizontal 35mm film negative ribbon scrolling sideways on warm ivory paper (Best for archival photos, timelines, historical sequences).
+- "editorial_sidebar_column": 72/28 Asymmetric Video on left + Ivory investigative data rail on right (Best for news articles, court records, statistical breakdowns).
 - "red_string_pinboard": Light blonde corkboard with connected red strings & 3D camera swoop (Best for connecting suspects, clues, locations).
 - "horizon_top_bottom_split": 50/50 Horizontal Split: Aerial Top + Ground Bottom (Best for aerial vs ground comparisons, before vs after).
 - "parallax_triptych_gallery": 3-Panel 3D Parallax Triptych on bright gallery wall (Best for presenting 3 suspects, 3 locations, or 3-step timeline).
 - "quad_surveillance_matrix": 2x2 Multi-Angle Forensic CCTV Grid (Best for multi-angle police raids, perimeter surveillance, building sweeps).
-- "polaroid_scatter_desk": Organic polaroid photo scatter on blonde oak desk (Best for eyewitness photos, physical evidence).
+- "polaroid_scatter_desk": Organic polaroid photo scatter on blonde oak desk (Best for eyewitness photos, physical evidence, family memories).
 - "magnifying_loupe_inspector": Circular optical magnifying loupe gliding over an archival map (Best for GPS coordinates, property boundaries, blueprints).
 
 ---
 
 ### 5. MULTI-ASSET STOCK QUERIES:
 When you choose a multi-asset layout, provide "additionalStockQueries" array so all slots get real matching footage:
+- "split_dual_screen" ➔ provide 1 additional video/image query for the right panel (slot="right_panel", mediaType="video" or "image").
 - "editorial_sidebar_column" ➔ provide 1 additional image query for the right-column context thumbnail (slot="context_image", mediaType="image" e.g. archival document, location photograph, police report, or newspaper snippet).
 - "quad_surveillance_matrix" ➔ provide 3 additional queries for CAM 02, CAM 03, CAM 04 (e.g. slot="cam2", slot="cam3", slot="cam4").
 - "parallax_triptych_gallery" ➔ provide 2 additional queries for Left and Right panels (slot="left_wing", slot="right_wing").
@@ -258,10 +264,14 @@ Generate callouts ONLY on high-impact story moments (~30–40% of beats). Write 
 
 ---
 
----
-
 ### 8. CUSTOM SCENE-SPECIFIC LAYOUT METADATA (MANDATORY FOR STYLIZED LAYOUTS):
 Every stylized layout MUST have unique, scene-specific text generated in "layoutData" matching the exact context of what is happening in that beat. NEVER USE GENERIC PLACEHOLDERS!
+- For "split_dual_screen": provide "title" (e.g. "PERSPECTIVE COMPARISON"), "subtitle" (e.g. "ORIGIN vs DESTINATION").
+- For "open_case_binder": provide "title" (e.g. "CASE FILE #8492"), "subtitle" (e.g. "OFFICIAL RECORD • HOUSING ASSESSMENT"), "tag" (e.g. "CONFIDENTIAL").
+- For "forensic_drafting_table": provide "title" (e.g. "SITE BLUEPRINT"), "coords" (e.g. "SEATTLE, WA • 47.60° N, 122.33° W"), "stamp" (e.g. "ARCHIVAL SURVEY").
+- For "illuminated_lightbox": provide "title" (e.g. "35MM ARCHIVE"), "subtitle" (e.g. "CONTACT SHEET // FRAME 24A").
+- For "museum_archive_matte": provide "title" (e.g. "HISTORICAL DOCUMENT"), "subtitle" (e.g. "KING COUNTY ARCHIVES • 2019").
+- For "desktop_corkboard": provide "notes": 3 evidence notes matching the scene (e.g. ["INCIDENT LOG", "OUTREACH REPORT", "CASEWORKER NOTES"]).
 - For "quad_surveillance_matrix": provide "camLabels": 4 custom camera names tailored to this scene (e.g. ["DASHCAM // ROUTE 66", "CABIN REAR // LIVING AREA", "SIDE MIRROR // NIGHT HIGHWAY", "OVERHEAD SATELLITE"]).
 - For "editorial_sidebar_column": provide "title" (e.g. "EVICTION TRANSCRIPT"), "subtitle" (e.g. "NOTICE TO VACATE • 2018"), "tag" (e.g. "HOUSING FORENSICS"), "coords" (e.g. "QUARTZSITE, AZ • 33.66° N, 114.22° W").
 - For "vintage_crt_monitor": provide "title" (e.g. "POLICE DISPATCH AUDIO"), "tag" (e.g. "FREQ: 460.125 MHz"), "timestamp" (e.g. "OCTOBER 1995 • 04:18 AM").
@@ -520,12 +530,29 @@ export function mapPlannedBeatsToTiming(
       const beatWords = (beat.text || '').split(/\s+/).filter(Boolean);
       const halfWords = Math.ceil(beatWords.length / 2);
 
+      const SUBDIVIDED_LAYOUT_ROTATION: SceneLayoutType[] = [
+        'split_dual_screen',
+        'ambient_blur_frame',
+        'open_case_binder',
+        'illuminated_lightbox',
+        'vintage_crt_monitor',
+        'museum_archive_matte',
+        'forensic_drafting_table',
+        'desktop_corkboard',
+        'editorial_sidebar_column',
+        'filmstrip_spool_reel',
+      ];
+
       for (let b = 0; b < numBaseline; b++) {
+        const cutLayout: SceneLayoutType = b % 2 === 1
+          ? SUBDIVIDED_LAYOUT_ROTATION[subdivided.length % SUBDIVIDED_LAYOUT_ROTATION.length]!
+          : 'full_bleed_cinematic';
+
         subdivided.push({
           ...beat,
           text: beatWords.slice(halfWords).join(' ') || beat.text,
-          layout: 'full_bleed_cinematic',
-          layoutData: undefined,
+          layout: cutLayout,
+          layoutData: cutLayout !== 'full_bleed_cinematic' ? beat.layoutData : undefined,
           callout: null,
           stockVideoQuery: beat.backupVideoQuery || beat.stockVideoQuery || beat.visualSubject || null,
           backupVideoQuery: beat.stockVideoQuery || beat.visualSubject || null,
@@ -544,13 +571,30 @@ export function mapPlannedBeatsToTiming(
       const beatWords = (beat.text || '').split(/\s+/).filter(Boolean);
       const wordsPerCut = Math.max(1, Math.ceil(beatWords.length / numCuts));
 
+      const SUBDIVIDED_LAYOUT_ROTATION: SceneLayoutType[] = [
+        'split_dual_screen',
+        'ambient_blur_frame',
+        'open_case_binder',
+        'illuminated_lightbox',
+        'vintage_crt_monitor',
+        'museum_archive_matte',
+        'forensic_drafting_table',
+        'desktop_corkboard',
+        'editorial_sidebar_column',
+        'filmstrip_spool_reel',
+      ];
+
       for (let b = 0; b < numCuts; b++) {
         const sliceText = beatWords.slice(b * wordsPerCut, (b + 1) * wordsPerCut).join(' ') || beat.text;
+        const cutLayout: SceneLayoutType = b % 2 === 1
+          ? SUBDIVIDED_LAYOUT_ROTATION[subdivided.length % SUBDIVIDED_LAYOUT_ROTATION.length]!
+          : 'full_bleed_cinematic';
+
         subdivided.push({
           ...beat,
           text: sliceText,
-          layout: 'full_bleed_cinematic',
-          layoutData: undefined,
+          layout: cutLayout,
+          layoutData: cutLayout !== 'full_bleed_cinematic' ? beat.layoutData : undefined,
           callout: null,
           stockVideoQuery: b === 0 ? beat.stockVideoQuery : (beat.backupVideoQuery || beat.stockVideoQuery || beat.visualSubject || null),
           backupVideoQuery: beat.backupVideoQuery || beat.stockVideoQuery || beat.visualSubject || null,

@@ -221,82 +221,8 @@ async function searchMixkit(query: string): Promise<StockVideo[]> {
 // Particularly strong for: true crime, news broadcasts, documentaries, historical footage.
 // Direct MP4 download: https://archive.org/download/{identifier}/{identifier}.mp4
 async function searchInternetArchive(query: string, rows = 10): Promise<StockVideo[]> {
-  // Archive.org search works best with 3-word focused queries
-  const q = compressQuery(query, 3);
-  if (!q) return [];
-
-  // Title patterns that indicate music videos, personal vlogs, or irrelevant content
-  const ARCHIVE_TITLE_BANS = [
-    /\brulез\b/i, /\brulz\b/i, /trollop/i, /\bofficial\s*(music)?\s*video\b/i,
-    /\(lyrics?\)/i, /\(official\)/i, /news\s+broadcast/i, /\btalk\s+show\b/i,
-    /\bthe\s+day\s+you\b/i, /\bvevo\b/i, /\bMTV\b/i,
-  ];
-
-  try {
-    return []; // Bypass archive.org: prone to multi-gigabyte files and slow CDN
-    searchUrl.searchParams.set(
-      'q',
-      `${q} AND mediatype:movies AND -subject:"animation" AND -subject:"cartoon" AND -subject:"music video"`
-    );
-    searchUrl.searchParams.set('fl[]', 'identifier,title,description,subject,downloads');
-    searchUrl.searchParams.set('sort[]', 'downloads desc');
-    searchUrl.searchParams.set('rows', String(rows + 10)); // fetch extra to allow filtering
-    searchUrl.searchParams.set('start', '0');
-    searchUrl.searchParams.set('output', 'json');
-
-    const response = await fetch(searchUrl.toString(), {
-      headers: { 'User-Agent': 'BlokeTuber/1.0 (documentary video automation)' },
-      signal: AbortSignal.timeout(6000),
-    });
-    if (!response.ok) return [];
-
-    const data = (await response.json()) as any;
-    const docs: any[] = data?.response?.docs || [];
-    if (docs.length === 0) return [];
-
-    const results: StockVideo[] = [];
-
-    for (const doc of docs) {
-      if (results.length >= rows) break;
-
-      const id: string = doc.identifier;
-      if (!id) continue;
-
-      // Skip YouTube-mirrored items — their actual file is usually .mkv, not .mp4
-      // and the standard download URL pattern fails silently
-      if (id.startsWith('youtube-') || id.startsWith('youtube_')) continue;
-
-      // Skip very low-download items (likely low quality, obscure, or irrelevant)
-      const downloads = Number(doc.downloads || 0);
-      if (downloads < 50) continue;
-
-      // Skip items with banned title patterns (music, personal vlogs, etc.)
-      const title: string = doc.title || q;
-      if (ARCHIVE_TITLE_BANS.some((pattern) => pattern.test(title))) continue;
-
-      const videoUrl = `https://archive.org/download/${id}/${id}.mp4`;
-      const previewUrl = `https://archive.org/services/img/${id}`;
-      const tags: string[] = [];
-      if (doc.subject) {
-        const raw = Array.isArray(doc.subject) ? doc.subject : [doc.subject];
-        tags.push(...raw.flatMap((s: string) => String(s).toLowerCase().split(/[,;]+/)).map((s: string) => s.trim()).filter(Boolean));
-      }
-
-      results.push({
-        source: 'archive' as const,
-        url: videoUrl,
-        previewUrl,
-        title,
-        tags,
-        width: 1280,
-        height: 720,
-      });
-    }
-
-    return results;
-  } catch {
-    return [];
-  }
+  // Bypassed archive.org: prone to multi-gigabyte files and slow CDN
+  return [];
 }
 
 /**
