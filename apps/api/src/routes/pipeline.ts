@@ -927,7 +927,10 @@ async function runPipeline(params: {
 
     const searchOptions = {
       visualSubject: beat.visualSubject,
-      negativeKeywords: beat.negativeKeywords,
+      negativeKeywords: [
+        ...(beat.negativeKeywords || []),
+        'forest', 'woods', 'trees', 'nature', 'camping', 'hiking', 'mountain', 'wildlife',
+      ],
       useVisionVerification: true,
       storyContext,
     };

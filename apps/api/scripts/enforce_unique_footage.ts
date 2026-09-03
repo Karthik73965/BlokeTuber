@@ -97,7 +97,7 @@ const THEMATIC_REPLACEMENTS: Record<number, string[]> = {
     "refugee family standing outside secure white shelter",
     "brass deadbolt lock mechanism turning door secure latch",
     "woman closing solid door clicking lock secure night",
-    "drone aerial village tiny homes Everett Washington trees",
+    "drone aerial village tiny homes modular shelter community",
     "car driving highway freeway Puget Sound bridge overcast",
   ],
   8: [
@@ -217,13 +217,15 @@ export async function deduplicateAndEnforceUniqueness() {
         duplicatesFound++;
         console.log(`  🔁 Clip [${i + 1}/${clips.length}] in Ch ${ch.chapterIndex} is duplicate: ${path.basename(origPath)}`);
 
-        // Generate query from spoken words or chapter bank
-        const spoken = (clip.spokenWords || []).map((w: any) => w.word).join(' ').trim();
+        // Prioritize thematic curated queries over noisy spoken voiceover fragments
         const queries = THEMATIC_REPLACEMENTS[ch.chapterIndex] || THEMATIC_REPLACEMENTS[1]!;
         const queryIndex = (i + duplicatesFound) % queries.length;
         const fallbackQuery = queries[queryIndex]!;
 
-        const primaryQuery = spoken && spoken.length > 10 ? spoken : fallbackQuery;
+        const spoken = (clip.spokenWords || []).map((w: any) => w.word).join(' ').trim();
+        // Avoid spoken sentences if they contain common stock-confusing triggers (e.g. park, wood, trees)
+        const hasTrigger = /\b(park|wood|woods|tree|trees|camp|tent|pine)\b/i.test(spoken);
+        const primaryQuery = (!hasTrigger && spoken && spoken.length > 10) ? spoken : fallbackQuery;
         const backupQuery = fallbackQuery;
 
         console.log(`    🔍 Sourcing replacement [Query: "${primaryQuery.slice(0, 45)}..."]`);
@@ -234,8 +236,10 @@ export async function deduplicateAndEnforceUniqueness() {
             backupQuery,
             allUsedUrls,
             {
+              visualSubject: fallbackQuery,
+              negativeKeywords: ['forest', 'woods', 'trees', 'nature', 'camping', 'hiking', 'mountain', 'wildlife'],
               storyContext: 'Renton Seattle Washington IKEA documentary homelessness transitional shelter',
-              useVisionVerification: false,
+              useVisionVerification: true,
             }
           );
 

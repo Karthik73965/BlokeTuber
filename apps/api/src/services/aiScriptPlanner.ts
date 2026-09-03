@@ -298,7 +298,7 @@ Respond with ONLY a valid JSON object in this exact format:
       "stockVideoQuery": "<concrete visual query matching character demographics & setting OR null>",
       "backupVideoQuery": "<alternative visual query OR null>",
       "stockPhotoQuery": "<concrete photo query OR null>",
-      "negativeKeywords": ["kitchen", "dishes", "restaurant", "modern apartment"],
+      "negativeKeywords": ["forest", "woods", "trees", "nature", "camping", "hiking", "kitchen", "dishes", "modern apartment"],
       "additionalStockQueries": [
         { "slot": "cam2", "query": "senior woman hands steering wheel", "mediaType": "video" }
       ],
@@ -527,9 +527,13 @@ export function mapPlannedBeatsToTiming(
           layout: 'full_bleed_cinematic',
           layoutData: undefined,
           callout: null,
-          stockVideoQuery: beat.backupVideoQuery || `${beat.stockVideoQuery || beat.visualSubject || 'cinematic'} cut ${b + 1}`,
-          backupVideoQuery: `${beat.visualSubject || 'cinematic b-roll'} angle ${b + 2}`,
+          stockVideoQuery: beat.backupVideoQuery || beat.stockVideoQuery || beat.visualSubject || null,
+          backupVideoQuery: beat.stockVideoQuery || beat.visualSubject || null,
           additionalStockQueries: [],
+          negativeKeywords: Array.from(new Set([
+            ...(beat.negativeKeywords || []),
+            'forest', 'woods', 'trees', 'nature', 'camping', 'hiking', 'wilderness'
+          ])),
           duration: eachDur,
         });
       }
@@ -548,9 +552,13 @@ export function mapPlannedBeatsToTiming(
           layout: 'full_bleed_cinematic',
           layoutData: undefined,
           callout: null,
-          stockVideoQuery: b === 0 ? beat.stockVideoQuery : (beat.backupVideoQuery || `${beat.stockVideoQuery || beat.visualSubject || 'cinematic'} cut ${b + 1}`),
-          backupVideoQuery: `${beat.visualSubject || 'cinematic'} angle ${b + 2}`,
+          stockVideoQuery: b === 0 ? beat.stockVideoQuery : (beat.backupVideoQuery || beat.stockVideoQuery || beat.visualSubject || null),
+          backupVideoQuery: beat.backupVideoQuery || beat.stockVideoQuery || beat.visualSubject || null,
           additionalStockQueries: [],
+          negativeKeywords: Array.from(new Set([
+            ...(beat.negativeKeywords || []),
+            'forest', 'woods', 'trees', 'nature', 'camping', 'hiking', 'wilderness'
+          ])),
           duration: eachDur,
         });
       }

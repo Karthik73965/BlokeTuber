@@ -310,8 +310,12 @@ export function computeMetadataRelevanceScore(
   negativeKeywords?: string[]
 ): number {
   const combinedText = `${item.title || ''} ${(item.tags || []).join(' ')}`.toLowerCase();
+  const queryLower = `${query} ${visualSubject || ''}`.toLowerCase();
 
-  // 1. Negative Keyword Penalty: Disqualify completely if negative keywords appear
+  // 1. Check if the query or visual subject explicitly asks for nature / wilderness
+  const explicitlyWantsNature = /\b(forest|woods|woodland|trees|pine|jungle|rainforest|nature|wilderness|hiking|mountain|mountains|wildlife|foliage|leaves|flora)\b/i.test(queryLower);
+
+  // Negative Keyword Penalty: Disqualify completely if negative keywords appear
   const allNegative = new Set<string>();
   if (negativeKeywords && Array.isArray(negativeKeywords)) {
     for (const nk of negativeKeywords) {
@@ -319,30 +323,49 @@ export function computeMetadataRelevanceScore(
     }
   }
 
+  // Automatic Nature/Forest guard: If query does NOT explicitly ask for nature, disqualify random forest/wilderness footage
+  if (!explicitlyWantsNature) {
+    const defaultNatureBans = [
+      'forest', 'woods', 'woodland', 'jungle', 'rainforest', 'wilderness',
+      'hiking', 'waterfall', 'wildlife', 'campsite', 'campfire', 'pine tree', 'pine trees',
+      'dense trees', 'green forest', 'amazon rainforest', 'tropical forest'
+    ];
+    for (const b of defaultNatureBans) allNegative.add(b);
+  }
+
   // Common contextual conflicts:
-  const queryLower = `${query} ${visualSubject || ''}`.toLowerCase();
   const isVehicleQuery = /\b(car|van|truck|vehicle|seat|driver|driving|highway|road|windshield|dashboard|steering)\b/i.test(queryLower);
   if (isVehicleQuery) {
     const defaultVehicleConflicts = ['kitchen', 'dish', 'dishes', 'dishwasher', 'cooking', 'restaurant', 'food', 'bedroom', 'baby stroller', 'airplane'];
     for (const c of defaultVehicleConflicts) allNegative.add(c);
   }
 
+  // Homeless / shelter / poverty context conflicts (ban leisure camping / vacation / recreation)
+  const isShelterOrHomelessQuery = /\b(homeless|shelter|encampment|pallet|unhcr|refugee|eviction|poverty)\b/i.test(queryLower);
+  if (isShelterOrHomelessQuery) {
+    const defaultLeisureConflicts = ['vacation', 'holiday', 'glamping', 'camping tent', 'recreation', 'bonfire', 'luxury'];
+    for (const c of defaultLeisureConflicts) allNegative.add(c);
+  }
+
   for (const neg of allNegative) {
-    if (neg && combinedText.includes(neg)) {
-      return -1000; // instant rejection
+    if (neg) {
+      const negRegex = new RegExp(`\\b${neg.replace(/[-/\\^$*+?.()|[\]{}]/g, '\\$&')}\\b`, 'i');
+      if (negRegex.test(combinedText)) {
+        return -1000; // instant rejection
+      }
     }
   }
 
-  // 2. Positive Keyword Matching:
+  // 2. Positive Keyword Matching using strict word boundary matching (prevents "tree" matching "street", "car" matching "carpet")
   let score = 0;
-  const searchWords = `${query} ${visualSubject || ''}`
-    .toLowerCase()
+  const searchWords = queryLower
     .replace(/[^a-z0-9 ]/g, ' ')
     .split(' ')
     .filter((w) => !STOP_WORDS.has(w) && w.length > 2);
 
   for (const word of searchWords) {
-    if (combinedText.includes(word)) {
+    const wordRegex = new RegExp(`\\b${word}\\b`, 'i');
+    if (wordRegex.test(combinedText)) {
       score += 15;
     }
   }
@@ -379,7 +402,7 @@ export async function verifyStockCandidateWithVision(
 
   try {
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 4000);
+    const timeout = setTimeout(() => controller.abort(), 8000);
 
     const storyLine = storyContext
       ? `\nDOCUMENTARY STORY CONTEXT: "${storyContext}"\nIMPORTANT: Reject footage that contradicts the story's demographics, economic status, setting, or tone. For example, if the story is about poverty, reject luxury cars, modern offices, or upscale apartments. If the story features a cargo van, reject BMWs, SUVs, or delivery trucks.\n`
@@ -393,13 +416,14 @@ Candidate metadata: "${candidateTitle}".
 Look at the image preview carefully. Score 0–100 how well it fits BOTH the requested visual subject AND the story context.
 
 Score 0–100:
-  0–39  = Completely wrong or contradicts story context (e.g. luxury BMW in a poverty documentary, kitchen when asking for car, delivery van)
+  0–39  = Completely wrong or contradicts story context (e.g. luxury BMW in a poverty documentary, kitchen when asking for car, delivery van, or random nature/forest/trees when asking for urban/street/office/shelter)
   40–59 = Weak or loose match — lacks documentary precision, wrong vibe/demographics
   60–79 = Good match — correct scene and approximately correct context
   80–100 = Perfect authentic match — exact subject, matching demographics, believable setting, tone, and environment
 
 STRICT RULES:
 - Score >= 60 if the image matches BOTH the requested subject and the story context with reasonable visual accuracy.
+- STRICT NATURE/FOREST REJECTION: Unless the requested visual explicitly asks for nature, a forest, or wilderness, REJECT ANY footage depicting forests, pine trees, hiking, wilderness, or waterfalls with confidence < 20. A clip of trees when asking for a parking lot, building, office, shelter, or street is completely unacceptable.
 - Score < 60 if demographics or socioeconomic context is wrong (e.g. BMW/Tesla interior for a homeless person story)
 - Score < 60 if the scene is loosely related or generic (delivery van exterior ≠ homeless family sleeping inside van)
 - Score < 60 if it's a vector graphic, cartoon, illustration, or news broadcast chyron
@@ -437,7 +461,7 @@ Respond ONLY in JSON:
     clearTimeout(timeout);
 
     if (!res.ok) {
-      return { matches: true, confidence: 100, isWeak: false, reason: 'Vision fallback on HTTP error' };
+      return { matches: false, confidence: 0, isWeak: false, reason: `Vision HTTP error (${res.status})` };
     }
 
     const data = (await res.json()) as any;
@@ -445,7 +469,7 @@ Respond ONLY in JSON:
     const cleanJson = content.replace(/```json?\n?/g, '').replace(/```/g, '').trim();
     const parsed = JSON.parse(cleanJson);
 
-    const confidence = Math.max(0, Math.min(100, Number(parsed.confidence ?? 100)));
+    const confidence = Math.max(0, Math.min(100, Number(parsed.confidence ?? 0)));
     const matches = confidence >= VISION_SIMILARITY_THRESHOLD;
 
     return {
@@ -455,7 +479,7 @@ Respond ONLY in JSON:
       reason: parsed.reason || `Confidence: ${confidence}%`,
     };
   } catch (err: any) {
-    return { matches: true, confidence: 100, isWeak: false, reason: `Vision skipped: ${err.message}` };
+    return { matches: false, confidence: 0, isWeak: false, reason: `Vision check skipped: ${err.message}` };
   }
 }
 
@@ -509,7 +533,7 @@ export async function findStockFootage(
       video: v,
       score: computeMetadataRelevanceScore(v, q1, options?.visualSubject, options?.negativeKeywords),
     }))
-    .filter((item) => item.score >= 0)
+    .filter((item) => item.score > 0)
     .sort((a, b) => b.score - a.score);
 
   for (const item of scored1.slice(0, 5)) {
@@ -552,7 +576,7 @@ export async function findStockFootage(
         video: v,
         score: computeMetadataRelevanceScore(v, q2, options?.visualSubject, options?.negativeKeywords),
       }))
-      .filter((item) => item.score >= 0)
+      .filter((item) => item.score > 0)
       .sort((a, b) => b.score - a.score);
 
     for (const item of scored2.slice(0, 5)) {
@@ -594,7 +618,7 @@ export async function findStockFootage(
         video: v,
         score: computeMetadataRelevanceScore(v, coreWords, options?.visualSubject, options?.negativeKeywords),
       }))
-      .filter((item) => item.score >= 0)
+      .filter((item) => item.score > 0)
       .sort((a, b) => b.score - a.score);
 
     for (const item of scored3.slice(0, 3)) {
@@ -721,7 +745,7 @@ export async function findStockPhoto(
       photo: p,
       score: computeMetadataRelevanceScore(p, q1, options?.visualSubject, options?.negativeKeywords),
     }))
-    .filter((item) => item.score >= 0)
+    .filter((item) => item.score > 0)
     .sort((a, b) => b.score - a.score);
 
   for (const item of scored1.slice(0, 5)) {
@@ -782,7 +806,7 @@ export async function findStockPhoto(
         photo: p,
         score: computeMetadataRelevanceScore(p, coreWords, options?.visualSubject, options?.negativeKeywords),
       }))
-      .filter((item) => item.score >= 0)
+      .filter((item) => item.score > 0)
       .sort((a, b) => b.score - a.score);
 
     for (const item of scored2.slice(0, 3)) {
@@ -900,8 +924,11 @@ export async function searchAlternativeStock(
 
     return pool
       .filter((v) => !usedUrls?.has(v.url))
+      .map((v) => ({ video: v, score: computeMetadataRelevanceScore(v, q) }))
+      .filter((item) => item.score >= 0)
+      .sort((a, b) => b.score - a.score)
       .slice(0, count)
-      .map((v) => ({
+      .map(({ video: v }) => ({
         id: v.url,
         url: v.url,
         previewUrl: v.previewUrl || v.url,
@@ -955,6 +982,12 @@ export async function searchAlternativeStock(
     const results = await Promise.allSettled(searchPromises);
     const pool: StockSearchOption[] = results.flatMap((r) => (r.status === 'fulfilled' ? r.value : []));
 
-    return pool.filter((p) => !usedUrls?.has(p.url)).slice(0, count);
+    return pool
+      .filter((p) => !usedUrls?.has(p.url))
+      .map((p) => ({ photo: p, score: computeMetadataRelevanceScore({ title: p.title, tags: [p.title] }, q) }))
+      .filter((item) => item.score >= 0)
+      .sort((a, b) => b.score - a.score)
+      .slice(0, count)
+      .map(({ photo: p }) => p);
   }
 }

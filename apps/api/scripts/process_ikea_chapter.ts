@@ -147,8 +147,11 @@ export async function processChapter(chapterIndex: number): Promise<void> {
     if (!resolvedPath && (beat.stockVideoQuery || beat.backupVideoQuery)) {
       const searchOptions = {
         visualSubject: beat.visualSubject,
-        negativeKeywords: beat.negativeKeywords,
-        useVisionVerification: false, // fast throughput
+        negativeKeywords: [
+          ...(beat.negativeKeywords || []),
+          'forest', 'woods', 'trees', 'nature', 'camping', 'hiking', 'mountain', 'wildlife', 'campsite',
+        ],
+        useVisionVerification: true,
         storyContext: 'Renton Seattle Washington IKEA parking lot homelessness transitional housing pallet shelters',
       };
 
@@ -182,14 +185,27 @@ export async function processChapter(chapterIndex: number): Promise<void> {
       }
     }
 
-    // D. Fallback if no video found: borrow from adjacent downloaded video or local clip
-    if (!resolvedPath) {
-      const downloadedSoFar = fs.readdirSync(stockDir).filter((f) => f.endsWith('.mp4'));
-      if (downloadedSoFar.length > 0) {
-        resolvedPath = path.join(stockDir, downloadedSoFar[downloadedSoFar.length - 1]!);
-      } else if (availableLocalClips.length > 0) {
-        resolvedPath = path.join(RAW_DIR, availableLocalClips[0]!);
-      }
+    // D. Fallback if no video found: try authentic documentary photograph
+    if (!resolvedPath && (beat.stockVideoQuery || beat.visualSubject)) {
+      try {
+        const photo = await findStockPhoto(
+          beat.stockPhotoQuery || beat.stockVideoQuery || beat.visualSubject || '',
+          usedMediaUrls,
+          searchOptions
+        );
+        if (photo) {
+          const dest = path.join(stockDir, `photo_${i}.jpg`);
+          await downloadStockPhoto(photo, dest);
+          resolvedPath = dest;
+          (beat as any).mediaType = 'image';
+          console.log(`    📷 Fallback photo [${photo.source}]: "${photo.title.slice(0, 35)}"`);
+        }
+      } catch { /* ignore */ }
+    }
+
+    // E. Final local clip fallback
+    if (!resolvedPath && availableLocalClips.length > 0) {
+      resolvedPath = path.join(RAW_DIR, availableLocalClips[0]!);
     }
 
     timedBeats.push({
