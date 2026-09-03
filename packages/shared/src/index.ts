@@ -179,7 +179,22 @@ export interface TimelineClip {
   transitionDuration: number;
   numberOverlays: NumberOverlay[];
   callout?: CalloutOverlay | null;
+  overlay?: OverlayType | OverlayType[];
 }
+
+export type OverlayType =
+  | 'film_dust_scratches'
+  | 'star_sparkle_bokeh'
+  | 'film_burn_light_leak'
+  | 'vintage_crt_scanlines'
+  | 'camera_viewfinder_hud'
+  | 'micro_film_grain'
+  | 'archival_halftone_paper'
+  | 'cinematic_vignette'
+  | 'chromatic_aberration'
+  | 'sprocket_16mm_film_frame'
+  | 'rain_lens_streaks'
+  | 'vhs_glitch_tape_tear';
 
 export interface NumberOverlay {
   text: string;
@@ -193,6 +208,7 @@ export interface Timeline {
   totalDuration: number;
   clips: TimelineClip[];
   outputPath: string;
+  globalOverlays?: OverlayType[];
 }
 
 export interface ApiResponse<T> {

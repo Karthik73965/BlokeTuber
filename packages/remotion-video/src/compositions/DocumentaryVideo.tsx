@@ -2,6 +2,7 @@ import React from 'react';
 import { Audio, Sequence, useVideoConfig } from 'remotion';
 import { DocumentaryVideoProps } from '../types';
 import { SceneLayoutDirector } from '../components/Layouts/SceneLayoutDirector';
+import { OverlayDirector } from '../components/Overlays/OverlayDirector';
 
 export const DocumentaryVideo: React.FC<DocumentaryVideoProps> = ({ timeline }) => {
   const { fps } = useVideoConfig();
@@ -53,7 +54,7 @@ export const DocumentaryVideo: React.FC<DocumentaryVideoProps> = ({ timeline }) 
         overflow: 'hidden',
       }}
     >
-      {/* ── VIDEO SEQUENCES WITH MULTI-LAYOUT SCENE DIRECTOR ─────────── */}
+      {/* ── VIDEO SEQUENCES WITH MULTI-LAYOUT SCENE DIRECTOR & OVERLAYS ── */}
       {sequences.map(({ clip, index, startFrame, durationInFrames, durationInSeconds }) => (
         <Sequence
           key={`seq_${index}_${clip.beatIndex}`}
@@ -67,8 +68,14 @@ export const DocumentaryVideo: React.FC<DocumentaryVideoProps> = ({ timeline }) 
             durationInFrames={durationInFrames}
             durationInSeconds={durationInSeconds}
           />
+          {clip.overlay && <OverlayDirector overlay={clip.overlay} />}
         </Sequence>
       ))}
+
+      {/* ── GLOBAL TIMELINE OVERLAYS (e.g. 35mm Grain, Vignette) ──────── */}
+      {timeline.globalOverlays && (
+        <OverlayDirector overlay={timeline.globalOverlays} />
+      )}
 
       {/* ── MASTER NARRATION AUDIO TRACK ──────────────────────────────── */}
       {timeline.masterAudioPath && (
