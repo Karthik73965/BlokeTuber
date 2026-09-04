@@ -174,13 +174,27 @@ export interface TimelineClip {
   layoutData?: SceneLayoutData;
   stockSource?: string;
   stockUrl?: string;
+  stockVideoQuery?: string | null;
+  backupVideoQuery?: string | null;
+  stockPhotoQuery?: string | null;
   kenBurns: boolean;
-  transitionType: 'cut' | 'crossfade';
+  transitionType?: TransitionType;
   transitionDuration: number;
   numberOverlays: NumberOverlay[];
   callout?: CalloutOverlay | null;
   overlay?: OverlayType | OverlayType[];
 }
+
+export type TransitionType =
+  | 'cut'
+  | 'shutter_flash'
+  | 'film_burn'
+  | 'film_dip_black'
+  | 'whip_pan_left'
+  | 'whip_pan_right'
+  | 'zoom_punch'
+  | 'glitch_blink'
+  | 'crossfade';
 
 export type OverlayType =
   | 'film_dust_scratches'

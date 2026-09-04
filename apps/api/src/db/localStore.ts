@@ -155,6 +155,8 @@ export const chaptersStore = {
       description: data.description || '',
       scriptText: data.scriptText || '',
       voiceoverFileName: data.voiceoverFileName,
+      clipLibraryRoot: data.clipLibraryRoot,
+      pacing: data.pacing || 'medium',
       status: data.status || 'draft',
       timelineJson: data.timelineJson,
       createdAt: now,

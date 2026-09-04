@@ -1,7 +1,7 @@
 import dotenv from 'dotenv';
 import path from 'path';
 import fs from 'fs';
-import { CalloutType, CalloutThemeColor, SceneLayoutType, SceneLayoutData } from '@repo/shared';
+import { CalloutType, CalloutThemeColor, SceneLayoutType, SceneLayoutData, OverlayType, TransitionType } from '@repo/shared';
 import { findPhraseTimestamp, SegmentAlignment } from './whisperAlignment';
 
 const envPaths = [
@@ -63,6 +63,12 @@ export interface PlannedBeat {
   // Director reasoning
   reason: string;
 
+  // Visual atmosphere overlay for this beat (12 styles)
+  overlay?: OverlayType | null;
+
+  // Cinematic scene transition entering this beat (8 styles)
+  transition?: TransitionType;
+
   // Text overlay callout for this beat (optional — only for high-impact moments)
   callout?: {
     type: CalloutType;
@@ -109,6 +115,22 @@ function extractAndParseJson(raw: string): any {
     } catch {}
   }
 
+  // Handle truncated JSON array (e.g. LLM hit token ceiling)
+  if (clean.includes('"beats"') && firstOpen !== -1) {
+    const fromRoot = clean.slice(firstOpen);
+    const lastObjClose = fromRoot.lastIndexOf('}');
+    if (lastObjClose !== -1) {
+      const candidate = fromRoot.slice(0, lastObjClose + 1) + '\n]}';
+      try {
+        const parsed = JSON.parse(candidate);
+        if (Array.isArray(parsed.beats) && parsed.beats.length > 0) {
+          console.log(`[AI Planner] Successfully repaired truncated beats JSON (${parsed.beats.length} beats recovered)!`);
+          return parsed;
+        }
+      } catch {}
+    }
+  }
+
   return null;
 }
 
@@ -151,9 +173,24 @@ export async function planScriptWithAI(
     audioTimingDirective = `⏱️ AUDIO TIMING & CUT FREQUENCY DIRECTIVE:\n- Total narration audio duration is ~${Math.round(audioDuration)} seconds.\n- For ${pacing.toUpperCase()} pacing, you MUST produce approximately ${minCuts} to ${maxCuts} distinct scene cuts!\n- Break the script into tight, snappy beats. DO NOT group multiple full sentences into single giant beats!`;
   }
 
+  let availableClipsDirective = '';
+  if (availableClips && availableClips.length > 0) {
+    availableClipsDirective = `📁 AUTHENTIC LOCAL RAW FOOTAGE & PHOTOS (MANDATORY HIGHEST PRIORITY):\n` +
+      `The filmmaker has provided ${availableClips.length} authentic, real-life documentary assets in their library:\n` +
+      availableClips.map((c) => `  - "${c}"`).join('\n') +
+      `\n\nCRITICAL DIRECTIVE:\n` +
+      `- Whenever the narration mentions Gregory Kloehn, building tiny homes, the workshop, dumpster homes (interior or exterior), blueprints/plans, volunteers, or residents showing their homes, YOU MUST SET "clipFilename" to the EXACT matching filename from the list above instead of stock footage!\n` +
+      `- When "clipFilename" is set, set "mediaType" to "image" if it ends in .jpg/.jpeg/.png/.webp, or "video" if it ends in .mp4/.mov.\n` +
+      `- For "Plan , blueprint of dumpster home.jpg", choose layout "forensic_drafting_table"!\n` +
+      `- For "Clear picture of Kloehn.jpg", choose layout "ambient_blur_frame" or "museum_archive_matte"!\n` +
+      `- For "inside the dumpster home.jpg", choose layout "ambient_blur_frame" or "split_dual_screen"!\n` +
+      `- When no local asset is appropriate (e.g. general Oakland streets, recycling scales, cash, night traffic, aerial city skyline), set "clipFilename": null and provide high-quality stockVideoQuery / stockPhotoQuery.`;
+  }
+
   const contextDirective = [
     projectContext ? `PROJECT STORY PREMISE: "${projectContext}"` : '',
     chapterContext ? `CHAPTER VISUAL & PACING DIRECTIVE: "${chapterContext}"` : '',
+    availableClipsDirective,
     pacingDirectives,
     audioTimingDirective,
   ]
@@ -264,7 +301,37 @@ Generate callouts ONLY on high-impact story moments (~30–40% of beats). Write 
 
 ---
 
-### 8. CUSTOM SCENE-SPECIFIC LAYOUT METADATA (MANDATORY FOR STYLIZED LAYOUTS):
+### 7. VISUAL ATMOSPHERE OVERLAYS (12 Documentary Styles):
+Deploy subtle textural overlays to enhance authenticity, history, surveillance, or mood (~40–60% of beats):
+- "film_dust_scratches": Organic 35mm lint, specks & micro-scratches (Best for archival photos, case binders, historic flashbacks).
+- "camera_viewfinder_hud": Investigative crosshairs, REC indicator & lens grid (Best for drone shots, surveillance matrix, tracking).
+- "vhs_glitch_tape_tear": Analog magnetic tape dropouts & sync tear (Best for CRT monitors, wiretaps, leaked tapes, 90s archival).
+- "film_burn_light_leak": Warm amber/crimson edge light flare (Best for sunset landscapes, emotional revelations, memory sequences).
+- "star_sparkle_bokeh": Floating soft luminous light orbs (Best for wealthy estates, city skylines, aspirational scenes).
+- "cinematic_vignette": Deep edge shadow falloff (Best for intense tension, isolated subjects, night b-roll).
+- "micro_film_grain": Fine 35mm grain texture (Best for gritty realism and documentary credibility).
+- "archival_halftone_paper": Newsprint dot texture & aged parchment fibers (Best for newspaper headlines, court filings).
+- "chromatic_aberration": Edge color fringing (Best for corruption, distress, unraveling scandals).
+- "sprocket_16mm_film_frame": Vintage film reel perforated edges (Best for filmstrip layouts, family archives).
+- "rain_lens_streaks": Water streaks & cold atmosphere (Best for bleak weather, eviction, somber scenes).
+- "vintage_crt_scanlines": Horizontal phosphor raster lines (Best for news broadcasts, dispatch audio, terminals).
+
+---
+
+### 8. CINEMATIC SCENE TRANSITIONS (8 Broadcast Styles):
+Choose dynamic documentary cut transitions entering this beat to keep the video visually arresting:
+- "shutter_flash": Blinding white camera shutter flash (0.08s) (Best for cutting into newspaper headlines, polaroids, evidence tags).
+- "film_burn": Warm 35mm light leak flare cut (0.2s) (Best for emotional topic shifts, flashbacks, location transitions).
+- "film_dip_black": Smooth cinematic dip/fade from black (0.25s) (Best for chapter openings, heavy solemn moments, dramatic pauses).
+- "whip_pan_left" / "whip_pan_right": High-speed horizontal camera swipe blur (0.15s) (Best for moving between subjects, cities, rapid narrative progression).
+- "zoom_punch": Rapid snap-zoom scale impact (0.18s) (Best for shocking stats, odometer numbers, key accusations).
+- "glitch_blink": 2-frame CRT sync twitch with chromatic flash (0.1s) (Best for wiretap intercepts, CCTV angles, surveillance matrix).
+- "crossfade": Gentle documentary dissolve (0.3s) (Best for scenic drone shots, ambient reflections).
+- "cut": Crisp hard cut (The baseline rhythm).
+
+---
+
+### 9. CUSTOM SCENE-SPECIFIC LAYOUT METADATA (MANDATORY FOR STYLIZED LAYOUTS):
 Every stylized layout MUST have unique, scene-specific text generated in "layoutData" matching the exact context of what is happening in that beat. NEVER USE GENERIC PLACEHOLDERS!
 - For "split_dual_screen": provide "title" (e.g. "PERSPECTIVE COMPARISON"), "subtitle" (e.g. "ORIGIN vs DESTINATION").
 - For "open_case_binder": provide "title" (e.g. "CASE FILE #8492"), "subtitle" (e.g. "OFFICIAL RECORD • HOUSING ASSESSMENT"), "tag" (e.g. "CONFIDENTIAL").
@@ -293,7 +360,7 @@ Respond with ONLY a valid JSON object in this exact format:
       "text": "<exact spoken text for this beat>",
       "visualSubject": "<2-4 word concrete physical environment/object, e.g. 'car_seat_interior'>",
       "mediaType": "video" | "image",
-      "layout": "<one of the 11 layouts above>",
+      "layout": "<one of the 18 layouts above>",
       "layoutData": {
         "title": "<scene specific title>",
         "subtitle": "<scene specific subtitle>",
@@ -304,6 +371,8 @@ Respond with ONLY a valid JSON object in this exact format:
         "timestamp": "<time or date>",
         "stamp": "<stamp or badge>"
       },
+      "overlay": "<one of the 12 overlay types above OR null>",
+      "transition": "cut" | "shutter_flash" | "film_burn" | "film_dip_black" | "whip_pan_left" | "whip_pan_right" | "zoom_punch" | "glitch_blink" | "crossfade",
       "clipFilename": "<exact filename from available list OR null>",
       "stockVideoQuery": "<concrete visual query matching character demographics & setting OR null>",
       "backupVideoQuery": "<alternative visual query OR null>",
@@ -327,7 +396,7 @@ Respond with ONLY a valid JSON object in this exact format:
 
   const userMessage = `${contextDirective ? `${contextDirective}\n\n` : ''}Full Script to Direct:\n\n${cleanScript}`;
 
-  const response = await fetch(`${OPENROUTER_BASE_URL}/chat/completions`, {
+  let response = await fetch(`${OPENROUTER_BASE_URL}/chat/completions`, {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${process.env.OPENROUTER_API_KEY}`,
@@ -341,10 +410,32 @@ Respond with ONLY a valid JSON object in this exact format:
         { role: 'user', content: userMessage },
       ],
       temperature: 0.35,
-      max_tokens: 4000,
+      max_tokens: 8192,
       response_format: { type: 'json_object' },
     }),
   });
+
+  if (!response.ok && (response.status === 402 || response.status === 429)) {
+    console.warn(`[AI Director] ${PLANNER_MODEL} returned ${response.status}. Retrying with google/gemini-2.5-flash...`);
+    response = await fetch(`${OPENROUTER_BASE_URL}/chat/completions`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${process.env.OPENROUTER_API_KEY}`,
+        'Content-Type': 'application/json',
+        'HTTP-Referer': 'https://bloketuber.app',
+      },
+      body: JSON.stringify({
+        model: 'google/gemini-2.5-flash',
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: userMessage },
+        ],
+        temperature: 0.35,
+        max_tokens: 8192,
+        response_format: { type: 'json_object' },
+      }),
+    });
+  }
 
   if (!response.ok) {
     const errText = await response.text();
@@ -550,6 +641,7 @@ export function mapPlannedBeatsToTiming(
 
         subdivided.push({
           ...beat,
+          clipFilename: null, // Subdivided cut remainder must never duplicate local file
           text: beatWords.slice(halfWords).join(' ') || beat.text,
           layout: cutLayout,
           layoutData: cutLayout !== 'full_bleed_cinematic' ? beat.layoutData : undefined,
@@ -592,6 +684,7 @@ export function mapPlannedBeatsToTiming(
 
         subdivided.push({
           ...beat,
+          clipFilename: b === 0 ? beat.clipFilename : null, // Only first slice retains local clip; slices b>0 fall through to stock
           text: sliceText,
           layout: cutLayout,
           layoutData: cutLayout !== 'full_bleed_cinematic' ? beat.layoutData : undefined,

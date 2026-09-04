@@ -10,6 +10,7 @@ export type {
   Timeline,
   NumberOverlay,
   OverlayType,
+  TransitionType,
 } from '@repo/shared';
 
 export type DocumentaryVideoProps = {

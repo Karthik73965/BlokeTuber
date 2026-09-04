@@ -137,20 +137,28 @@ async function searchPixabay(query: string, perPage = 15): Promise<StockVideo[]>
 
     return (data.hits || [])
       .map((v: any) => {
-        const medium = v.videos?.medium || v.videos?.small || v.videos?.large;
+        const chosen = (v.videos?.medium?.size && v.videos.medium.size < 25 * 1024 * 1024)
+          ? v.videos.medium
+          : (v.videos?.small || v.videos?.medium || v.videos?.tiny);
+        const previewUrl =
+          chosen?.thumbnail ||
+          v.videos?.large?.thumbnail ||
+          v.videos?.small?.thumbnail ||
+          v.videos?.tiny?.thumbnail ||
+          '';
         const tagArray = String(v.tags || '').split(',').map((t: string) => t.trim().toLowerCase()).filter(Boolean);
         return {
           source: 'pixabay' as const,
-          url: medium?.url || '',
-          previewUrl: v.userImageURL || '',
+          url: chosen?.url || '',
+          previewUrl,
           title: v.tags || q,
           tags: tagArray,
-          duration: medium?.duration,
-          width: medium?.width || 1920,
-          height: medium?.height || 1080,
+          duration: chosen?.duration,
+          width: chosen?.width || 1280,
+          height: chosen?.height || 720,
         };
       })
-      .filter((v: StockVideo) => v.url && (v.width || 1920) >= 1280 && (v.width || 1920) > (v.height || 1080));
+      .filter((v: StockVideo) => v.url);
   } catch {
     return [];
   }
@@ -254,7 +262,9 @@ export function computeMetadataRelevanceScore(
     const defaultNatureBans = [
       'forest', 'woods', 'woodland', 'jungle', 'rainforest', 'wilderness',
       'hiking', 'waterfall', 'wildlife', 'campsite', 'campfire', 'pine tree', 'pine trees',
-      'dense trees', 'green forest', 'amazon rainforest', 'tropical forest'
+      'dense trees', 'green forest', 'amazon rainforest', 'tropical forest',
+      'mountain', 'mountains', 'hills', 'lake', 'ocean', 'beach', 'sea', 'desert', 'tropical', 'landscape',
+      'sea of clouds'
     ];
     for (const b of defaultNatureBans) allNegative.add(b);
   }
@@ -273,6 +283,48 @@ export function computeMetadataRelevanceScore(
     for (const c of defaultLeisureConflicts) allNegative.add(c);
   }
 
+  // Music & party conflicts (ban unless explicitly requested)
+  const wantsMusic = /\b(music|guitar|song|band|sing|instrument|concert)\b/i.test(queryLower);
+  if (!wantsMusic) {
+    const musicBans = ['guitar', 'drum', 'drums', 'piano', 'violin', 'concert', 'musician', 'music band', 'recording studio', 'dj', 'disco', 'nightclub', 'singer', 'stage performance'];
+    for (const mb of musicBans) allNegative.add(mb);
+  }
+
+  // Luxury & glamour conflicts (ban unless explicitly requested)
+  const wantsLuxury = /\b(luxury|mansion|yacht|resort)\b/i.test(queryLower);
+  if (!wantsLuxury) {
+    const luxuryBans = ['luxury', 'resort', 'swimming pool', 'glamour', 'fashion model', 'catwalk', 'yacht', 'limousine', 'cocktail party', 'spa'];
+    for (const lb of luxuryBans) allNegative.add(lb);
+  }
+
+  // Sports & gym conflicts
+  const wantsFitness = /\b(gym|workout|fitness|exercise|yoga|sport)\b/i.test(queryLower);
+  if (!wantsFitness) {
+    const sportBans = ['gym', 'workout', 'fitness', 'crossfit', 'bodybuilding', 'weightlifting', 'yoga', 'aerobics', 'tennis match', 'basketball game', 'football match'];
+    for (const sb of sportBans) allNegative.add(sb);
+  }
+
+  // Weather / climate conflicts (Oakland California has no snow)
+  const wantsSnow = /\b(snow|winter|blizzard|ice|skiing)\b/i.test(queryLower);
+  if (!wantsSnow) {
+    const snowBans = ['snow', 'snowing', 'winter', 'blizzard', 'ice', 'snowy', 'skiing', 'snowman'];
+    for (const sb of snowBans) allNegative.add(sb);
+  }
+
+  // Baby / infant conflicts (documentary is about adult poverty and carpentry)
+  const wantsBaby = /\b(baby|infant|newborn|toddler|child)\b/i.test(queryLower);
+  if (!wantsBaby) {
+    const babyBans = ['baby', 'newborn', 'toddler', 'infant', 'romper suit', 'baby feet', 'crib', 'pacifier', 'diaper'];
+    for (const bb of babyBans) allNegative.add(bb);
+  }
+
+  // Insect / pest / small animal conflicts
+  const wantsInsects = /\b(insect|wasp|bee|bug|animal)\b/i.test(queryLower);
+  if (!wantsInsects) {
+    const insectBans = ['insect', 'wasp', 'bee', 'spider', 'butterfly', 'caterpillar', 'ant', 'beetle', 'macro insect', 'puppy', 'kitten'];
+    for (const ib of insectBans) allNegative.add(ib);
+  }
+
   for (const neg of allNegative) {
     if (neg) {
       const negRegex = new RegExp(`\\b${neg.replace(/[-/\\^$*+?.()|[\]{}]/g, '\\$&')}\\b`, 'i');
@@ -282,24 +334,42 @@ export function computeMetadataRelevanceScore(
     }
   }
 
-  // 2. Positive Keyword Matching using strict word boundary matching (prevents "tree" matching "street", "car" matching "carpet")
+  // 2. Positive Keyword Matching using strict word boundary matching (deduplicated words)
+  let matchedKeywordCount = 0;
   let score = 0;
-  const searchWords = queryLower
+  const rawWords = queryLower
     .replace(/[^a-z0-9 ]/g, ' ')
     .split(' ')
     .filter((w) => !STOP_WORDS.has(w) && w.length > 2);
+  const searchWords = Array.from(new Set(rawWords));
 
   for (const word of searchWords) {
     const wordRegex = new RegExp(`\\b${word}\\b`, 'i');
     if (wordRegex.test(combinedText)) {
-      score += 15;
+      score += 20;
+      matchedKeywordCount++;
     }
+  }
+
+  // Strict relevance: If zero search words matched, candidate is completely irrelevant
+  if (matchedKeywordCount === 0) {
+    return -100;
+  }
+
+  // Multi-word query rule: Candidate MUST match at least 2 distinct search words to qualify (prevents single-word accidents)
+  if (searchWords.length >= 2 && matchedKeywordCount < 2) {
+    return -50;
   }
 
   // Bonus if title contains full query phrase
   const cleanQ = query.toLowerCase().replace(/[^a-z0-9 ]/g, ' ').trim();
-  if (cleanQ && combinedText.includes(cleanQ)) {
+  if (cleanQ && cleanQ.length > 3 && combinedText.includes(cleanQ)) {
     score += 30;
+  }
+
+  // Bonus for Pexels (curated HD/4K cinematic video b-roll) ONLY if keywords matched
+  if ((item as any).source === 'pexels' && matchedKeywordCount > 0) {
+    score += 35;
   }
 
   return score;
@@ -349,6 +419,7 @@ Score 0–100:
 
 STRICT RULES:
 - Score >= 60 if the image matches BOTH the requested subject and the story context with reasonable visual accuracy.
+- GENERAL DOCUMENTARY B-ROLL REALISM: Documentary b-roll routinely uses atmospheric footage of city streets, sidewalks, morning fog, urban alleys, scrap wood, tools, workshops, construction materials, and recycling centers. If the visual subject requests an urban street, sidewalk, morning light, workshop, or tools, ANY authentic city street, road, morning mist, or workshop IS a valid match (score 65–85) — DO NOT require specific municipal landmarks unless prominent foreign monuments (e.g. Mount Fuji, Eiffel Tower) appear!
 - STRICT NATURE/FOREST REJECTION: Unless the requested visual explicitly asks for nature, a forest, or wilderness, REJECT ANY footage depicting forests, pine trees, hiking, wilderness, or waterfalls with confidence < 20. A clip of trees when asking for a parking lot, building, office, shelter, or street is completely unacceptable.
 - Score < 60 if demographics or socioeconomic context is wrong (e.g. BMW/Tesla interior for a homeless person story)
 - Score < 60 if the scene is loosely related or generic (delivery van exterior ≠ homeless family sleeping inside van)
@@ -459,8 +530,13 @@ export async function findStockFootage(
       video: v,
       score: computeMetadataRelevanceScore(v, q1, options?.visualSubject, options?.negativeKeywords),
     }))
-    .filter((item) => item.score > 0)
-    .sort((a, b) => b.score - a.score);
+    .filter((item) => item.score >= 40) // Ultra-strict documentary relevance threshold
+    .sort((a, b) => {
+      // Prioritize Pexels for fast, cinematic documentary CDN downloads
+      if (a.video.source === 'pexels' && b.video.source !== 'pexels') return -1;
+      if (b.video.source === 'pexels' && a.video.source !== 'pexels') return 1;
+      return b.score - a.score;
+    });
 
   for (const item of scored1.slice(0, 5)) {
     if (options?.useVisionVerification !== false && item.video.previewUrl) {
@@ -502,8 +578,13 @@ export async function findStockFootage(
         video: v,
         score: computeMetadataRelevanceScore(v, q2, options?.visualSubject, options?.negativeKeywords),
       }))
-      .filter((item) => item.score > 0)
-      .sort((a, b) => b.score - a.score);
+      .filter((item) => item.score >= 35) // Strict backup relevance threshold
+      .sort((a, b) => {
+        // Prioritize Pexels for fast, cinematic documentary CDN downloads
+        if (a.video.source === 'pexels' && b.video.source !== 'pexels') return -1;
+        if (b.video.source === 'pexels' && a.video.source !== 'pexels') return 1;
+        return b.score - a.score;
+      });
 
     for (const item of scored2.slice(0, 5)) {
       if (options?.useVisionVerification !== false && item.video.previewUrl) {
@@ -522,45 +603,47 @@ export async function findStockFootage(
     }
   }
 
-  // ── TIER 3: 2-keyword core fallback ──────────────────────────────────────
-  const coreWords = compressQuery(q1, 2);
-  if (coreWords && coreWords !== q1) {
-    console.log(`  🔄 Core Keyword Fallback ["${coreWords}"]...`);
-    const [pexels3, pixabay3, archive3] = await Promise.allSettled([
-      searchPexels(coreWords, 6),
-      searchPixabay(coreWords, 6),
-      searchInternetArchive(coreWords, 6),
-    ]);
+  // Tier 1 and Tier 2 exhausted: Return null so caller seamlessly uses verified high-res stock photo
+  return null;
 
-    const pool3: StockVideo[] = [
-      ...(pexels3.status === 'fulfilled' ? pexels3.value : []),
-      ...(pixabay3.status === 'fulfilled' ? pixabay3.value : []),
-      ...(archive3.status === 'fulfilled' ? archive3.value : []),
-    ];
+  // ── TIER 4: City generalization fallback (e.g. "oakland" -> "urban") ──────
+  const cityRegex = /\b(oakland|san francisco|california|bay area)\b/gi;
+  if (cityRegex.test(q1)) {
+    const urbanWords = compressQuery(q1.replace(cityRegex, 'urban').replace(/\s+/g, ' ').trim(), 3);
+    if (urbanWords && urbanWords !== q1) {
+      console.log(`  🔄 Urban Generalization Fallback ["${urbanWords}"]...`);
+      const [pexelsU, pixabayU] = await Promise.allSettled([
+        searchPexels(urbanWords, 6),
+        searchPixabay(urbanWords, 6),
+      ]);
+      const poolU: StockVideo[] = [
+        ...(pexelsU.status === 'fulfilled' ? pexelsU.value : []),
+        ...(pixabayU.status === 'fulfilled' ? pixabayU.value : []),
+      ];
+      const scoredU = poolU
+        .filter((v) => !usedUrls?.has(v.url))
+        .map((v) => ({
+          video: v,
+          score: computeMetadataRelevanceScore(v, urbanWords, options?.visualSubject, options?.negativeKeywords),
+        }))
+        .filter((item) => item.score > 0)
+        .sort((a, b) => b.score - a.score);
 
-    const scored3 = pool3
-      .filter((v) => !usedUrls?.has(v.url))
-      .map((v) => ({
-        video: v,
-        score: computeMetadataRelevanceScore(v, coreWords, options?.visualSubject, options?.negativeKeywords),
-      }))
-      .filter((item) => item.score > 0)
-      .sort((a, b) => b.score - a.score);
-
-    for (const item of scored3.slice(0, 3)) {
-      if (options?.useVisionVerification !== false && item.video.previewUrl) {
-        const visionResult = await verifyStockCandidateWithVision(item.video.previewUrl, visualReq, item.video.title, storyCtx);
-        if (!visionResult.matches) {
-          console.log(`  ❌ Rejected [${item.video.source}]: "${item.video.title}" (Confidence: ${visionResult.confidence}% < 60% threshold — ${visionResult.reason})`);
-          continue;
+      for (const item of scoredU.slice(0, 3)) {
+        if (options?.useVisionVerification !== false && item.video.previewUrl) {
+          const visionResult = await verifyStockCandidateWithVision(item.video.previewUrl, visualReq, item.video.title, storyCtx);
+          if (!visionResult.matches) {
+            console.log(`  ❌ Rejected [${item.video.source}]: "${item.video.title}" (Confidence: ${visionResult.confidence}% < 60% threshold — ${visionResult.reason})`);
+            continue;
+          }
+          usedUrls?.add(item.video.url);
+          console.log(`  ✅ Urban fallback [${item.video.source}]: "${item.video.title}" (Confidence: ${visionResult.confidence}%)`);
+          return { video: item.video, isWeak: false };
         }
         usedUrls?.add(item.video.url);
-        console.log(`  ✅ Core fallback [${item.video.source}]: "${item.video.title}" (Confidence: ${visionResult.confidence}%)`);
+        console.log(`  ✅ Urban fallback [${item.video.source}]: "${item.video.title}"`);
         return { video: item.video, isWeak: false };
       }
-      usedUrls?.add(item.video.url);
-      console.log(`  ✅ Core fallback [${item.video.source}]: "${item.video.title}"`);
-      return { video: item.video, isWeak: false };
     }
   }
 
@@ -671,7 +754,7 @@ export async function findStockPhoto(
       photo: p,
       score: computeMetadataRelevanceScore(p, q1, options?.visualSubject, options?.negativeKeywords),
     }))
-    .filter((item) => item.score > 0)
+    .filter((item) => item.score >= 30) // Strict photo relevance threshold
     .sort((a, b) => b.score - a.score);
 
   for (const item of scored1.slice(0, 5)) {
@@ -732,7 +815,7 @@ export async function findStockPhoto(
         photo: p,
         score: computeMetadataRelevanceScore(p, coreWords, options?.visualSubject, options?.negativeKeywords),
       }))
-      .filter((item) => item.score > 0)
+      .filter((item) => item.score >= 25)
       .sort((a, b) => b.score - a.score);
 
     for (const item of scored2.slice(0, 3)) {
@@ -749,6 +832,67 @@ export async function findStockPhoto(
     }
   }
 
+  // Tier 3: Urban Generalization photo fallback (e.g. "oakland" -> "urban")
+  const cityRegex = /\b(oakland|san francisco|california|bay area)\b/gi;
+  if (cityRegex.test(q1)) {
+    const urbanWords = compressQuery(q1.replace(cityRegex, 'urban').replace(/\s+/g, ' ').trim(), 3);
+    if (urbanWords && urbanWords !== q1) {
+      console.log(`  🔄 Urban Generalization photo fallback: "${urbanWords}"...`);
+      const tier3Promises: Promise<any>[] = [];
+      if (pexelsKey) {
+        tier3Promises.push(
+          fetch(
+            `https://api.pexels.com/v1/search?query=${encodeURIComponent(urbanWords)}&per_page=15&orientation=landscape`,
+            { headers: { Authorization: pexelsKey } }
+          ).then(async (res) => {
+            if (!res.ok) return [];
+            const data = (await res.json()) as any;
+            return (data.photos || [])
+              .filter((p: any) => (p.width || 1920) >= (p.height || 1080))
+              .map((photo: any) => ({
+                source: 'pexels' as const,
+                id: `pexels_${photo.id}`,
+                url: photo.src?.large2x || photo.src?.large || photo.src?.original || '',
+                previewUrl: photo.src?.medium || '',
+                title: photo.alt || urbanWords,
+                tags: (photo.alt || '').split(' '),
+                width: photo.width || 1920,
+                height: photo.height || 1080,
+              }));
+          }).catch(() => [])
+        );
+      }
+      tier3Promises.push(searchPixabayPhotos(urbanWords, 15));
+      const tier3Results = await Promise.allSettled(tier3Promises);
+      const pool3: StockPhoto[] = tier3Results.flatMap((r) => (r.status === 'fulfilled' ? r.value : []));
+      const scored3 = pool3
+        .filter((p) => {
+          const isUsed = usedUrls?.has(p.url) || (p.id && usedUrls?.has(p.id));
+          return !isUsed;
+        })
+        .map((p) => ({
+          photo: p,
+          score: computeMetadataRelevanceScore(p, urbanWords, options?.visualSubject, options?.negativeKeywords),
+        }))
+        .filter((item) => item.score > 0)
+        .sort((a, b) => b.score - a.score);
+
+      for (const item of scored3.slice(0, 3)) {
+        if (options?.useVisionVerification !== false && item.photo.previewUrl) {
+          const visionResult = await verifyStockCandidateWithVision(item.photo.previewUrl, visualReq, item.photo.title, options?.storyContext);
+          if (!visionResult.matches) {
+            console.log(`  ❌ Rejected urban photo [${item.photo.source}]: "${item.photo.title}" (Confidence: ${visionResult.confidence}% < 60% threshold)`);
+            continue;
+          }
+        }
+        usedUrls?.add(item.photo.url);
+        if (item.photo.id) usedUrls?.add(item.photo.id);
+        console.log(`  ✅ Selected urban photo [${item.photo.source}]: "${item.photo.title}"`);
+        return item.photo;
+      }
+    }
+  }
+
   return null;
 }
 
@@ -761,7 +905,14 @@ export async function downloadStockVideo(
   video: StockVideo,
   outputPath: string
 ): Promise<string> {
-  const response = await fetch(video.url, { signal: AbortSignal.timeout(10000) });
+  const timeoutMs = video.source === 'pexels' ? 30000 : 15000;
+  const response = await fetch(video.url, {
+    headers: {
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+      'Accept': '*/*',
+    },
+    signal: AbortSignal.timeout(timeoutMs),
+  });
   if (!response.ok) throw new Error(`Failed to download stock video: ${video.url}`);
 
   const contentLength = Number(response.headers.get('content-length') || 0);
@@ -802,7 +953,13 @@ export async function downloadStockPhoto(
   photo: StockPhoto,
   outputPath: string
 ): Promise<string> {
-  const response = await fetch(photo.url);
+  const response = await fetch(photo.url, {
+    headers: {
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+      'Accept': 'image/*,*/*',
+    },
+    signal: AbortSignal.timeout(20000),
+  });
   if (!response.ok) throw new Error(`Failed to download stock photo: ${photo.url}`);
 
   const buffer = await response.arrayBuffer();

@@ -246,8 +246,22 @@ export function findPhraseTimestamp(
   phrase: string,
   segments: SegmentAlignment[]
 ): { start: number; end: number } | null {
-  if (!phrase) return null;
-  const allWords = segments.flatMap((s) => s.words);
+  if (!phrase || !segments || !segments.length) return null;
+  const allWords = segments.flatMap((s) => {
+    if (s.words && Array.isArray(s.words) && s.words.length > 0) {
+      return s.words.filter((w) => w && typeof w.word === 'string');
+    }
+    const textWords = (s.text || '').trim().split(/\s+/).filter(Boolean);
+    if (!textWords.length) return [];
+    const dur = Math.max(0.1, (s.end || 0) - (s.start || 0));
+    const wordDur = dur / textWords.length;
+    return textWords.map((w, idx) => ({
+      word: w,
+      start: (s.start || 0) + idx * wordDur,
+      end: (s.start || 0) + (idx + 1) * wordDur,
+      confidence: 1,
+    }));
+  });
   if (!allWords.length) return null;
 
   const candidatePhrases = normalizeForSearch(phrase);
@@ -259,7 +273,7 @@ export function findPhraseTimestamp(
     for (let i = 0; i <= allWords.length - searchWords.length; i++) {
       const window = allWords.slice(i, i + searchWords.length);
       const windowText = window
-        .map((w) => w.word.toLowerCase().replace(/[^a-z0-9]/g, '').trim())
+        .map((w) => (w?.word || '').toLowerCase().replace(/[^a-z0-9]/g, '').trim())
         .join(' ');
       const targetText = searchWords
         .map((w) => w.toLowerCase().replace(/[^a-z0-9]/g, '').trim())
@@ -278,7 +292,7 @@ export function findPhraseTimestamp(
       const anchor = searchWords.slice(0, 2).join(' ');
       for (let i = 0; i <= allWords.length - 2; i++) {
         const window = allWords.slice(i, i + 2);
-        const windowText = window.map((w) => w.word.toLowerCase().replace(/[^a-z0-9]/g, '')).join(' ');
+        const windowText = window.map((w) => (w?.word || '').toLowerCase().replace(/[^a-z0-9]/g, '')).join(' ');
         if (windowText.includes(anchor) || anchor.includes(windowText)) {
           return {
             start: window[0]!.start,

@@ -18,7 +18,7 @@ import { planScriptWithAI, mapPlannedBeatsToTiming } from '../services/aiScriptP
 import { generateDocumentaryImage } from '../services/aiImageGenerator';
 import { buildTimeline, TimedPlannedBeat } from '../services/timelineBuilder';
 import { renderTimelineVideo } from '../services/remotionRenderer';
-import { Timeline } from '@repo/shared';
+import { Timeline, TimelineClip } from '@repo/shared';
 
 export const pipelineRouter = Router();
 
@@ -291,7 +291,7 @@ pipelineRouter.get('/local-clips', (req: Request, res: Response) => {
     if (!fs.existsSync(folder)) {
       return res.status(404).json({ error: `Folder not found: ${folder}` });
     }
-    const files = fs.readdirSync(folder).filter((f) => /\.(mp4|mov|webm|mkv|avi|m4v)$/i.test(f));
+    const files = fs.readdirSync(folder).filter((f) => /\.(mp4|mov|webm|mkv|avi|m4v|jpg|jpeg|png|webp)$/i.test(f));
     const clips = files.map((filename) => ({
       filename,
       // Serve via a new /local-clip-file endpoint
@@ -329,6 +329,10 @@ pipelineRouter.get('/local-clip-file', (req: Request, res: Response) => {
     '.mkv': 'video/x-matroska',
     '.avi': 'video/x-msvideo',
     '.m4v': 'video/mp4',
+    '.jpg': 'image/jpeg',
+    '.jpeg': 'image/jpeg',
+    '.png': 'image/png',
+    '.webp': 'image/webp',
   };
   const mime = mimeTypes[ext] || 'video/mp4';
 
@@ -518,6 +522,183 @@ pipelineRouter.post('/swap-clip', async (req: Request, res: Response) => {
   }
 });
 
+// ── POST /api/pipeline/update-clip ──────────────────────────────────────────
+// Update clip customization (layout, layoutData, callout, overlay, transition)
+pipelineRouter.post('/update-clip', async (req: Request, res: Response) => {
+  try {
+    const { projectId, chapterId, clipIndex, layout, layoutData, callout, overlay, transitionType } = req.body;
+    if (!projectId || !chapterId || typeof clipIndex !== 'number') {
+      return res.status(400).json({ error: 'Missing required parameters (projectId, chapterId, clipIndex)' });
+    }
+
+    const project = projectsStore.findById(projectId);
+    if (!project) return res.status(404).json({ error: 'Project not found' });
+
+    const chapter = chaptersStore.findById(projectId, chapterId);
+    if (!chapter) return res.status(404).json({ error: 'Chapter not found' });
+
+    // Locate timeline
+    let timeline: Timeline | null = null;
+    let timelineDiskPath: string | null = null;
+
+    if (chapter.jobId) {
+      const job = jobsStore.findById(chapter.jobId);
+      if (job?.timelineJson) {
+        timeline = job.timelineJson as Timeline;
+      }
+    }
+
+    if (!timeline && chapter.videoPath) {
+      timelineDiskPath = path.join(path.dirname(chapter.videoPath), 'timeline.json');
+      if (fs.existsSync(timelineDiskPath)) {
+        timeline = JSON.parse(fs.readFileSync(timelineDiskPath, 'utf-8'));
+      }
+    }
+
+    if (!timeline && chapter.timelineJson) {
+      timeline = chapter.timelineJson as Timeline;
+    }
+
+    if (!timeline || !timeline.clips || !timeline.clips[clipIndex]) {
+      return res.status(404).json({ error: `Clip at index ${clipIndex} not found in timeline` });
+    }
+
+    const clip = timeline.clips[clipIndex]!;
+
+    if (layout !== undefined) clip.layout = layout;
+    if (layoutData !== undefined) clip.layoutData = layoutData;
+    if (callout !== undefined) clip.callout = callout;
+    if (overlay !== undefined) clip.overlay = overlay;
+    if (transitionType !== undefined) clip.transitionType = transitionType;
+
+    // Persist timeline
+    const folderName = generateJobFolderName(project.name, chapter.jobId || `edit_${chapter.id}`);
+    const jobOutputDir = timelineDiskPath ? path.dirname(timelineDiskPath) : path.join(OUTPUT_DIR, folderName);
+    fs.mkdirSync(jobOutputDir, { recursive: true });
+    const diskPath = timelineDiskPath || path.join(jobOutputDir, 'timeline.json');
+    fs.writeFileSync(diskPath, JSON.stringify(timeline, null, 2));
+
+    if (chapter.jobId) {
+      jobsStore.update(chapter.jobId, { timelineJson: timeline, outputPath: diskPath });
+    }
+    chaptersStore.update(projectId, chapterId, { timelineJson: timeline });
+
+    res.json({ success: true, timeline: formatTimelineForBrowser(timeline, req) });
+  } catch (err) {
+    res.status(500).json({ error: `Failed to update clip: ${String(err)}` });
+  }
+});
+
+// ── POST /api/pipeline/split-clip ───────────────────────────────────────────
+// Splits a clip into two synchronized sub-beats at midpoint
+pipelineRouter.post('/split-clip', async (req: Request, res: Response) => {
+  try {
+    const { projectId, chapterId, clipIndex, splitRatio } = req.body;
+    if (!projectId || !chapterId || typeof clipIndex !== 'number') {
+      return res.status(400).json({ error: 'Missing required parameters (projectId, chapterId, clipIndex)' });
+    }
+
+    const project = projectsStore.findById(projectId);
+    if (!project) return res.status(404).json({ error: 'Project not found' });
+
+    const chapter = chaptersStore.findById(projectId, chapterId);
+    if (!chapter) return res.status(404).json({ error: 'Chapter not found' });
+
+    // Locate timeline
+    let timeline: Timeline | null = null;
+    let timelineDiskPath: string | null = null;
+
+    if (chapter.jobId) {
+      const job = jobsStore.findById(chapter.jobId);
+      if (job?.timelineJson) {
+        timeline = job.timelineJson as Timeline;
+      }
+    }
+
+    if (!timeline && chapter.videoPath) {
+      timelineDiskPath = path.join(path.dirname(chapter.videoPath), 'timeline.json');
+      if (fs.existsSync(timelineDiskPath)) {
+        timeline = JSON.parse(fs.readFileSync(timelineDiskPath, 'utf-8'));
+      }
+    }
+
+    if (!timeline && chapter.timelineJson) {
+      timeline = chapter.timelineJson as Timeline;
+    }
+
+    if (!timeline || !timeline.clips || !timeline.clips[clipIndex]) {
+      return res.status(404).json({ error: `Clip at index ${clipIndex} not found in timeline` });
+    }
+
+    const targetClip = timeline.clips[clipIndex]!;
+    const clipDuration = targetClip.endTime - targetClip.startTime;
+    if (clipDuration < 1.5) {
+      return res.status(400).json({ error: `Cannot split clip shorter than 1.5s (current duration: ${clipDuration.toFixed(1)}s)` });
+    }
+
+    const ratio = typeof splitRatio === 'number' && splitRatio > 0.1 && splitRatio < 0.9 ? splitRatio : 0.5;
+    const splitTime = Number((targetClip.startTime + clipDuration * ratio).toFixed(2));
+
+    // Split words
+    const words = (targetClip.text || '').trim().split(/\s+/).filter(Boolean);
+    const midWordIdx = Math.max(1, Math.floor(words.length * ratio));
+    const firstHalfWords = words.slice(0, midWordIdx).join(' ');
+    const secondHalfWords = words.slice(midWordIdx).join(' ') || firstHalfWords;
+
+    const originalEndTime = targetClip.endTime;
+
+    // Update first clip
+    targetClip.endTime = splitTime;
+    targetClip.text = firstHalfWords;
+
+    // Create second clip
+    const newClip: TimelineClip = {
+      beatIndex: clipIndex + 1,
+      chapterIndex: targetClip.chapterIndex,
+      text: secondHalfWords,
+      startTime: splitTime,
+      endTime: originalEndTime,
+      clipPath: targetClip.clipPath,
+      mediaType: targetClip.mediaType,
+      stockVideoQuery: targetClip.backupVideoQuery || targetClip.stockVideoQuery || null,
+      backupVideoQuery: null,
+      stockPhotoQuery: targetClip.stockPhotoQuery || null,
+      kenBurns: targetClip.kenBurns,
+      transitionType: 'shutter_flash', // Punchy documentary cut between split beats
+      transitionDuration: 0.2,
+      numberOverlays: [],
+      layout: targetClip.layout === 'full_bleed_cinematic' ? 'ambient_blur_frame' : 'full_bleed_cinematic',
+      layoutData: undefined,
+      callout: null,
+      overlay: targetClip.overlay === 'film_dust_scratches' ? 'film_burn_light_leak' : 'film_dust_scratches',
+    };
+
+    // Insert new clip right after target clip
+    timeline.clips.splice(clipIndex + 1, 0, newClip);
+
+    // Re-index all clips sequentially
+    timeline.clips.forEach((c, idx) => {
+      c.beatIndex = idx;
+    });
+
+    // Persist timeline
+    const folderName = generateJobFolderName(project.name, chapter.jobId || `split_${chapter.id}`);
+    const jobOutputDir = timelineDiskPath ? path.dirname(timelineDiskPath) : path.join(OUTPUT_DIR, folderName);
+    fs.mkdirSync(jobOutputDir, { recursive: true });
+    const diskPath = timelineDiskPath || path.join(jobOutputDir, 'timeline.json');
+    fs.writeFileSync(diskPath, JSON.stringify(timeline, null, 2));
+
+    if (chapter.jobId) {
+      jobsStore.update(chapter.jobId, { timelineJson: timeline, outputPath: diskPath });
+    }
+    chaptersStore.update(projectId, chapterId, { timelineJson: timeline });
+
+    res.json({ success: true, timeline: formatTimelineForBrowser(timeline, req) });
+  } catch (err) {
+    res.status(500).json({ error: `Failed to split clip: ${String(err)}` });
+  }
+});
+
 // ── POST /api/pipeline/plan-storyboard ───────────────────────────────────────
 // Stage 1: Plans beats, fetches stock, builds staged timeline, and returns for review WITHOUT rendering MP4
 pipelineRouter.post(
@@ -544,12 +725,25 @@ pipelineRouter.post(
       });
     }
 
-    const voiceoverFiles = (req.files as Express.Multer.File[])
+    let resolvedAudioFiles = (req.files as Express.Multer.File[])
       .sort((a, b) => a.originalname.localeCompare(b.originalname))
       .map((f) => f.path);
 
-    if (!voiceoverFiles.length && !chapter?.voiceoverFileName) {
-      return res.status(400).json({ error: 'No voiceover files uploaded' });
+    if (!resolvedAudioFiles.length && chapter?.voiceoverFileName) {
+      const candidates = [
+        path.join(AUDIO_DIR, chapter.voiceoverFileName),
+        path.join('C:\\Users\\karth\\Videos\\AmericanHideaways\\Kloehn\\AUD', chapter.voiceoverFileName),
+      ];
+      for (const cand of candidates) {
+        if (fs.existsSync(cand)) {
+          resolvedAudioFiles = [cand];
+          break;
+        }
+      }
+    }
+
+    if (!resolvedAudioFiles.length) {
+      return res.status(400).json({ error: 'No voiceover files found or uploaded' });
     }
 
     if (chapter) {
@@ -557,7 +751,7 @@ pipelineRouter.post(
         status: 'processing',
         jobId,
         scriptText: scriptText || chapter.scriptText,
-        voiceoverFileName: voiceoverFiles.length ? path.basename(voiceoverFiles[0]!) : chapter.voiceoverFileName,
+        voiceoverFileName: chapter.voiceoverFileName || path.basename(resolvedAudioFiles[0]!),
         pacing: pacing || chapter.pacing || 'medium',
         clipLibraryRoot: clipLibraryRoot || chapter.clipLibraryRoot || '',
       });
@@ -579,8 +773,8 @@ pipelineRouter.post(
       project: { id: project.id, name: project.name, scriptText: scriptText || chapter?.scriptText || project.scriptText },
       chapterId: chapter?.id,
       chapterIndex: chapter?.chapterIndex || 1,
-      voiceoverFiles: voiceoverFiles.length ? voiceoverFiles : [],
-      clipLibraryRoot: clipLibraryRoot || '',
+      voiceoverFiles: resolvedAudioFiles,
+      clipLibraryRoot: clipLibraryRoot || chapter?.clipLibraryRoot || '',
       pacing: pacing || chapter?.pacing || 'medium',
       skipRender: true, // Only stage storyboard!
     }).catch((err) => {
@@ -810,7 +1004,7 @@ pipelineRouter.get('/project-video/:projectId', (req: Request, res: Response) =>
 });
 
 // ── Main Pipeline ─────────────────────────────────────────────────────────────
-async function runPipeline(params: {
+export async function runPipeline(params: {
   jobId: string;
   project: { id: string; scriptText?: string; name: string };
   chapterId?: string;
@@ -837,15 +1031,45 @@ async function runPipeline(params: {
 
   // ── 2. Whisper Alignment ─────────────────────────────────────────────────
   step('alignment');
-  const alignments = await alignAudio(masterPath);
+  const chapter = chapterId ? chaptersStore.findById(project.id, chapterId) : null;
+  let alignments: any[] = [];
+
+  // Check pre-synchronized transcript JSON cache if available
+  const safeAudioStem = chapter?.voiceoverFileName ? path.parse(chapter.voiceoverFileName).name.replace(/[^\w\s-]/g, '').trim() : '';
+  const candidates = [
+    safeAudioStem ? path.join(process.cwd(), 'uploads', 'transcripts', 'kloehn', `${String(chapterIndex || 1).padStart(2, '0')}_${safeAudioStem}.json`) : '',
+    safeAudioStem ? path.join(process.cwd(), 'uploads', 'transcripts', `${String(chapterIndex || 1).padStart(2, '0')}_${safeAudioStem}.json`) : '',
+  ].filter(Boolean);
+
+  for (const cPath of candidates) {
+    if (fs.existsSync(cPath)) {
+      try {
+        const parsed = JSON.parse(fs.readFileSync(cPath, 'utf-8'));
+        if (Array.isArray(parsed.segments) && parsed.segments.length > 0) {
+          alignments = parsed.segments.map((seg: any) => ({
+            text: seg.text || '',
+            start: typeof seg.start === 'number' ? seg.start : 0,
+            end: typeof seg.end === 'number' ? seg.end : 60,
+            words: (seg.words || []).map((w: any) => ({ word: w.word || '', start: w.start, end: w.end })),
+          }));
+          console.log(`[Job ${jobId}] ⚡ Loaded ${alignments.length} pre-synchronized Whisper segments from disk cache!`);
+          break;
+        }
+      } catch {}
+    }
+  }
+
+  if (!alignments.length) {
+    alignments = await alignAudio(masterPath);
+  }
   jobsStore.update(jobId, { beatAlignments: alignments });
 
   // ── 3. AI Script Planning (with Auto-Transcription Fallback) ─────────────
   step('ai_planning');
 
-  let effectiveScript = (project.scriptText || '').trim();
+  let effectiveScript = (chapter?.scriptText || project.scriptText || '').trim();
   if (!effectiveScript && alignments.length > 0 && alignments[0]?.text !== 'Full Narration Track') {
-    effectiveScript = alignments.map((a) => a.text).join(' ').trim();
+    effectiveScript = alignments.map((a: any) => a.text).join(' ').trim();
     console.log(`[Job ${jobId}] 🎙️ Script was omitted — auto-transcribed from Whisper audio (${effectiveScript.split(' ').length} words)`);
   }
 
@@ -855,11 +1079,10 @@ async function runPipeline(params: {
     );
   }
 
-  const chapter = chapterId ? chaptersStore.findById(project.id, chapterId) : null;
   let clipFilenames = clipsStore.forProject(project.id).map((c) => c.filename);
   if (clipLibraryRoot && fs.existsSync(clipLibraryRoot)) {
     try {
-      const localFiles = fs.readdirSync(clipLibraryRoot).filter((f) => /\.(mp4|mov|webm|mkv|avi|m4v)$/i.test(f));
+      const localFiles = fs.readdirSync(clipLibraryRoot).filter((f) => /\.(mp4|mov|webm|mkv|avi|m4v|jpg|jpeg|png|webp)$/i.test(f));
       clipFilenames = Array.from(new Set([...clipFilenames, ...localFiles]));
       console.log(`[Job ${jobId}] 📁 Loaded ${localFiles.length} local clips from ${clipLibraryRoot} for AI planning:`, localFiles);
     } catch (err) {
@@ -941,7 +1164,11 @@ async function runPipeline(params: {
         const localPath = path.join(clipLibraryRoot, beat.clipFilename);
         if (fs.existsSync(localPath)) {
           resolvedPath = localPath;
-          console.log(`  ✅ Local clip: ${beat.clipFilename}`);
+          if (/\.(jpg|jpeg|png|webp)$/i.test(beat.clipFilename)) {
+            (beat as any).mediaType = 'image';
+            beat.kenBurns = true;
+          }
+          console.log(`  ✅ Local clip: ${beat.clipFilename} (${(beat as any).mediaType})`);
         }
       }
 
@@ -1001,7 +1228,11 @@ async function runPipeline(params: {
         const localPath = path.join(clipLibraryRoot, beat.clipFilename);
         if (fs.existsSync(localPath)) {
           resolvedPath = localPath;
-          console.log(`  ✅ Local clip: ${beat.clipFilename}`);
+          if (/\.(jpg|jpeg|png|webp)$/i.test(beat.clipFilename)) {
+            (beat as any).mediaType = 'image';
+            beat.kenBurns = true;
+          }
+          console.log(`  ✅ Local clip: ${beat.clipFilename} (${(beat as any).mediaType})`);
         }
       }
 

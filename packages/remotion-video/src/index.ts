@@ -6,6 +6,7 @@ export * from './theme';
 export * from './compositions/DocumentaryVideo';
 export * from './components/BrollLayer';
 export * from './components/Callouts/CalloutDispatcher';
+export * from './components/Transitions';
 
 // 11 Truly Unique Documentary Scene Layouts & Director
 export { SceneLayoutDirector, resolveSceneLayout } from './components/Layouts/SceneLayoutDirector';

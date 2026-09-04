@@ -3,6 +3,7 @@ import { BeatInput, ClipMatch } from './clipMatcher';
 import { SegmentAlignment, findPhraseTimestamp } from './whisperAlignment';
 import { ChapterTiming } from './audioAssembly';
 import type { PlannedBeat } from './aiScriptPlanner';
+import type { OverlayType, TransitionType } from '@repo/shared';
 
 export interface TimelineClip {
   beatIndex: number;
@@ -28,11 +29,12 @@ export interface TimelineClip {
 
   // Effects
   kenBurns: boolean; // apply slow zoom? (always true for images)
-  transitionType: 'cut' | 'crossfade';
+  transitionType?: TransitionType;
   transitionDuration: number; // seconds (0 for cut)
 
   // Overlays
   numberOverlays: NumberOverlay[];
+  overlay?: OverlayType | OverlayType[];
 
   // Text callout overlay
   callout?: {
@@ -71,6 +73,7 @@ export interface Timeline {
   totalDuration: number; // seconds
   clips: TimelineClip[];
   outputPath: string;
+  globalOverlays?: OverlayType[];
 }
 
 /**
@@ -172,6 +175,102 @@ export type TimedPlannedBeat = PlannedBeat & {
   resolvedPath: string | null;
   additionalClipPaths?: string[];
 };
+
+/**
+ * Resolves an intelligent visual atmosphere overlay for a beat:
+ * 1. AI-assigned overlay if provided
+ * 2. Contextual rule based on layout & callout type
+ * 3. Atmospheric rotation every few beats so the video has dynamic visual depth
+ */
+export function resolveOverlayForBeat(beat: TimedPlannedBeat, index: number): OverlayType | undefined {
+  if ((beat as any).overlay) {
+    return (beat as any).overlay;
+  }
+
+  const layout = (beat as any).layout;
+  const calloutType = beat.callout?.type;
+
+  if (layout === 'vintage_crt_monitor' || calloutType === 'wiretap_intercept') {
+    return 'vintage_crt_scanlines';
+  }
+  if (layout === 'quad_surveillance_matrix' || calloutType === 'map_pingeotag') {
+    return 'camera_viewfinder_hud';
+  }
+  if (
+    layout === 'polaroid_scatter_desk' ||
+    layout === 'filmstrip_spool_reel' ||
+    calloutType === 'archival_evidence_tag' ||
+    calloutType === 'polaroid_snapshot'
+  ) {
+    return 'film_dust_scratches';
+  }
+  if (
+    layout === 'open_case_binder' ||
+    calloutType === 'newspaper_headline' ||
+    calloutType === 'redacted_dossier' ||
+    calloutType === 'typewriter_paper'
+  ) {
+    return 'archival_halftone_paper';
+  }
+  if (calloutType === 'odometer_stat' || calloutType === 'split_milestone_card') {
+    return 'film_burn_light_leak';
+  }
+
+  // Periodic subtle atmosphere
+  if (index % 5 === 1) return 'film_dust_scratches';
+  if (index % 5 === 3) return 'star_sparkle_bokeh';
+
+  return undefined;
+}
+
+/**
+ * Resolves an intelligent documentary transition for a beat:
+ * 1. AI-assigned transition if provided
+ * 2. Elegant fade-in from black on beat 0
+ * 3. Contextual transition matching layout/callout
+ * 4. Rhythmic rotation so cuts are punchy & dynamic
+ */
+export function resolveTransitionForBeat(beat: TimedPlannedBeat, index: number): TransitionType {
+  if ((beat as any).transition) {
+    return (beat as any).transition;
+  }
+
+  if (index === 0) {
+    return 'film_dip_black';
+  }
+
+  const layout = (beat as any).layout;
+  const calloutType = beat.callout?.type;
+
+  if (calloutType === 'wiretap_intercept' || layout === 'vintage_crt_monitor' || layout === 'quad_surveillance_matrix') {
+    return 'glitch_blink';
+  }
+  if (calloutType === 'odometer_stat') {
+    return 'zoom_punch';
+  }
+  if (
+    calloutType === 'newspaper_headline' ||
+    calloutType === 'polaroid_snapshot' ||
+    calloutType === 'marker_circle' ||
+    layout === 'polaroid_scatter_desk'
+  ) {
+    return 'shutter_flash';
+  }
+  if (layout === 'split_dual_screen' || layout === 'horizon_top_bottom_split') {
+    return index % 2 === 0 ? 'whip_pan_left' : 'whip_pan_right';
+  }
+  if (layout === 'illuminated_lightbox' || layout === 'museum_archive_matte') {
+    return 'film_burn';
+  }
+
+  // Dynamic rhythmic variety across cuts
+  const mod = index % 6;
+  if (mod === 1) return 'shutter_flash';
+  if (mod === 3) return 'film_burn';
+  if (mod === 5) return 'crossfade';
+
+  return 'cut';
+}
 
 /**
  * Build the final timeline JSON from all AI-planned, timed, and resolved beats.
@@ -313,8 +412,9 @@ export function buildTimeline(params: {
       stockPhotoQuery: beat.stockPhotoQuery ?? null,
       // Images get smooth fluid motion
       kenBurns: isImage,
-      transitionType: 'cut',
-      transitionDuration: 0,
+      transitionType: resolveTransitionForBeat(beat, i),
+      transitionDuration: 0.2,
+      overlay: resolveOverlayForBeat(beat, i),
       numberOverlays,
       callout: clipCallout,
     };
@@ -325,6 +425,7 @@ export function buildTimeline(params: {
     totalDuration,
     clips,
     outputPath,
+    globalOverlays: ['cinematic_vignette', 'micro_film_grain'],
   };
 }
 

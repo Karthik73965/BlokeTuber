@@ -228,7 +228,9 @@ export default function ProjectOverviewPage({
             gap: 20,
           }}
         >
-          {(project.chapters || []).map((ch) => {
+          {[...(project.chapters || [])]
+            .sort((a, b) => (a.chapterIndex || 0) - (b.chapterIndex || 0))
+            .map((ch) => {
             return (
               <Link
                 key={ch.id}
@@ -238,7 +240,7 @@ export default function ProjectOverviewPage({
                 <div className={styles.projectCard}>
                   <div>
                     <div className={styles.projectCardHeader}>
-                      <span className={styles.chapterIndexLabel}>Chapter 0{ch.chapterIndex}</span>
+                      <span className={styles.chapterIndexLabel}>Chapter {String(ch.chapterIndex).padStart(2, '0')}</span>
                       <span
                         className={[
                           styles.statusBadge,

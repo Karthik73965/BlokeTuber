@@ -3,6 +3,7 @@ import { Audio, Sequence, useVideoConfig } from 'remotion';
 import { DocumentaryVideoProps } from '../types';
 import { SceneLayoutDirector } from '../components/Layouts/SceneLayoutDirector';
 import { OverlayDirector } from '../components/Overlays/OverlayDirector';
+import { SceneTransitionDirector } from '../components/Transitions/SceneTransitionDirector';
 
 export const DocumentaryVideo: React.FC<DocumentaryVideoProps> = ({ timeline }) => {
   const { fps } = useVideoConfig();
@@ -69,6 +70,11 @@ export const DocumentaryVideo: React.FC<DocumentaryVideoProps> = ({ timeline }) 
             durationInSeconds={durationInSeconds}
           />
           {clip.overlay && <OverlayDirector overlay={clip.overlay} />}
+          <SceneTransitionDirector
+            transitionType={clip.transitionType}
+            clipIndex={index}
+            durationInFrames={durationInFrames}
+          />
         </Sequence>
       ))}
 

@@ -6,6 +6,7 @@ import styles from '../../../../dashboard.module.css';
 import { Timeline, Chapter, Project, PacingSpeed } from '@repo/shared';
 import { RemotionPreviewModal } from '../../../../components/RemotionPreviewModal';
 import { ClipSwapModal } from '../../../../components/ClipSwapModal';
+import { BeatCustomizeModal } from '../../../../components/BeatCustomizeModal';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
 
@@ -110,6 +111,32 @@ export default function ChapterStudioPage({
     mediaType: 'video' | 'image';
     clipLibraryRoot?: string;
   } | null>(null);
+  const [customizeModalClip, setCustomizeModalClip] = useState<{ clipIndex: number; clip: any } | null>(null);
+  const [isSplitting, setIsSplitting] = useState<number | null>(null);
+
+  const handleSplitClip = async (clipIndex: number) => {
+    setIsSplitting(clipIndex);
+    try {
+      const res = await fetch(`${API_URL}/api/pipeline/split-clip`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ projectId, chapterId, clipIndex }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        alert(err.error || 'Failed to split clip');
+        return;
+      }
+      const data = await res.json();
+      if (data.timeline) {
+        setTimeline(data.timeline);
+      }
+    } catch (err: any) {
+      alert(`Error splitting clip: ${err.message}`);
+    } finally {
+      setIsSplitting(null);
+    }
+  };
 
   const pollTimer = useRef<any>(null);
   const elapsedTimer = useRef<any>(null);
@@ -869,12 +896,69 @@ export default function ChapterStudioPage({
                               📍 {clip.layoutData.coords}
                             </span>
                           )}
+
+                          {clip.overlay && (
+                            <span
+                              style={{
+                                backgroundColor: '#FDF2F8',
+                                color: '#BE185D',
+                                border: '1px solid #FBCFE8',
+                                fontSize: 10,
+                                fontFamily: 'JetBrains Mono, monospace',
+                                fontWeight: 700,
+                                padding: '2px 6px',
+                                borderRadius: 4,
+                              }}
+                            >
+                              ✨ {Array.isArray(clip.overlay) ? clip.overlay.join(', ') : clip.overlay}
+                            </span>
+                          )}
+
+                          {clip.transitionType && clip.transitionType !== 'cut' && (
+                            <span
+                              style={{
+                                backgroundColor: '#F3E8FF',
+                                color: '#7E22CE',
+                                border: '1px solid #E9D5FF',
+                                fontSize: 10,
+                                fontFamily: 'JetBrains Mono, monospace',
+                                fontWeight: 700,
+                                padding: '2px 6px',
+                                borderRadius: 4,
+                              }}
+                            >
+                              ⚡ {clip.transitionType}
+                            </span>
+                          )}
                         </div>
 
                         {/* Spoken Narration Text */}
                         <p style={{ fontSize: 13, color: '#1E293B', fontStyle: 'italic', lineHeight: 1.4, margin: 0 }}>
                           "{clip.text || 'Narration segment'}"
                         </p>
+
+                        {/* Text Callout Detail Preview */}
+                        {clip.callout && clip.callout.line1 && (
+                          <div
+                            style={{
+                              marginTop: 6,
+                              padding: '6px 10px',
+                              backgroundColor: '#FFFBEB',
+                              border: '1px solid #FDE68A',
+                              borderRadius: 6,
+                              fontSize: 12,
+                            }}
+                          >
+                            <span style={{ fontWeight: 800, color: '#B45309' }}>
+                              🏷️ "{clip.callout.line1}"
+                            </span>
+                            {clip.callout.line2 && (
+                              <span style={{ color: '#78350F', marginLeft: 6 }}>
+                                • {clip.callout.line2}
+                              </span>
+                            )}
+                          </div>
+                        )}
                       </div>
 
                       {/* Multi-Asset Slots (if layout has additional feeds) */}
@@ -918,21 +1002,59 @@ export default function ChapterStudioPage({
                         </div>
                       )}
 
-                      {/* Swap Action Button */}
-                      <button
-                        className={styles.secondaryBtn}
-                        style={{ width: '100%', justifyContent: 'center', marginTop: 6 }}
-                        onClick={() =>
-                          setSwapModalClip({
-                            clipIndex: idx,
-                            query: clip.text?.slice(0, 40) || descInput || '',
-                            mediaType: clip.mediaType || 'video',
-                            clipLibraryRoot,
-                          })
-                        }
-                      >
-                        🔄 Swap Main Clip
-                      </button>
+                      {/* Action Buttons Grid */}
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 8 }}>
+                        <div style={{ display: 'flex', gap: 6 }}>
+                          <button
+                            className={styles.secondaryBtn}
+                            style={{ flex: 1, justifyContent: 'center', fontSize: 12, padding: '7px 10px', backgroundColor: '#F8FAFC' }}
+                            onClick={() => setCustomizeModalClip({ clipIndex: idx, clip })}
+                          >
+                            ✏️ Customize
+                          </button>
+                          <button
+                            className={styles.secondaryBtn}
+                            style={{ flex: 1, justifyContent: 'center', fontSize: 12, padding: '7px 10px', backgroundColor: '#F8FAFC' }}
+                            onClick={() =>
+                              setSwapModalClip({
+                                clipIndex: idx,
+                                query: clip.text?.slice(0, 40) || descInput || '',
+                                mediaType: clip.mediaType || 'video',
+                                clipLibraryRoot,
+                              })
+                            }
+                          >
+                            🔄 Swap Clip
+                          </button>
+                        </div>
+
+                        {/* Split Button if duration > 5.0s */}
+                        {Number(duration) > 5.0 && (
+                          <button
+                            style={{
+                              width: '100%',
+                              backgroundColor: '#FEF2F2',
+                              color: '#DC2626',
+                              border: '1.5px dashed #FCA5A5',
+                              borderRadius: 6,
+                              padding: '6px 10px',
+                              fontSize: 11,
+                              fontWeight: 800,
+                              cursor: 'pointer',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              gap: 6,
+                              transition: 'all 0.15s ease',
+                            }}
+                            disabled={isSplitting === idx}
+                            onClick={() => handleSplitClip(idx)}
+                            title={`This clip is ${duration}s (> 5s). Click to split into two synchronized sub-beats.`}
+                          >
+                            {isSplitting === idx ? '⏳ Splitting Beat...' : `✂️ Split Beat (${duration}s > 5s)`}
+                          </button>
+                        )}
+                      </div>
                     </div>
                   </div>
                 );
@@ -954,6 +1076,18 @@ export default function ChapterStudioPage({
           clipLibraryRoot={swapModalClip.clipLibraryRoot || clipLibraryRoot}
           onClose={() => setSwapModalClip(null)}
           onSwapped={(updatedTimeline) => setTimeline(updatedTimeline)}
+        />
+      )}
+
+      {/* ── BEAT CUSTOMIZE MODAL ────────────────────────────────────────── */}
+      {customizeModalClip && (
+        <BeatCustomizeModal
+          projectId={projectId}
+          chapterId={chapterId}
+          clipIndex={customizeModalClip.clipIndex}
+          clip={customizeModalClip.clip}
+          onClose={() => setCustomizeModalClip(null)}
+          onUpdated={(updatedTimeline) => setTimeline(updatedTimeline)}
         />
       )}
 
