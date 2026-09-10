@@ -15,12 +15,12 @@ async function main() {
     id: 'ChatGPTVideo',
   });
 
-  console.log('Rendering still frame 5040 to', outputFile);
+  console.log('Rendering still frame 2800 to', outputFile);
   await renderStill({
     composition,
     serveUrl,
     output: outputFile,
-    frame: 5040,
+    frame: 2800,
   });
 
   console.log('Done rendering still!');

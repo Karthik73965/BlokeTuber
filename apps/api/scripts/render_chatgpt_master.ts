@@ -12,7 +12,7 @@ async function main() {
   const outputDir = path.resolve(__dirname, '../../../output');
   fs.mkdirSync(outputDir, { recursive: true });
 
-  const finalOutput = path.resolve(outputDir, 'chatgpt_astra_ban_master.mp4');
+  const finalOutput = path.resolve(outputDir, 'chatgpt_casio_dad_master.mp4');
 
   console.log('[Bundle] Bundling Remotion composition: ' + entryPoint);
   const serveUrl = await bundle({

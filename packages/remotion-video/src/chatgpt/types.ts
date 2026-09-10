@@ -6,6 +6,7 @@ export interface ChatMessage {
   typingDurationFrames: number;
   sendFrame: number;
   isShock?: boolean;
+  isBlast?: boolean;
 }
 
 export interface ChatGPTVideoProps extends Record<string, unknown> {

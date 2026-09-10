@@ -64,22 +64,22 @@ export const ChatGPTVideo: React.FC<ChatGPTVideoProps> = ({
   let cameraTranslateY = 0;
 
   for (const msg of messages) {
-    if (msg.isShock && frame >= msg.sendFrame && frame < msg.sendFrame + 75) {
+    if (msg.isShock && frame >= msg.sendFrame && frame < msg.sendFrame + 60) {
       const elapsed = frame - msg.sendFrame;
       
-      // Dramatic slow cinematic zoom-in over 60 frames (2 seconds)
-      const zoomProgress = interpolate(elapsed, [0, 45, 75], [0, 1, 0.95], { extrapolateRight: 'clamp' });
-      cameraScale = 1 + 0.28 * zoomProgress;
+      // Subtle slow zoom-in — max 1.10x
+      const zoomProgress = interpolate(elapsed, [0, 40, 60], [0, 1, 0.9], { extrapolateRight: 'clamp' });
+      cameraScale = 1 + 0.10 * zoomProgress;
       
-      // Zoom focus centered directly on ChatGPT's text (left-center of screen)
-      cameraTranslateX = 60 * zoomProgress;
-      cameraTranslateY = -20 * zoomProgress;
+      // Gentle pan toward ChatGPT text
+      cameraTranslateX = 30 * zoomProgress;
+      cameraTranslateY = -10 * zoomProgress;
 
-      // Subtle tension shake at the peak
-      if (elapsed > 8 && elapsed < 32) {
-        const shakeIntensity = interpolate(elapsed, [8, 18, 32], [0, 1, 0], { extrapolateRight: 'clamp' });
-        cameraTranslateX += Math.sin(elapsed * 5.5) * 7 * shakeIntensity;
-        cameraTranslateY += Math.cos(elapsed * 6.2) * 5 * shakeIntensity;
+      // Light tension shake at peak
+      if (elapsed > 8 && elapsed < 28) {
+        const shakeIntensity = interpolate(elapsed, [8, 16, 28], [0, 1, 0], { extrapolateRight: 'clamp' });
+        cameraTranslateX += Math.sin(elapsed * 5.5) * 4 * shakeIntensity;
+        cameraTranslateY += Math.cos(elapsed * 6.2) * 3 * shakeIntensity;
       }
       break;
     }
@@ -104,44 +104,46 @@ export const ChatGPTVideo: React.FC<ChatGPTVideoProps> = ({
         transformOrigin: 'center center',
       }}
     >
-      {/* Background Comedy Music */}
+      {/* Background Comedy Music - Gentle subtle volume */}
       {enableBgm && (
-        <Audio src={COMEDY_BGM_SFX} volume={0.16} loop />
+        <Audio src={COMEDY_BGM_SFX} volume={0.09} loop />
       )}
 
-      {/* Audio SFX Sequences */}
+      {/* Audio SFX Sequences - Subtle & Balanced */}
       {messages.map((msg) => {
         const typingDuration = Math.max(1, msg.sendFrame - msg.startFrame);
         const isGlitchMsg = msg.text.includes('[SYSTEM') || msg.text.includes('403 FORBIDDEN');
 
         return (
           <React.Fragment key={msg.id}>
-            {/* User Real Mechanical Keyboard Typing SFX */}
+            {/* User Real Mechanical Keyboard Typing SFX (Soft ASMR) */}
             {msg.sender === 'user' && (
               <Sequence from={msg.startFrame} durationInFrames={typingDuration}>
-                <Audio src={TYPING_LOOP_SFX} volume={0.85} />
+                <Audio src={TYPING_LOOP_SFX} volume={0.22} />
               </Sequence>
             )}
 
-            {/* Message Sent / Bubble Deliver Pop */}
+            {/* Message Sent / Bubble Deliver Pop (Soft pop) */}
             {msg.sender === 'user' && (
               <Sequence from={msg.sendFrame} durationInFrames={18}>
-                <Audio src={SEND_POP_SFX} volume={1.0} />
+                <Audio src={SEND_POP_SFX} volume={0.28} />
               </Sequence>
             )}
 
-            {/* ChatGPT Reply SFX (Loud Vine Boom + Impact or Chime) */}
+            {/* ChatGPT Reply SFX (Subtle Chime or Soft Shock) */}
             {msg.sender === 'chatgpt' && (
-              <Sequence from={msg.sendFrame} durationInFrames={msg.isShock ? 75 : 30}>
-                {isGlitchMsg ? (
-                  <Audio src={GLITCH_SFX} volume={1.3} />
-                ) : msg.isShock ? (
+              <Sequence from={msg.sendFrame} durationInFrames={msg.isBlast ? 90 : msg.isShock ? 60 : 30}>
+                {msg.isBlast ? (
                   <>
-                    <Audio src={SHOCK_BOOM_SFX} volume={1.5} />
-                    <Audio src={CINE_IMPACT_SFX} volume={1.0} />
+                    <Audio src={SHOCK_BOOM_SFX} volume={0.9} />
+                    <Audio src={CINE_IMPACT_SFX} volume={0.75} />
                   </>
+                ) : isGlitchMsg ? (
+                  <Audio src={GLITCH_SFX} volume={0.30} />
+                ) : msg.isShock ? (
+                  <Audio src={SHOCK_BOOM_SFX} volume={0.35} />
                 ) : (
-                  <Audio src={MSG_CHIME_SFX} volume={1.0} />
+                  <Audio src={MSG_CHIME_SFX} volume={0.30} />
                 )}
               </Sequence>
             )}
@@ -299,10 +301,10 @@ export const ChatGPTVideo: React.FC<ChatGPTVideoProps> = ({
                   <div
                     style={{
                       color: '#FFFFFF',
-                      fontSize: msg.isShock ? 50 : 42,
-                      fontWeight: msg.isShock ? 800 : 400,
-                      lineHeight: 1.35,
-                      letterSpacing: msg.isShock ? '0.5px' : 'normal',
+                      fontSize: 42,
+                      fontWeight: 400,
+                      lineHeight: 1.45,
+                      letterSpacing: 'normal',
                     }}
                   >
                     {msg.text}
