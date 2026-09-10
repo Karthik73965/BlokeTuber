@@ -7,6 +7,9 @@ export * from './compositions/DocumentaryVideo';
 export * from './components/BrollLayer';
 export * from './components/Callouts/CalloutDispatcher';
 export * from './components/Transitions';
+export * from './chatgpt/ChatGPTVideo';
+export * from './chatgpt/types';
+export * from './chatgpt/Icons';
 
 // 11 Truly Unique Documentary Scene Layouts & Director
 export { SceneLayoutDirector, resolveSceneLayout } from './components/Layouts/SceneLayoutDirector';
