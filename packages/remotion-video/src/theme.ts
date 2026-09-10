@@ -74,3 +74,19 @@ export function getTheme(themeColor?: CalloutThemeColor): ThemeColors {
   }
   return THEMES.gold;
 }
+
+/**
+ * Standard smooth cinematic spring physics for documentary callouts & overlays.
+ * Softens snappy, hyperactive movements into elegant broadcast glides.
+ */
+export const SMOOTH_SPRING_CONFIG = {
+  damping: 24,
+  stiffness: 55,
+  mass: 1.2,
+};
+
+/**
+ * Smooth 0.6s exit fade & slide out (18 frames at 30fps).
+ */
+export const SMOOTH_EXIT_FRAMES = 18;
+

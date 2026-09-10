@@ -38,55 +38,42 @@ export const BrollLayer: React.FC<BrollLayerProps> = ({
 
   if (isImage) {
     if (motionMode === 0) {
-      // 1. Smooth Continuous Push-In
-      scale = interpolate(progress, [0, 1], [1.0, 1.12]);
+      // 1. Smooth Continuous Push-In (gentle 4% drift)
+      scale = interpolate(progress, [0, 1], [1.0, 1.04]);
     } else if (motionMode === 1) {
-      // 2. Smooth Reveal Pull-Out
-      scale = interpolate(progress, [0, 1], [1.12, 1.0]);
+      // 2. Smooth Reveal Pull-Out (gentle 4% drift)
+      scale = interpolate(progress, [0, 1], [1.04, 1.0]);
     } else if (motionMode === 2) {
-      // 3. Smooth Fluid Arc (Zoom-In then Zoom-Out)
-      scale = 1.0 + 0.08 * Math.sin(Math.PI * progress);
+      // 3. Smooth Fluid Arc (Subtle 3% pulse)
+      scale = 1.0 + 0.03 * Math.sin(Math.PI * progress);
     } else {
-      // 4. Parallax Vertical Drift
-      scale = interpolate(progress, [0, 1], [1.05, 1.12]);
-      translateY = interpolate(progress, [0, 1], [0, -30]);
+      // 4. Parallax Vertical Drift (gentle 15px drift)
+      scale = interpolate(progress, [0, 1], [1.02, 1.04]);
+      translateY = interpolate(progress, [0, 1], [0, -15]);
     }
   }
 
-  // ── 2. DYNAMIC TRANSITIONS (3 Rotating Minimal Broadcast Modes) ───────────
+  // ── 2. DYNAMIC TRANSITIONS (Smooth broadcast fade-in without harsh strobing) ──
   const transMode = clipIndex % 3;
   let flashOpacity = 0;
-  let flashColor = '#FFFFFF';
+  let flashColor = '#000000';
 
   const tSeconds = frame / fps;
 
-  if (transMode === 0) {
-    // Shutter Click: 0.06s camera shutter blink
-    if (tSeconds < 0.06) {
-      flashOpacity = interpolate(tSeconds, [0, 0.06], [0.35, 0], {
-        extrapolateLeft: 'clamp',
-        extrapolateRight: 'clamp',
-      });
-      flashColor = '#FFFFFF';
-    }
-  } else if (transMode === 1) {
-    // Soft Film Fade: 0.12s micro-fade from soft dark
-    if (tSeconds < 0.12) {
-      flashOpacity = interpolate(tSeconds, [0, 0.12], [0.45, 0], {
-        extrapolateLeft: 'clamp',
-        extrapolateRight: 'clamp',
-      });
-      flashColor = '#000000';
-    }
-  } else {
-    // Subtle Film Dip: 0.08s micro dip
-    if (tSeconds < 0.08) {
-      flashOpacity = interpolate(tSeconds, [0, 0.08], [0.3, 0], {
-        extrapolateLeft: 'clamp',
-        extrapolateRight: 'clamp',
-      });
-      flashColor = '#050508';
-    }
+  if (transMode === 1 && tSeconds < 0.25) {
+    // Gentle soft film fade-up (0.25s)
+    flashOpacity = interpolate(tSeconds, [0, 0.25], [0.25, 0], {
+      extrapolateLeft: 'clamp',
+      extrapolateRight: 'clamp',
+    });
+    flashColor = '#000000';
+  } else if (transMode === 2 && tSeconds < 0.20) {
+    // Subtle cinematic shadow dip (0.20s)
+    flashOpacity = interpolate(tSeconds, [0, 0.20], [0.18, 0], {
+      extrapolateLeft: 'clamp',
+      extrapolateRight: 'clamp',
+    });
+    flashColor = '#050508';
   }
 
   // Grain seed shifting per frame

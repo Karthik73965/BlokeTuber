@@ -27,14 +27,14 @@ export const EvidenceTag: React.FC<CalloutProps> = ({ callout, clipDurationInSec
     return null;
   }
 
-  // Heavy "Stamp Slam" spring entrance
+  // Smooth cinematic stamp entrance
   const stampSpring = spring({
     frame: localFrame,
     fps,
-    config: { damping: 11, stiffness: 160, mass: 1.2 },
+    config: { damping: 24, stiffness: 60, mass: 1.2 },
   });
 
-  const exitFrames = 8;
+  const exitFrames = 18;
   const exitProgress = interpolate(
     localFrame,
     [totalHoldFrames - exitFrames, totalHoldFrames],

@@ -80,6 +80,65 @@ export interface Timeline {
  * Maps script beats to seamless, non-overlapping audio timestamps
  * so the sum of all beat durations EXACTLY equals totalAudioDuration.
  */
+function findBeatEndWordIndex(
+  beatText: string,
+  allWords: Array<{ word: string; start: number; end: number }>,
+  wordSearchCursor: number,
+  expectedWordCount: number
+): { matchIndex: number; endTime: number } | null {
+  if (!allWords.length || wordSearchCursor >= allWords.length) return null;
+
+  const beatWords = beatText.split(/\s+/).filter(Boolean);
+  const cleanBeatWords = beatWords.map((w) => w.toLowerCase().replace(/[^a-z0-9]/g, '')).filter(Boolean);
+  if (!cleanBeatWords.length) return null;
+
+  const searchWindow = Math.min(allWords.length, wordSearchCursor + expectedWordCount * 2 + 8);
+
+  if (cleanBeatWords.length >= 2) {
+    const endPhrase = [
+      cleanBeatWords[cleanBeatWords.length - 2],
+      cleanBeatWords[cleanBeatWords.length - 1],
+    ];
+
+    for (let wIdx = wordSearchCursor; wIdx < searchWindow - 1; wIdx++) {
+      const w1 = allWords[wIdx]?.word.toLowerCase().replace(/[^a-z0-9]/g, '');
+      const w2 = allWords[wIdx + 1]?.word.toLowerCase().replace(/[^a-z0-9]/g, '');
+      if (w1 === endPhrase[0] && w2 === endPhrase[1]) {
+        return { matchIndex: wIdx + 1, endTime: allWords[wIdx + 1]!.end };
+      }
+    }
+  }
+
+  const stopWords = new Set(['a', 'an', 'the', 'in', 'on', 'at', 'to', 'for', 'of', 'with', 'by', 'and', 'or', 'is', 'was', 'it', 'its']);
+  for (let i = cleanBeatWords.length - 1; i >= Math.max(0, cleanBeatWords.length - 3); i--) {
+    const candidate = cleanBeatWords[i]!;
+    if (candidate.length > 2 && !stopWords.has(candidate)) {
+      for (let wIdx = wordSearchCursor; wIdx < searchWindow; wIdx++) {
+        const w = allWords[wIdx]?.word.toLowerCase().replace(/[^a-z0-9]/g, '');
+        if (w === candidate) {
+          const offset = cleanBeatWords.length - 1 - i;
+          const matchedIdx = Math.min(allWords.length - 1, wIdx + offset);
+          return { matchIndex: matchedIdx, endTime: allWords[matchedIdx]!.end };
+        }
+      }
+    }
+  }
+
+  const lastWord = cleanBeatWords[cleanBeatWords.length - 1]!;
+  for (let wIdx = wordSearchCursor; wIdx < searchWindow; wIdx++) {
+    const w = allWords[wIdx]?.word.toLowerCase().replace(/[^a-z0-9]/g, '');
+    if (w === lastWord) {
+      return { matchIndex: wIdx, endTime: allWords[wIdx]!.end };
+    }
+  }
+
+  return null;
+}
+
+/**
+ * Maps script beats to seamless, non-overlapping audio timestamps (3.0s – 6.0s per beat)
+ * so the sum of all beat durations EXACTLY equals totalAudioDuration.
+ */
 export function mapBeatsToAudioTiming(
   beats: Array<{ text: string; chapterIndex: number; beatIndex: number }>,
   alignments: SegmentAlignment[],
@@ -96,60 +155,34 @@ export function mapBeatsToAudioTiming(
   let currentStart = 0;
   let wordSearchCursor = 0;
 
-  return beats.map((beat, i) => {
+  const rawTimed = beats.map((beat, i) => {
     const beatWords = beat.text.split(/\s+/).filter(Boolean);
     const wordCount = Math.max(1, beatWords.length);
     let matchedEndTime: number | null = null;
 
-    if (allWords.length > 0 && wordSearchCursor < allWords.length) {
-      const cleanBeatWords = beatWords.map((w) => w.toLowerCase().replace(/[^a-z0-9]/g, '')).filter(Boolean);
-      const targetEndWord = cleanBeatWords[cleanBeatWords.length - 1];
-      const targetSecondEndWord = cleanBeatWords[cleanBeatWords.length - 2];
-
-      if (targetEndWord) {
-        const searchLimit = Math.min(allWords.length, wordSearchCursor + wordCount * 3 + 6);
-        let bestMatchIdx: number | null = null;
-
-        for (let wIdx = wordSearchCursor; wIdx < searchLimit; wIdx++) {
-          const currentWordClean = allWords[wIdx]?.word.toLowerCase().replace(/[^a-z0-9]/g, '');
-          if (currentWordClean === targetEndWord) {
-            bestMatchIdx = wIdx;
-          }
-        }
-
-        if (bestMatchIdx === null && targetSecondEndWord) {
-          for (let wIdx = wordSearchCursor; wIdx < searchLimit; wIdx++) {
-            const currentWordClean = allWords[wIdx]?.word.toLowerCase().replace(/[^a-z0-9]/g, '');
-            if (currentWordClean === targetSecondEndWord) {
-              bestMatchIdx = wIdx;
-            }
-          }
-        }
-
-        if (bestMatchIdx !== null) {
-          matchedEndTime = allWords[bestMatchIdx]!.end;
-          wordSearchCursor = bestMatchIdx + 1;
-        }
-      }
+    const match = findBeatEndWordIndex(beat.text, allWords, wordSearchCursor, wordCount);
+    if (match) {
+      matchedEndTime = match.endTime;
+      wordSearchCursor = match.matchIndex + 1;
+    } else {
+      wordSearchCursor = Math.min(allWords.length, wordSearchCursor + wordCount);
     }
 
     const estimatedDuration = (wordCount / totalWords) * totalAudioDuration;
     let endTime: number;
 
-    if (matchedEndTime !== null && matchedEndTime > currentStart + 0.5) {
+    if (matchedEndTime !== null && matchedEndTime > currentStart + 1.0) {
       endTime = matchedEndTime;
     } else {
       endTime = currentStart + estimatedDuration;
     }
 
-    // Force the last beat to end at the exact total audio duration
     if (i === beats.length - 1 || endTime > totalAudioDuration) {
       endTime = totalAudioDuration;
     }
 
-    // Enforce positive duration
     if (endTime <= currentStart) {
-      endTime = Math.min(totalAudioDuration, currentStart + Math.max(1.0, estimatedDuration));
+      endTime = Math.min(totalAudioDuration, currentStart + Math.max(1.5, estimatedDuration));
     }
 
     const timedBeat: BeatInput = {
@@ -163,6 +196,58 @@ export function mapBeatsToAudioTiming(
     currentStart = endTime;
     return timedBeat;
   });
+
+  // Consolidate beats < 3.0s
+  const merged: BeatInput[] = [];
+  for (let i = 0; i < rawTimed.length; i++) {
+    const curr = { ...rawTimed[i]! };
+    while ((curr.endTime - curr.startTime) < 3.0 && i + 1 < rawTimed.length) {
+      const next = rawTimed[i + 1]!;
+      curr.text = `${curr.text} ${next.text}`.trim();
+      curr.endTime = next.endTime;
+      i++;
+    }
+    merged.push(curr);
+  }
+
+  if (merged.length > 1 && (merged[merged.length - 1]!.endTime - merged[merged.length - 1]!.startTime) < 3.0) {
+    const last = merged.pop()!;
+    const prev = merged[merged.length - 1]!;
+    prev.text = `${prev.text} ${last.text}`.trim();
+    prev.endTime = last.endTime;
+  }
+
+  // Ensure hard cap of 6.0s
+  const finalBeats: BeatInput[] = [];
+  for (const b of merged) {
+    const dur = b.endTime - b.startTime;
+    if (dur > 6.0) {
+      const numCuts = Math.max(2, Math.round(dur / 4.5));
+      const eachDur = dur / numCuts;
+      const beatWords = b.text.split(/\s+/).filter(Boolean);
+      const wordsPerCut = Math.max(1, Math.ceil(beatWords.length / numCuts));
+      let subStart = b.startTime;
+
+      for (let c = 0; c < numCuts; c++) {
+        const subEnd = c === numCuts - 1 ? b.endTime : Number((subStart + eachDur).toFixed(3));
+        finalBeats.push({
+          chapterIndex: b.chapterIndex,
+          beatIndex: finalBeats.length,
+          text: beatWords.slice(c * wordsPerCut, (c + 1) * wordsPerCut).join(' ') || b.text,
+          startTime: subStart,
+          endTime: subEnd,
+        });
+        subStart = subEnd;
+      }
+    } else {
+      finalBeats.push({
+        ...b,
+        beatIndex: finalBeats.length,
+      });
+    }
+  }
+
+  return finalBeats;
 }
 
 /**

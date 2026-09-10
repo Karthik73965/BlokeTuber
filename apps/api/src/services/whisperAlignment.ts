@@ -2,7 +2,11 @@ import fs from 'fs';
 import path from 'path';
 import FormData from 'form-data';
 import dotenv from 'dotenv';
+import { execFile } from 'child_process';
+import { promisify } from 'util';
 import { getAudioDuration } from './audioAssembly';
+
+const execFileAsync = promisify(execFile);
 
 dotenv.config();
 
@@ -19,17 +23,98 @@ export interface SegmentAlignment {
   words: WordTimestamp[];
 }
 
+function findLocalTranscribeScript(): string | null {
+  const candidates = [
+    path.resolve(__dirname, '../../scripts/local_transcribe.py'),
+    path.resolve(__dirname, '../scripts/local_transcribe.py'),
+    path.resolve(process.cwd(), 'apps/api/scripts/local_transcribe.py'),
+    path.resolve(process.cwd(), 'scripts/local_transcribe.py'),
+  ];
+  for (const c of candidates) {
+    if (fs.existsSync(c)) return c;
+  }
+  return null;
+}
+
+/**
+ * Transcribe locally using faster-whisper with word-level timestamps (0 API cost).
+ */
+export async function alignWithLocalWhisper(
+  audioPath: string,
+  modelSize = process.env.LOCAL_WHISPER_MODEL || 'base'
+): Promise<SegmentAlignment[]> {
+  const scriptPath = findLocalTranscribeScript();
+  if (!scriptPath) {
+    throw new Error('Local transcribe script (local_transcribe.py) not found');
+  }
+
+  const pythonBin = process.env.PYTHON_BIN || 'python';
+  console.log(`🎙️ Running local offline faster-whisper STT (model: ${modelSize}) on ${path.basename(audioPath)}...`);
+
+  const { stdout, stderr } = await execFileAsync(
+    pythonBin,
+    [scriptPath, '--audio', audioPath, '--model', modelSize],
+    { maxBuffer: 50 * 1024 * 1024 }
+  );
+
+  if (stderr) {
+    const lines = stderr.split('\n').filter((l) => !l.includes('UserWarning') && !l.includes('HF_TOKEN') && !l.includes('Developer Mode') && l.trim());
+    if (lines.length > 0) {
+      console.warn('Local whisper notice:', lines.join('\n'));
+    }
+  }
+
+  const raw = JSON.parse(stdout);
+  let duration = raw.duration;
+  if (typeof duration !== 'number') {
+    try {
+      duration = await getAudioDuration(audioPath);
+    } catch {
+      duration = 60;
+    }
+  }
+
+  if (Array.isArray(raw.segments) && raw.segments.length > 0) {
+    return raw.segments.map((seg: any) => ({
+      text: seg.text || '',
+      start: typeof seg.start === 'number' ? seg.start : 0,
+      end: typeof seg.end === 'number' ? seg.end : duration,
+      words: Array.isArray(seg.words)
+        ? seg.words.map((w: any) => ({
+            word: w.word || '',
+            start: typeof w.start === 'number' ? w.start : 0,
+            end: typeof w.end === 'number' ? w.end : 0,
+          }))
+        : [],
+    }));
+  }
+
+  return fallbackAlignment(audioPath);
+}
+
 /**
  * Audio alignment & Speech-to-Text service.
  * Priority:
- * 1. OpenRouter Whisper API (OPENROUTER_API_KEY) — openai/whisper-1 or configured WHISPER_MODEL
- * 2. OpenAI Whisper API (OPENAI_API_KEY) — official OpenAI endpoint
- * 3. Groq Whisper API (GROQ_API_KEY) — Groq cloud endpoint
- * 4. Fallback Estimator — Computes estimated timestamps from duration if no API key set
+ * 1. Local Whisper STT (faster-whisper) — zero API cost, high speed, word-level timestamps
+ * 2. OpenRouter Whisper API (OPENROUTER_API_KEY)
+ * 3. OpenAI Whisper API (OPENAI_API_KEY)
+ * 4. Groq Whisper API (GROQ_API_KEY)
+ * 5. Fallback Estimator
  */
 export async function alignAudio(
   masterAudioPath: string
 ): Promise<SegmentAlignment[]> {
+  const disableLocal = process.env.DISABLE_LOCAL_WHISPER === 'true';
+  const scriptPath = findLocalTranscribeScript();
+
+  if (!disableLocal && scriptPath) {
+    try {
+      return await alignWithLocalWhisper(masterAudioPath);
+    } catch (err: any) {
+      console.warn(`⚠️ Local Whisper failed (${err?.message}). Checking cloud fallbacks...`);
+    }
+  }
+
   const openrouterKey = process.env.OPENROUTER_API_KEY;
   const openaiKey = process.env.OPENAI_API_KEY;
   const groqKey = process.env.GROQ_API_KEY;
@@ -65,7 +150,7 @@ export async function alignAudio(
     );
   }
 
-  console.log('⚠️ No OPENROUTER_API_KEY, OPENAI_API_KEY, or GROQ_API_KEY set. Generating duration-based fallback timing map...');
+  console.log('⚠️ No local Whisper or cloud STT keys available. Generating duration-based fallback timing map...');
   return fallbackAlignment(masterAudioPath);
 }
 

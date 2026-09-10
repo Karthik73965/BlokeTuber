@@ -27,10 +27,10 @@ export const PolaroidSnapshot: React.FC<StyleProps> = ({ callout, clipDurationIn
   const enterSpring = spring({
     frame: localFrame,
     fps,
-    config: { damping: 13, stiffness: 95, mass: 0.9 },
+    config: { damping: 24, stiffness: 55, mass: 1.2 },
   });
 
-  const exitFrames = 8;
+  const exitFrames = 18;
   const exitProgress = interpolate(
     localFrame,
     [totalHoldFrames - exitFrames, totalHoldFrames],

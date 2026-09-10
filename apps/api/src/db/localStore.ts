@@ -21,10 +21,7 @@ for (const p of envPaths) {
   if (fs.existsSync(p)) dotenv.config({ path: p });
 }
 
-const STORE_DIR = path.join(
-  process.env.OUTPUT_DIR || path.join(process.cwd(), 'output'),
-  'store'
-);
+const STORE_DIR = path.resolve(__dirname, '../../output/store');
 fs.mkdirSync(STORE_DIR, { recursive: true });
 
 import { Chapter, UsedMediaItem, Project, Clip, RenderJob } from '@repo/shared';

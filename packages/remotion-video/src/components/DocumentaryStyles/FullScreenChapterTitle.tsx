@@ -27,10 +27,10 @@ export const FullScreenChapterTitle: React.FC<StyleProps> = ({ callout, clipDura
   const enterSpring = spring({
     frame: localFrame,
     fps,
-    config: { damping: 16, stiffness: 80, mass: 1.0 },
+    config: { damping: 24, stiffness: 50, mass: 1.2 },
   });
 
-  const exitFrames = 10;
+  const exitFrames = 18;
   const exitProgress = interpolate(
     localFrame,
     [totalHoldFrames - exitFrames, totalHoldFrames],

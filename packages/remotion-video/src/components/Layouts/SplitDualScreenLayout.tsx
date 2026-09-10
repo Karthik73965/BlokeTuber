@@ -33,19 +33,19 @@ export const SplitDualScreenLayout: React.FC<LayoutProps> = ({
 
   const progress = durationInFrames > 0 ? frame / durationInFrames : 0;
 
-  // Split entrance spring
+  // Split entrance spring (smooth cinematic glide)
   const splitSpring = spring({
     frame,
     fps,
-    config: { damping: 15, stiffness: 100, mass: 0.8 },
+    config: { damping: 24, stiffness: 50, mass: 1.2 },
   });
 
   const leftTranslateX = interpolate(splitSpring, [0, 1], [-80, 0]);
   const rightTranslateX = interpolate(splitSpring, [0, 1], [80, 0]);
 
-  // Independent Ken Burns on each half
-  const leftScale = interpolate(progress, [0, 1], [1.0, 1.08]);
-  const rightScale = interpolate(progress, [0, 1], [1.08, 1.0]);
+  // Independent subtle Ken Burns on each half
+  const leftScale = interpolate(progress, [0, 1], [1.0, 1.04]);
+  const rightScale = interpolate(progress, [0, 1], [1.04, 1.0]);
 
   return (
     <div

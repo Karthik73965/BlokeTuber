@@ -30,10 +30,10 @@ export const QuoteCard: React.FC<CalloutProps> = ({ callout, clipDurationInSecon
   const enterSpring = spring({
     frame: localFrame,
     fps,
-    config: { damping: 15, stiffness: 100, mass: 0.8 },
+    config: { damping: 24, stiffness: 55, mass: 1.2 },
   });
 
-  const exitFrames = 8;
+  const exitFrames = 18;
   const exitProgress = interpolate(
     localFrame,
     [totalHoldFrames - exitFrames, totalHoldFrames],

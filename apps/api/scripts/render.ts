@@ -16,7 +16,14 @@ if (!fs.existsSync(absoluteTimelinePath)) {
 }
 
 const timeline = JSON.parse(fs.readFileSync(absoluteTimelinePath, 'utf-8'));
-const outputPath = process.argv[3] || timeline.outputPath || path.join(path.dirname(absoluteTimelinePath), 'final_video.mp4');
+let outputPath = process.argv[3];
+if (!outputPath) {
+  if (timeline.outputPath && /\.mp4$/i.test(timeline.outputPath)) {
+    outputPath = timeline.outputPath;
+  } else {
+    outputPath = path.join(path.dirname(absoluteTimelinePath), 'final_video.mp4');
+  }
+}
 
 renderTimelineVideo(absoluteTimelinePath, outputPath)
   .then(() => process.exit(0))

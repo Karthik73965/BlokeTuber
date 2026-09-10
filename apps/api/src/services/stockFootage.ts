@@ -45,7 +45,13 @@ const STOP_WORDS = new Set([
   'will', 'would', 'shall', 'should', 'can', 'could', 'may', 'might', 'must',
   'then', 'when', 'where', 'why', 'how', 'all', 'any', 'both', 'each', 'few',
   'more', 'most', 'other', 'some', 'such', 'no', 'nor', 'not', 'only', 'own',
-  'same', 'so', 'than', 'too', 'very', 'just', 'now', 'also'
+  'same', 'so', 'than', 'too', 'very', 'just', 'now', 'also',
+  // Conversational filler & non-visual speech verbs
+  'said', 'says', 'saying', 'told', 'tells', 'telling', 'know', 'knew', 'knowing',
+  'think', 'thought', 'feel', 'felt', 'looks', 'looked', 'seemed', 'seems',
+  'didn', 'doesn', 'haven', 'hasn', 'hadn', 'got', 'getting', 'gets',
+  'started', 'coming', 'goes', 'went', 'gone', 'done', 'doing', 'make', 'making',
+  'made', 'like', 'really', 'actually', 'even', 'still', 'always', 'never', 'ever'
 ]);
 
 const BANNED_IMAGE_TAGS = new Set([
@@ -356,9 +362,9 @@ export function computeMetadataRelevanceScore(
     return -100;
   }
 
-  // Multi-word query rule: Candidate MUST match at least 2 distinct search words to qualify (prevents single-word accidents)
-  if (searchWords.length >= 2 && matchedKeywordCount < 2) {
-    return -50;
+  // Multi-word bonus: Candidate matches 2+ distinct search words
+  if (searchWords.length >= 2 && matchedKeywordCount >= 2) {
+    score += 25;
   }
 
   // Bonus if title contains full query phrase
@@ -385,6 +391,8 @@ export function computeMetadataRelevanceScore(
  */
 export const VISION_SIMILARITY_THRESHOLD = 60;
 
+let visionCheckDisabled = false;
+
 export async function verifyStockCandidateWithVision(
   previewUrl: string,
   visualRequirement: string,
@@ -392,8 +400,8 @@ export async function verifyStockCandidateWithVision(
   storyContext?: string  // Full documentary premise — prevents wrong-demographic clips from passing
 ): Promise<{ matches: boolean; confidence: number; isWeak: boolean; reason: string }> {
   const openrouterKey = process.env.OPENROUTER_API_KEY;
-  if (!openrouterKey || !previewUrl || !previewUrl.startsWith('http')) {
-    return { matches: true, confidence: 100, isWeak: false, reason: 'Vision verification skipped (no key or URL)' };
+  if (visionCheckDisabled || !openrouterKey || process.env.DISABLE_VISION_CHECK === 'true' || !previewUrl || !previewUrl.startsWith('http')) {
+    return { matches: true, confidence: 80, isWeak: false, reason: 'Vision verification skipped (keyword match active)' };
   }
 
   try {
@@ -458,7 +466,13 @@ Respond ONLY in JSON:
     clearTimeout(timeout);
 
     if (!res.ok) {
-      return { matches: false, confidence: 0, isWeak: false, reason: `Vision HTTP error (${res.status})` };
+      if (res.status === 402) {
+        visionCheckDisabled = true;
+        console.warn(`[Vision Check] OpenRouter returned 402 (Insufficient credits). Disabling vision check and using keyword scoring.`);
+      } else {
+        console.warn(`[Vision Check] OpenRouter returned ${res.status}. Falling back to keyword scoring.`);
+      }
+      return { matches: true, confidence: 75, isWeak: false, reason: `Vision HTTP ${res.status} fallback to keyword match` };
     }
 
     const data = (await res.json()) as any;

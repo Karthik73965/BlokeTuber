@@ -19,6 +19,8 @@ apps/web/.env.local
 # Uploads & outputs (large files)
 apps/api/uploads/
 apps/api/output/
+uploads/
+output/
 
 # Turbo
 .turbo/

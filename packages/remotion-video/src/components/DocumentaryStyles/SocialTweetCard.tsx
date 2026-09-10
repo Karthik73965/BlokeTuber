@@ -27,10 +27,10 @@ export const SocialTweetCard: React.FC<StyleProps> = ({ callout, clipDurationInS
   const enterSpring = spring({
     frame: localFrame,
     fps,
-    config: { damping: 14, stiffness: 110, mass: 0.8 },
+    config: { damping: 24, stiffness: 55, mass: 1.2 },
   });
 
-  const exitFrames = 8;
+  const exitFrames = 18;
   const exitProgress = interpolate(
     localFrame,
     [totalHoldFrames - exitFrames, totalHoldFrames],

@@ -27,10 +27,10 @@ export const RedactedDossier: React.FC<StyleProps> = ({ callout, clipDurationInS
   const enterSpring = spring({
     frame: localFrame,
     fps,
-    config: { damping: 14, stiffness: 110, mass: 0.9 },
+    config: { damping: 24, stiffness: 55, mass: 1.2 },
   });
 
-  const exitFrames = 8;
+  const exitFrames = 18;
   const exitProgress = interpolate(
     localFrame,
     [totalHoldFrames - exitFrames, totalHoldFrames],
@@ -51,7 +51,7 @@ export const RedactedDossier: React.FC<StyleProps> = ({ callout, clipDurationInS
   const stampSpring = spring({
     frame: Math.max(0, localFrame - 18),
     fps,
-    config: { damping: 12, stiffness: 180, mass: 1.1 },
+    config: { damping: 20, stiffness: 80, mass: 1.2 },
   });
   const stampScale = interpolate(stampSpring, [0, 1], [1.8, 1]);
   const stampOpacity = interpolate(localFrame, [18, 20], [0, 0.85], {

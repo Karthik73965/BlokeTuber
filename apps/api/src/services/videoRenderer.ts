@@ -118,16 +118,16 @@ export function buildCalloutFilters(
   const boldFont = 'C\\:/Windows/Fonts/arialbd.ttf';
   const regularFont = 'C\\:/Windows/Fonts/arial.ttf';
 
-  // Precision timing
+  // Precision timing (calm documentary hold & smooth 0.45s easing)
   const startT = typeof callout.startTime === 'number' ? Math.max(0.05, callout.startTime) : 0.05;
-  const maxEnd = Math.max(startT + 0.6, clipDuration - 0.05);
+  const maxEnd = Math.max(startT + 0.8, clipDuration - 0.05);
   const endT = typeof callout.endTime === 'number'
-    ? Math.min(maxEnd, Math.max(startT + 0.8, callout.endTime))
-    : Math.min(maxEnd, startT + 2.4);
+    ? Math.min(maxEnd, Math.max(startT + 1.2, callout.endTime))
+    : Math.min(maxEnd, startT + 4.0);
 
   const T0 = Number(startT.toFixed(2));
   const T1 = Number(endT.toFixed(2));
-  const dFade = 0.25;
+  const dFade = 0.45;
 
   const enableExpr = `between(t,${T0},${T1})`;
   const alphaExpr = `if(lt(t,${T0}),0,if(lt(t,${T0}+${dFade}),(t-${T0})/${dFade},if(lt(t,${T1}-${dFade}),1,(${T1}-t)/${dFade})))`;

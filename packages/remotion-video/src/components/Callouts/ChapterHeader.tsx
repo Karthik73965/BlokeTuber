@@ -30,10 +30,10 @@ export const ChapterHeader: React.FC<CalloutProps> = ({ callout, clipDurationInS
   const enterSpring = spring({
     frame: localFrame,
     fps,
-    config: { damping: 16, stiffness: 90, mass: 0.9 },
+    config: { damping: 24, stiffness: 50, mass: 1.2 },
   });
 
-  const exitFrames = 10;
+  const exitFrames = 18;
   const exitProgress = interpolate(
     localFrame,
     [totalHoldFrames - exitFrames, totalHoldFrames],

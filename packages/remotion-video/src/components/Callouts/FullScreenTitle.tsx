@@ -30,10 +30,10 @@ export const FullScreenTitle: React.FC<CalloutProps> = ({ callout, clipDurationI
   const enterSpring = spring({
     frame: localFrame,
     fps,
-    config: { damping: 18, stiffness: 80, mass: 1.0 },
+    config: { damping: 24, stiffness: 50, mass: 1.2 },
   });
 
-  const exitFrames = 12;
+  const exitFrames = 18;
   const exitProgress = interpolate(
     localFrame,
     [totalHoldFrames - exitFrames, totalHoldFrames],

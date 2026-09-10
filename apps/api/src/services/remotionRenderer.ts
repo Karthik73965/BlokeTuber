@@ -150,6 +150,8 @@ export function resolveMediaUrl(rawPath: string | null | undefined, baseDir: str
       path.resolve(baseDir, path.basename(rawPath)),
       path.resolve(baseDir, 'stock', path.basename(rawPath)),
       path.resolve(process.cwd(), rawPath),
+      path.resolve(process.cwd(), '..', rawPath),
+      path.resolve(__dirname, '../../../..', rawPath),
       path.resolve(process.cwd(), 'apps', 'api', rawPath),
       path.resolve(process.cwd(), 'apps', 'api', 'output', rawPath),
     ];
@@ -346,6 +348,14 @@ export async function renderTimelineVideo(
       ],
     } as any,
   });
+
+  if (localMediaServer) {
+    try {
+      (localMediaServer as any).close();
+    } catch {}
+    localMediaServer = null;
+    mediaServerPort = 0;
+  }
 
   console.log(`\n====================================================`);
   console.log(`✅ REMOTION RENDER COMPLETE!`);

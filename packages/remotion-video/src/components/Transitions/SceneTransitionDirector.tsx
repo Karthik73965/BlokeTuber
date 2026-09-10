@@ -55,10 +55,10 @@ export const SceneTransitionDirector: React.FC<SceneTransitionDirectorProps> = (
 
   // ── 1. CAMERA SHUTTER FLASH (Archival / Investigative Cut) ─────────────────
   if (transitionType === 'shutter_flash') {
-    const flashFrames = Math.max(3, Math.round(fps * 0.1)); // ~3-4 frames
+    const flashFrames = Math.max(6, Math.round(fps * 0.22)); // ~7 frames soft bloom
     if (frame > flashFrames) return null;
 
-    const flashOpacity = interpolate(frame, [0, 1, flashFrames], [0.92, 0.45, 0], {
+    const flashOpacity = interpolate(frame, [0, 2, flashFrames], [0.65, 0.4, 0], {
       extrapolateRight: 'clamp',
     });
 
@@ -79,10 +79,10 @@ export const SceneTransitionDirector: React.FC<SceneTransitionDirectorProps> = (
 
   // ── 2. FILM BURN / LIGHT LEAK FLARE (Warm Nostalgic / Memory Shift) ────────
   if (transitionType === 'film_burn') {
-    const burnFrames = Math.max(5, Math.round(fps * 0.22)); // ~6-7 frames
+    const burnFrames = Math.max(8, Math.round(fps * 0.35)); // ~11 frames smooth flare
     if (frame > burnFrames) return null;
 
-    const burnIntensity = interpolate(frame, [0, 2, burnFrames], [0.25, 0.95, 0], {
+    const burnIntensity = interpolate(frame, [0, 4, burnFrames], [0.15, 0.85, 0], {
       extrapolateRight: 'clamp',
     });
 
@@ -131,10 +131,10 @@ export const SceneTransitionDirector: React.FC<SceneTransitionDirectorProps> = (
 
   // ── 3. FILM DIP TO BLACK (Dramatic Topic / Chapter Shift) ──────────────────
   if (transitionType === 'film_dip_black') {
-    const dipFrames = Math.max(5, Math.round(fps * 0.22));
+    const dipFrames = Math.max(8, Math.round(fps * 0.35));
     if (frame > dipFrames) return null;
 
-    const dipOpacity = interpolate(frame, [0, dipFrames], [1.0, 0], {
+    const dipOpacity = interpolate(frame, [0, dipFrames], [0.9, 0], {
       extrapolateRight: 'clamp',
     });
 
@@ -273,7 +273,7 @@ export const SceneTransitionDirector: React.FC<SceneTransitionDirectorProps> = (
 
   // ── 7. SMOOTH CROSSFADE DISSOLVE ──────────────────────────────────────────
   if (transitionType === 'crossfade') {
-    const fadeFrames = Math.max(6, Math.round(fps * 0.25));
+    const fadeFrames = Math.max(10, Math.round(fps * 0.45));
     if (frame > fadeFrames) return null;
 
     const darkOpacity = interpolate(frame, [0, fadeFrames], [0.65, 0], {

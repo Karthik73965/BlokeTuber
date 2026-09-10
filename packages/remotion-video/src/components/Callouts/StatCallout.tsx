@@ -27,15 +27,15 @@ export const StatCallout: React.FC<CalloutProps> = ({ callout, clipDurationInSec
     return null;
   }
 
-  // Smooth entrance spring
+  // Smooth entrance spring (calm cinematic broadcast glide)
   const enterSpring = spring({
     frame: localFrame,
     fps,
-    config: { damping: 14, stiffness: 120, mass: 0.8 },
+    config: { damping: 24, stiffness: 55, mass: 1.2 },
   });
 
   // Smooth exit fade
-  const exitFrames = 8;
+  const exitFrames = 18;
   const exitProgress = interpolate(
     localFrame,
     [totalHoldFrames - exitFrames, totalHoldFrames],

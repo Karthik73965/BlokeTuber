@@ -30,10 +30,10 @@ export const TickerBar: React.FC<CalloutProps> = ({ callout, clipDurationInSecon
   const enterSpring = spring({
     frame: localFrame,
     fps,
-    config: { damping: 15, stiffness: 110, mass: 0.7 },
+    config: { damping: 24, stiffness: 55, mass: 1.2 },
   });
 
-  const exitFrames = 8;
+  const exitFrames = 18;
   const exitProgress = interpolate(
     localFrame,
     [totalHoldFrames - exitFrames, totalHoldFrames],

@@ -27,10 +27,10 @@ export const PoliceCrimeSheet: React.FC<StyleProps> = ({ callout, clipDurationIn
   const enterSpring = spring({
     frame: localFrame,
     fps,
-    config: { damping: 14, stiffness: 100, mass: 0.9 },
+    config: { damping: 24, stiffness: 55, mass: 1.2 },
   });
 
-  const exitFrames = 8;
+  const exitFrames = 18;
   const exitProgress = interpolate(
     localFrame,
     [totalHoldFrames - exitFrames, totalHoldFrames],
@@ -45,7 +45,7 @@ export const PoliceCrimeSheet: React.FC<StyleProps> = ({ callout, clipDurationIn
   const stampSpring = spring({
     frame: Math.max(0, localFrame - 15),
     fps,
-    config: { damping: 12, stiffness: 160, mass: 1.1 },
+    config: { damping: 20, stiffness: 80, mass: 1.2 },
   });
   const stampScale = interpolate(stampSpring, [0, 1], [1.7, 1]);
   const stampOpacity = interpolate(localFrame, [15, 17], [0, 0.9], {
