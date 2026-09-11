@@ -64,22 +64,27 @@ export const ChatGPTVideo: React.FC<ChatGPTVideoProps> = ({
   let cameraTranslateY = 0;
 
   for (const msg of messages) {
-    if (msg.isShock && frame >= msg.sendFrame && frame < msg.sendFrame + 60) {
+    const isTriggered = msg.isShock || msg.isBlast;
+    const zoomDuration = msg.isBlast ? 80 : 60;
+    if (isTriggered && frame >= msg.sendFrame && frame < msg.sendFrame + zoomDuration) {
       const elapsed = frame - msg.sendFrame;
       
-      // Subtle slow zoom-in — max 1.10x
-      const zoomProgress = interpolate(elapsed, [0, 40, 60], [0, 1, 0.9], { extrapolateRight: 'clamp' });
-      cameraScale = 1 + 0.10 * zoomProgress;
+      // Subtle slow zoom-in — max 1.10x (1.14x on blast)
+      const maxZoom = msg.isBlast ? 0.14 : 0.10;
+      const zoomProgress = interpolate(elapsed, [0, 35, zoomDuration], [0, 1, 0.9], { extrapolateRight: 'clamp' });
+      cameraScale = 1 + maxZoom * zoomProgress;
       
       // Gentle pan toward ChatGPT text
       cameraTranslateX = 30 * zoomProgress;
       cameraTranslateY = -10 * zoomProgress;
 
-      // Light tension shake at peak
-      if (elapsed > 8 && elapsed < 28) {
-        const shakeIntensity = interpolate(elapsed, [8, 16, 28], [0, 1, 0], { extrapolateRight: 'clamp' });
-        cameraTranslateX += Math.sin(elapsed * 5.5) * 4 * shakeIntensity;
-        cameraTranslateY += Math.cos(elapsed * 6.2) * 3 * shakeIntensity;
+      // Tension shake at peak
+      const shakeEnd = msg.isBlast ? 35 : 28;
+      if (elapsed > 8 && elapsed < shakeEnd) {
+        const shakeIntensity = interpolate(elapsed, [8, 16, shakeEnd], [0, 1, 0], { extrapolateRight: 'clamp' });
+        const shakeMul = msg.isBlast ? 6 : 4;
+        cameraTranslateX += Math.sin(elapsed * 5.5) * shakeMul * shakeIntensity;
+        cameraTranslateY += Math.cos(elapsed * 6.2) * (shakeMul * 0.75) * shakeIntensity;
       }
       break;
     }
@@ -130,8 +135,8 @@ export const ChatGPTVideo: React.FC<ChatGPTVideoProps> = ({
               </Sequence>
             )}
 
-            {/* ChatGPT Reply SFX (Subtle Chime or Soft Shock) */}
-            {msg.sender === 'chatgpt' && (
+            {/* ChatGPT Reply SFX — ONLY for Shock / Zoom / Glitch / Blast triggers */}
+            {msg.sender === 'chatgpt' && (msg.isBlast || msg.isShock || isGlitchMsg) && (
               <Sequence from={msg.sendFrame} durationInFrames={msg.isBlast ? 90 : msg.isShock ? 60 : 30}>
                 {msg.isBlast ? (
                   <>
@@ -140,10 +145,8 @@ export const ChatGPTVideo: React.FC<ChatGPTVideoProps> = ({
                   </>
                 ) : isGlitchMsg ? (
                   <Audio src={GLITCH_SFX} volume={0.30} />
-                ) : msg.isShock ? (
-                  <Audio src={SHOCK_BOOM_SFX} volume={0.35} />
                 ) : (
-                  <Audio src={MSG_CHIME_SFX} volume={0.30} />
+                  <Audio src={SHOCK_BOOM_SFX} volume={0.35} />
                 )}
               </Sequence>
             )}
