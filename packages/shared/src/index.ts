@@ -183,6 +183,8 @@ export interface TimelineClip {
   numberOverlays: NumberOverlay[];
   callout?: CalloutOverlay | null;
   overlay?: OverlayType | OverlayType[];
+  sfxPath?: string | null;
+  sfxVolume?: number;
 }
 
 export type TransitionType =

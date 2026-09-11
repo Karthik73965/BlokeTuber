@@ -75,6 +75,9 @@ export const DocumentaryVideo: React.FC<DocumentaryVideoProps> = ({ timeline }) 
             clipIndex={index}
             durationInFrames={durationInFrames}
           />
+          {clip.sfxPath && (
+            <Audio src={clip.sfxPath} volume={clip.sfxVolume ?? 0.18} />
+          )}
         </Sequence>
       ))}
 

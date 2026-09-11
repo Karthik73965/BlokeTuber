@@ -269,6 +269,7 @@ export async function renderTimelineVideo(
       additionalClipPaths: (clip.additionalClipPaths || [])
         .map((p) => resolveMediaUrl(p, timelineDir, streamPort))
         .filter(Boolean) as string[],
+      sfxPath: resolveMediaUrl(clip.sfxPath, timelineDir, streamPort),
     })),
   };
 
