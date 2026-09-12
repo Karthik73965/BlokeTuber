@@ -134,7 +134,7 @@ export const Chapter5_Processing: React.FC = () => {
       {/* ================================================================ */}
       <Sequence from={244} durationInFrames={97}>
         <BarnInteriorEnv>
-          <SfxTrigger sound="stat_click" volume={0.6} startFrame={5} />
+          <SfxTrigger sound="pop" volume={0.5} startFrame={5} />
 
           {/* Nursing Sow & Piglets */}
           <DoodlePig x={720} y={650} scale={1.25} pose="nursing_lying" mood="calm" highlightTeats={true} />
@@ -313,7 +313,7 @@ export const Chapter5_Processing: React.FC = () => {
       {/* ================================================================ */}
       <Sequence from={701} durationInFrames={75}>
         <BarnInteriorEnv>
-          <SfxTrigger sound="stat_click" volume={0.6} startFrame={5} />
+          <SfxTrigger sound="pop" volume={0.5} startFrame={5} />
 
           {/* Ancient Milking Scene */}
           <DoodleCow x={1250} y={580} scale={1.15} isMilking={true} />
@@ -456,7 +456,7 @@ export const Chapter5_Processing: React.FC = () => {
       {/* ================================================================ */}
       <Sequence from={1079} durationInFrames={80}>
         <ChemistryLabEnv wallColor="#0F172A" benchColor="#334155" showBlackboard={false}>
-          <SfxTrigger sound="stat_click" volume={0.6} startFrame={5} />
+          <SfxTrigger sound="pop" volume={0.5} startFrame={5} />
 
           {/* Close up on Curdling Failure */}
           <ZoomIn startFrame={0} durationInFrames={25} fromScale={0.95} toScale={1.12} originX={1220} originY={540} withWhoosh={false}>
@@ -690,7 +690,7 @@ export const Chapter5_Processing: React.FC = () => {
       {/* ================================================================ */}
       <Sequence from={1704} durationInFrames={119}>
         <ChemistryLabEnv wallColor="#0F172A" benchColor="#334155" showBlackboard={false}>
-          <SfxTrigger sound="stat_click" volume={0.6} startFrame={5} />
+          <SfxTrigger sound="pop" volume={0.5} startFrame={5} />
 
           {/* Equipment Complexity Breakdown */}
           <g transform="translate(1080, 420)">

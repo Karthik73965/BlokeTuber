@@ -1,5 +1,5 @@
 import React from 'react';
-import { Sequence } from 'remotion';
+import { Audio, Loop, Sequence, staticFile } from 'remotion';
 import { Chapter1_Hook } from './chapters/Chapter1_Hook';
 import { Chapter2_Access } from './chapters/Chapter2_Access';
 import { Chapter3_Quantity } from './chapters/Chapter3_Quantity';
@@ -29,6 +29,14 @@ export const PigMilkMasterVideo: React.FC = () => {
 
   return (
     <div style={{ width: '100%', height: '100%', backgroundColor: '#7DD3FC' }}>
+      {/* 🎵 Non-Copyright YouTube Audio Library BGM bed (low volume so voiceover is crisp & loud) */}
+      <Loop durationInFrames={6634}>
+        <Audio
+          src={staticFile('audio/Way Back Home - Simon Herody.mp3')}
+          volume={0.08}
+        />
+      </Loop>
+
       {/* Chapter 1: Hook */}
       <Sequence from={0} durationInFrames={CH1_FRAMES}>
         <Chapter1_Hook />

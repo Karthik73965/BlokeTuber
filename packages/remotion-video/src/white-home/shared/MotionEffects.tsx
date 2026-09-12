@@ -13,13 +13,17 @@ export const SfxTrigger: React.FC<{
   const frame = useCurrentFrame();
   if (frame < startFrame) return null;
 
-  const fileName = sound.endsWith('.mp3') ? sound : `${sound}.mp3`;
-  return <Audio src={staticFile(`sfx/${fileName}`)} volume={volume} />;
+  // Replace stat_click with soft pop SFX at 50% volume per user instruction
+  const resolvedSound = sound === 'stat_click' ? 'pop' : sound;
+  const resolvedVolume = sound === 'stat_click' ? 0.5 : volume;
+  const fileName = resolvedSound.endsWith('.mp3') ? resolvedSound : `${resolvedSound}.mp3`;
+  return <Audio src={staticFile(`sfx/${fileName}`)} volume={resolvedVolume} />;
 };
 
 /**
  * 🔍 Smooth Camera Zoom-In (Punch-In) Effect
- * Zooms smoothly toward a focus point (default: center) with optional 60% whoosh.
+ * Renders an SVG group <g> with smooth scaling around (originX, originY).
+ * 100% SVG compatible inside FarmPastureEnv, BarnInteriorEnv, etc.
  */
 export const ZoomIn: React.FC<{
   children: React.ReactNode;
@@ -55,19 +59,12 @@ export const ZoomIn: React.FC<{
   });
 
   return (
-    <div
-      style={{
-        width: '100%',
-        height: '100%',
-        transformOrigin: `${originX}px ${originY}px`,
-        transform: `scale(${scale})`,
-      }}
-    >
+    <g transform={`translate(${originX}, ${originY}) scale(${scale}) translate(${-originX}, ${-originY})`}>
       {withWhoosh && frame >= startFrame && frame < startFrame + 3 && (
-        <SfxTrigger sound="whoosh_air" volume={0.6} />
+        <SfxTrigger sound="whoosh_air" volume={0.5} />
       )}
       {children}
-    </div>
+    </g>
   );
 };
 

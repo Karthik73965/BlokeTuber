@@ -163,7 +163,7 @@ export const Chapter6_Domestication: React.FC = () => {
       {/* ================================================================ */}
       <Sequence from={328} durationInFrames={122}>
         <WorldMapEnv>
-          <SfxTrigger sound="stat_click" volume={0.6} startFrame={5} />
+          <SfxTrigger sound="pop" volume={0.5} startFrame={5} />
 
           <StoryBadge text="SPECIALIZED REGIONAL ADAPTATIONS" x={960} y={160} bgColor="#1E293B" textColor="#38BDF8" fontSize={30} />
 
@@ -242,7 +242,7 @@ export const Chapter6_Domestication: React.FC = () => {
       {/* ================================================================ */}
       <Sequence from={548} durationInFrames={121}>
         <BarnInteriorEnv>
-          <SfxTrigger sound="stat_click" volume={0.6} startFrame={5} />
+          <SfxTrigger sound="pop" volume={0.5} startFrame={5} />
 
           {/* Domestication Rule 1 Card */}
           <g transform="translate(1080, 420)">
@@ -314,7 +314,7 @@ export const Chapter6_Domestication: React.FC = () => {
       {/* ================================================================ */}
       <Sequence from={780} durationInFrames={110}>
         <FarmPastureEnv showBarn={true} showFence={true}>
-          <SfxTrigger sound="stat_click" volume={0.6} startFrame={5} />
+          <SfxTrigger sound="pop" volume={0.5} startFrame={5} />
 
           {/* Cow converting free pasture grass into milk */}
           <DoodleCow x={700} y={550} scale={1.25} mood="happy" squirtMilk={true} />
@@ -412,7 +412,7 @@ export const Chapter6_Domestication: React.FC = () => {
       {/* ================================================================ */}
       <Sequence from={1115} durationInFrames={115}>
         <FarmPastureEnv showBarn={false} showFence={false}>
-          <SfxTrigger sound="stat_click" volume={0.6} startFrame={5} />
+          <SfxTrigger sound="pop" volume={0.5} startFrame={5} />
 
           {/* Domestication Tournament Scorecard: Row 3 & 4 Active */}
           <DomesticationTournamentCard x={960} y={540} scale={0.92} activeRow={3} />
@@ -525,7 +525,7 @@ export const Chapter6_Domestication: React.FC = () => {
       {/* ================================================================ */}
       <Sequence from={1602} durationInFrames={124}>
         <FarmPastureEnv showBarn={false} showFence={false}>
-          <SfxTrigger sound="stat_click" volume={0.6} startFrame={5} />
+          <SfxTrigger sound="pop" volume={0.5} startFrame={5} />
 
           {/* Venn Diagram of Domestication */}
           <g transform="translate(960, 480)">
@@ -678,7 +678,7 @@ export const Chapter6_Domestication: React.FC = () => {
       {/* ================================================================ */}
       <Sequence from={2180} durationInFrames={100}>
         <WorldMapEnv>
-          <SfxTrigger sound="stat_click" volume={0.6} startFrame={5} />
+          <SfxTrigger sound="pop" volume={0.5} startFrame={5} />
 
           {/* Zooming into regional hubs */}
           <ZoomIn startFrame={0} durationInFrames={30} fromScale={1.0} toScale={1.15} originX={1100} originY={350} withWhoosh={false}>
@@ -812,7 +812,7 @@ export const Chapter6_Domestication: React.FC = () => {
       {/* ================================================================ */}
       <Sequence from={2600} durationInFrames={111}>
         <FarmPastureEnv showBarn={true} showFence={true}>
-          <SfxTrigger sound="stat_click" volume={0.6} startFrame={5} />
+          <SfxTrigger sound="pop" volume={0.5} startFrame={5} />
 
           {/* Dependable Cow grazing */}
           <DoodleCow x={1180} y={540} scale={1.3} mood="proud" squirtMilk={true} />

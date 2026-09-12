@@ -50,9 +50,11 @@ export const StoryBadge: React.FC<{
   fontSize = 32,
   scale = 1,
 }) => {
-  const padX = fontSize * 0.9;
-  const width = text.length * fontSize * 0.62 + padX * 2;
-  const height = fontSize * 1.7;
+  // Generous character width + generous horizontal padding so text and emojis NEVER overflow the pill
+  const charWidth = fontSize * 0.78;
+  const padX = fontSize * 1.6;
+  const width = Math.max(text.length * charWidth + padX * 2, 160);
+  const height = fontSize * 1.9;
 
   return (
     <g transform={`translate(${x}, ${y}) scale(${scale})`}>
@@ -64,7 +66,7 @@ export const StoryBadge: React.FC<{
         rx={height / 2}
         fill={bgColor}
         stroke="#FFFFFF"
-        strokeWidth={3}
+        strokeWidth={3.5}
       />
       <text
         x={0}
@@ -74,7 +76,7 @@ export const StoryBadge: React.FC<{
         fontFamily="'Comic Sans MS', cursive, sans-serif"
         fontWeight="900"
         fill={textColor}
-        letterSpacing="1px"
+        letterSpacing="0.5px"
       >
         {text}
       </text>
@@ -1026,7 +1028,9 @@ export const DailyMilkingRoutine: React.FC<{
 
 
 /**
- * 🐐 Hand-Drawn Goat
+ * 🐐 Realistic Hand-Drawn Dairy Goat
+ * Anatomically accurate: slender caprine torso, graceful neck, curved ribbed horns,
+ * expressive horizontal-pupil eye, goatee beard, cloven hooves, and 2-teat udder.
  */
 export const DoodleGoat: React.FC<{
   x: number;
@@ -1034,145 +1038,365 @@ export const DoodleGoat: React.FC<{
   scale?: number;
 }> = ({ x, y, scale = 1 }) => {
   const frame = useCurrentFrame();
-  const chew = Math.sin(frame * 0.2) * 2;
+  const chew = Math.sin(frame * 0.25) * 2.5;
+
   return (
     <g transform={`translate(${x}, ${y}) scale(${scale})`}>
-      {/* Shadow */}
-      <ellipse cx={0} cy={110} rx={95} ry={14} fill="rgba(0,0,0,0.12)" />
-      {/* Tail */}
-      <path d="M 75 -20 Q 95 -45 90 -55" stroke="#18181B" strokeWidth={5} fill="none" strokeLinecap="round" />
-      {/* Back Legs */}
-      <rect x={50} y={35} width={16} height={70} rx={4} fill="#E2E8F0" stroke="#18181B" strokeWidth={4} />
-      <polygon points="48,100 68,100 66,108 46,108" fill="#18181B" />
-      <rect x={32} y={35} width={16} height={68} rx={4} fill="#CBD5E1" stroke="#18181B" strokeWidth={4} />
-      <polygon points="30,98 50,98 48,106 28,106" fill="#18181B" />
-      {/* Front Legs */}
-      <rect x={-50} y={35} width={16} height={70} rx={4} fill="#E2E8F0" stroke="#18181B" strokeWidth={4} />
-      <polygon points="-52,100 -32,100 -34,108 -54,108" fill="#18181B" />
-      <rect x={-68} y={35} width={16} height={68} rx={4} fill="#CBD5E1" stroke="#18181B" strokeWidth={4} />
-      <polygon points="-70,98 -50,98 -52,106 -72,106" fill="#18181B" />
-      {/* Udder with 2 teats */}
-      <g transform="translate(18, 48)">
-        <ellipse cx={0} cy={0} rx={14} ry={12} fill="#FDA4AF" stroke="#18181B" strokeWidth={3} />
-        <rect x={-8} y={8} width={6} height={12} rx={3} fill="#FDA4AF" stroke="#18181B" strokeWidth={2.5} />
-        <rect x={2} y={8} width={6} height={12} rx={3} fill="#FDA4AF" stroke="#18181B" strokeWidth={2.5} />
+      {/* Ground Shadow */}
+      <ellipse cx={0} cy={112} rx={105} ry={14} fill="rgba(0,0,0,0.12)" />
+
+      {/* Perky Goat Tail */}
+      <path
+        d="M 68 -8 Q 88 -28 84 -38 Q 76 -32 68 2 Z"
+        fill="#F8FAFC"
+        stroke="#18181B"
+        strokeWidth={3.5}
+        strokeLinejoin="round"
+      />
+
+      {/* Far Hind Leg */}
+      <g opacity={0.85}>
+        <path d="M 40 25 L 56 60 L 46 102 L 60 102 L 66 62 L 50 25 Z" fill="#CBD5E1" stroke="#18181B" strokeWidth={3.5} />
+        <polygon points="44,102 62,102 60,110 42,110" fill="#18181B" />
       </g>
-      {/* Body */}
-      <ellipse cx={0} cy={5} rx={78} ry={42} fill="#F8FAFC" stroke="#18181B" strokeWidth={DOODLE_WIDTH} />
-      {/* Head and Neck */}
-      <g transform={`translate(-70, -35) rotate(${chew})`}>
-        {/* Horns */}
-        <path d="M 0 -15 Q 15 -45 35 -40" stroke="#94A3B8" strokeWidth={6} fill="none" strokeLinecap="round" />
-        <path d="M -12 -15 Q 2 -45 22 -42" stroke="#64748B" strokeWidth={6} fill="none" strokeLinecap="round" />
-        {/* Ears */}
-        <ellipse cx={12} cy={-5} rx={14} ry={7} fill="#F8FAFC" stroke="#18181B" strokeWidth={3} transform="rotate(25 12 -5)" />
-        {/* Head */}
-        <polygon points="-25,18 8,-12 12,8 -8,28" fill="#F8FAFC" stroke="#18181B" strokeWidth={4} strokeLinejoin="round" />
-        {/* Eye */}
-        <circle cx={-2} cy={2} r={4.5} fill="#18181B" />
-        {/* Snout */}
-        <circle cx={-22} cy={20} r={5} fill="#FDA4AF" />
-        {/* Beard */}
-        <polygon points="-22,24 -26,38 -16,32" fill="#E2E8F0" stroke="#18181B" strokeWidth={2.5} />
+
+      {/* Far Foreleg */}
+      <g opacity={0.85}>
+        <path d="M -48 25 L -52 65 L -48 102 L -36 102 L -38 65 L -36 25 Z" fill="#CBD5E1" stroke="#18181B" strokeWidth={3.5} />
+        <polygon points="-50,102 -34,102 -36,110 -52,110" fill="#18181B" />
+      </g>
+
+      {/* Caprine Udder with 2 clean teats */}
+      <g transform="translate(18, 42)">
+        <ellipse cx={0} cy={0} rx={16} ry={13} fill="#FDA4AF" stroke="#18181B" strokeWidth={3} />
+        <path d="M -8 8 C -8 18 -3 22 -3 22 C -3 22 0 18 0 8" fill="#FDA4AF" stroke="#18181B" strokeWidth={2.5} />
+        <path d="M 3 8 C 3 18 8 22 8 22 C 8 22 11 18 11 8" fill="#FDA4AF" stroke="#18181B" strokeWidth={2.5} />
+      </g>
+
+      {/* Near Hind Leg (with realistic hock angle) */}
+      <g>
+        <path d="M 52 20 L 70 58 L 58 104 L 74 104 L 80 58 L 64 20 Z" fill="#F8FAFC" stroke="#18181B" strokeWidth={DOODLE_WIDTH} />
+        <polygon points="56,104 76,104 74,112 54,112" fill="#18181B" />
+      </g>
+
+      {/* Anatomical Caprine Torso */}
+      <path
+        d="M -65 15 C -72 -20 -40 -35 15 -35 C 55 -35 75 -18 78 12 C 80 42 60 52 15 52 C -35 52 -58 40 -65 15 Z"
+        fill="#F8FAFC"
+        stroke="#18181B"
+        strokeWidth={DOODLE_WIDTH}
+        strokeLinejoin="round"
+      />
+
+      {/* Near Foreleg (slender caprine front limb) */}
+      <g>
+        <path d="M -36 22 L -38 65 L -34 104 L -20 104 L -24 65 L -22 22 Z" fill="#F8FAFC" stroke="#18181B" strokeWidth={DOODLE_WIDTH} />
+        <polygon points="-36,104 -18,104 -20,112 -38,112" fill="#18181B" />
+      </g>
+
+      {/* Upright Arching Neck */}
+      <path
+        d="M -48 10 C -58 -25 -52 -60 -72 -80 C -85 -55 -72 -15 -62 20 Z"
+        fill="#F8FAFC"
+        stroke="#18181B"
+        strokeWidth={DOODLE_WIDTH}
+        strokeLinejoin="round"
+      />
+
+      {/* Goat Head & Horns with chewing animation */}
+      <g transform={`translate(-76, -75) rotate(${chew})`}>
+        {/* Ribbed Backward Scythe Horns */}
+        <g>
+          {/* Far Horn */}
+          <path
+            d="M 4 -12 C 14 -40 38 -55 52 -52 C 40 -45 22 -35 14 -8 Z"
+            fill="#64748B"
+            stroke="#18181B"
+            strokeWidth={3}
+          />
+          {/* Near Horn */}
+          <path
+            d="M -6 -12 C 6 -46 32 -62 48 -58 C 34 -50 14 -38 4 -8 Z"
+            fill="#94A3B8"
+            stroke="#18181B"
+            strokeWidth={3.5}
+          />
+          {/* Horn Ridge Grooves */}
+          <line x1={8} y1={-25} x2={16} y2={-20} stroke="#475569" strokeWidth={2.5} />
+          <line x1={18} y1={-36} x2={26} y2={-32} stroke="#475569" strokeWidth={2.5} />
+          <line x1={28} y1={-46} x2={36} y2={-43} stroke="#475569" strokeWidth={2.5} />
+        </g>
+
+        {/* Caprine Drooping/Alert Ears */}
+        <ellipse
+          cx={18}
+          cy={-4}
+          rx={18}
+          ry={7}
+          fill="#F8FAFC"
+          stroke="#18181B"
+          strokeWidth={3}
+          transform="rotate(20 18 -4)"
+        />
+        <ellipse cx={18} cy={-4} rx={12} ry={4} fill="#FDA4AF" transform="rotate(20 18 -4)" />
+
+        {/* Wedge-Shaped Head */}
+        <polygon
+          points="-28,18 10,-12 16,8 -12,28"
+          fill="#F8FAFC"
+          stroke="#18181B"
+          strokeWidth={DOODLE_WIDTH}
+          strokeLinejoin="round"
+        />
+
+        {/* Sweet Almond Eye with Horizontal Pupil */}
+        <ellipse cx={-2} cy={2} rx={6} ry={4.5} fill="#FEF08A" stroke="#18181B" strokeWidth={2.5} />
+        <ellipse cx={-2} cy={2} rx={4} ry={1.8} fill="#18181B" />
+
+        {/* Pink Muzzle with Nostril */}
+        <ellipse cx={-26} cy={22} rx={7} ry={6} fill="#FDA4AF" stroke="#18181B" strokeWidth={2.5} />
+        <circle cx={-26} cy={20} r={2} fill="#881337" />
+
+        {/* Classic Goatee Beard */}
+        <polygon
+          points="-24,28 -32,46 -20,44 -16,30"
+          fill="#E2E8F0"
+          stroke="#18181B"
+          strokeWidth={2.5}
+          strokeLinejoin="round"
+        />
+
+        {/* Chewing Hay Stalk */}
+        <path d="M -26 26 Q -45 32 -55 24" stroke="#84CC16" strokeWidth={3} fill="none" strokeLinecap="round" />
       </g>
     </g>
   );
 };
 
 /**
- * 🐑 Hand-Drawn Fluffy Sheep
+ * 🐑 Realistic Hand-Drawn Fluffy Sheep
+ * Anatomically authentic ovine silhouette: sculpted layered wool fleece,
+ * classic dark sheep face, droopy woolly ears, white fleece crown, and cloven trotters.
  */
 export const DoodleSheep: React.FC<{
   x: number;
   y: number;
   scale?: number;
 }> = ({ x, y, scale = 1 }) => {
+  const frame = useCurrentFrame();
+  const chew = Math.sin(frame * 0.2) * 2;
+
   return (
     <g transform={`translate(${x}, ${y}) scale(${scale})`}>
-      {/* Shadow */}
-      <ellipse cx={0} cy={95} rx={85} ry={14} fill="rgba(0,0,0,0.12)" />
-      {/* Legs */}
-      <rect x={40} y={25} width={14} height={65} rx={4} fill="#334155" stroke="#18181B" strokeWidth={4} />
-      <rect x={20} y={25} width={14} height={62} rx={4} fill="#1E293B" stroke="#18181B" strokeWidth={4} />
-      <rect x={-40} y={25} width={14} height={65} rx={4} fill="#334155" stroke="#18181B" strokeWidth={4} />
-      <rect x={-60} y={25} width={14} height={62} rx={4} fill="#1E293B" stroke="#18181B" strokeWidth={4} />
-      {/* Fluffy Wool Body */}
-      <g fill="#FFFFFF" stroke="#18181B" strokeWidth={DOODLE_WIDTH}>
-        <circle cx={-45} cy={-10} r={32} />
-        <circle cx={-15} cy={-25} r={35} />
-        <circle cx={25} cy={-25} r={35} />
-        <circle cx={55} cy={-10} r={30} />
-        <circle cx={40} cy={15} r={32} />
-        <circle cx={0} cy={22} r={34} />
-        <circle cx={-35} cy={15} r={32} />
-        <circle cx={0} cy={-5} r={40} fill="#F8FAFC" stroke="none" />
+      {/* Ground Shadow */}
+      <ellipse cx={0} cy={105} rx={95} ry={14} fill="rgba(0,0,0,0.12)" />
+
+      {/* Far Trotters */}
+      <g opacity={0.85}>
+        <rect x={32} y={35} width={13} height={66} rx={4} fill="#0F172A" stroke="#18181B" strokeWidth={3} />
+        <polygon points="30,98 47,98 45,106 28,106" fill="#18181B" />
+        <rect x={-42} y={35} width={13} height={66} rx={4} fill="#0F172A" stroke="#18181B" strokeWidth={3} />
+        <polygon points="-44,98 -27,98 -29,106 -46,106" fill="#18181B" />
       </g>
-      {/* Black Face & Ears */}
-      <g transform="translate(-75, -15)">
-        <ellipse cx={-12} cy={-10} rx={14} ry={7} fill="#1E293B" stroke="#18181B" strokeWidth={3} transform="rotate(-30 -12 -10)" />
-        <ellipse cx={0} cy={0} rx={22} ry={25} fill="#1E293B" stroke="#18181B" strokeWidth={4} />
-        <circle cx={-6} cy={-4} r={6} fill="#FFFFFF" />
-        <circle cx={-4} cy={-4} r={3} fill="#18181B" />
-        {/* White wool tuft */}
-        <circle cx={2} cy={-20} r={10} fill="#FFFFFF" stroke="#18181B" strokeWidth={3} />
+
+      {/* Fluffy Wool Dock Tail */}
+      <circle cx={72} cy={8} r={16} fill="#F1F5F9" stroke="#18181B" strokeWidth={3.5} />
+
+      {/* Near Trotters */}
+      <g>
+        <rect x={48} y={32} width={14} height={70} rx={4} fill="#1E293B" stroke="#18181B" strokeWidth={DOODLE_WIDTH} />
+        <polygon points="46,100 64,100 62,108 44,108" fill="#18181B" />
+        <rect x={-26} y={32} width={14} height={70} rx={4} fill="#1E293B" stroke="#18181B" strokeWidth={DOODLE_WIDTH} />
+        <polygon points="-28,100 -10,100 -12,108 -30,108" fill="#18181B" />
+      </g>
+
+      {/* Voluminous Textured Wool Fleece Body */}
+      {/* Base Fleece Shadow */}
+      <ellipse cx={10} cy={16} rx={74} ry={48} fill="#E2E8F0" stroke="#18181B" strokeWidth={DOODLE_WIDTH} />
+
+      {/* Layered Cloud Puffs for Authentic Fluffiness */}
+      <g fill="#FFFFFF" stroke="#18181B" strokeWidth={3.5}>
+        <circle cx={-52} cy={-8} r={28} />
+        <circle cx={-28} cy={-28} r={32} />
+        <circle cx={10} cy={-32} r={34} />
+        <circle cx={48} cy={-24} r={30} />
+        <circle cx={68} cy={-2} r={26} />
+        <circle cx={56} cy={22} r={28} />
+        <circle cx={18} cy={30} r={30} />
+        <circle cx={-22} cy={26} r={28} />
+        <circle cx={-48} cy={16} r={26} />
+      </g>
+      {/* Inner Soft Wool Highlights */}
+      <ellipse cx={8} cy={-4} rx={54} ry={36} fill="#FFFFFF" />
+
+      {/* Realistic Dark Sheep Head & Face */}
+      <g transform={`translate(-72, -18) rotate(${chew})`}>
+        {/* Soft Drooping Sheep Ears */}
+        <ellipse
+          cx={14}
+          cy={-8}
+          rx={16}
+          ry={7}
+          fill="#1E293B"
+          stroke="#18181B"
+          strokeWidth={3}
+          transform="rotate(25 14 -8)"
+        />
+        <ellipse
+          cx={-14}
+          cy={-14}
+          rx={16}
+          ry={7}
+          fill="#0F172A"
+          stroke="#18181B"
+          strokeWidth={3}
+          transform="rotate(-25 -14 -14)"
+        />
+
+        {/* Roman-Nose Dark Ovine Head */}
+        <path
+          d="M -16 -18 C 8 -22 22 -6 20 12 C 18 28 -4 34 -20 28 C -32 22 -34 6 -30 -6 C -28 -14 -22 -18 -16 -18 Z"
+          fill="#1E293B"
+          stroke="#18181B"
+          strokeWidth={DOODLE_WIDTH}
+          strokeLinejoin="round"
+        />
+
+        {/* Gentle Expressive Sheep Eye */}
+        <ellipse cx={-4} cy={4} rx={6.5} ry={5.5} fill="#FFFFFF" stroke="#18181B" strokeWidth={2} />
+        <circle cx={-3} cy={4} r={3.5} fill="#18181B" />
+        <circle cx={-4} cy={2.5} r={1.2} fill="#FFFFFF" />
+
+        {/* Cute Pink Nostril */}
+        <ellipse cx={-24} cy={18} rx={4} ry={3} fill="#FDA4AF" />
+
+        {/* Fluffy Woolly Forehead Cap */}
+        <g fill="#FFFFFF" stroke="#18181B" strokeWidth={2.5}>
+          <circle cx={0} cy={-22} r={11} />
+          <circle cx={10} cy={-18} r={9} />
+          <circle cx={-8} cy={-18} r={9} />
+        </g>
       </g>
     </g>
   );
 };
 
 /**
- * 🐫 Hand-Drawn Desert Camel
+ * 🐫 Realistic Hand-Drawn Dromedary Camel
+ * Anatomically authentic desert camel: majestic tall curved hump with woolly tufts,
+ * graceful S-curved muscular neck with ventral hair fringe, noble camel head with
+ * Roman muzzle and split lip, articulated tall legs with broad desert sand pads.
  */
 export const DoodleCamel: React.FC<{
   x: number;
   y: number;
   scale?: number;
 }> = ({ x, y, scale = 1 }) => {
+  const frame = useCurrentFrame();
+  const chew = Math.sin(frame * 0.18) * 2;
+
   return (
     <g transform={`translate(${x}, ${y}) scale(${scale})`}>
-      {/* Shadow */}
-      <ellipse cx={0} cy={170} rx={140} ry={18} fill="rgba(0,0,0,0.12)" />
-      {/* Long Legs */}
-      <rect x={80} y={60} width={20} height={105} rx={5} fill="#D97706" stroke="#18181B" strokeWidth={4} />
-      <polygon points="76,160 104,160 102,168 74,168" fill="#78350F" />
-      <rect x={55} y={60} width={20} height={100} rx={5} fill="#B45309" stroke="#18181B" strokeWidth={4} />
-      <polygon points="51,155 79,155 77,163 49,163" fill="#78350F" />
-      <rect x={-75} y={60} width={20} height={105} rx={5} fill="#D97706" stroke="#18181B" strokeWidth={4} />
-      <polygon points="-79,160 -51,160 -53,168 -81,168" fill="#78350F" />
-      <rect x={-100} y={60} width={20} height={100} rx={5} fill="#B45309" stroke="#18181B" strokeWidth={4} />
-      <polygon points="-104,155 -76,155 -78,163 -106,163" fill="#78350F" />
-      {/* Body with Hump */}
+      {/* Expansive Ground Shadow */}
+      <ellipse cx={0} cy={175} rx={145} ry={20} fill="rgba(0,0,0,0.12)" />
+
+      {/* Far Hind Leg */}
+      <g opacity={0.85}>
+        <path d="M 60 55 L 82 105 L 68 160 L 92 160 L 98 105 L 78 55 Z" fill="#B45309" stroke="#18181B" strokeWidth={3.5} />
+        <ellipse cx={80} cy={165} rx={16} ry={7} fill="#78350F" stroke="#18181B" strokeWidth={3} />
+      </g>
+
+      {/* Far Foreleg */}
+      <g opacity={0.85}>
+        <path d="M -85 55 L -92 105 L -85 160 L -62 160 L -72 105 L -68 55 Z" fill="#B45309" stroke="#18181B" strokeWidth={3.5} />
+        <ellipse cx={-74} cy={165} rx={16} ry={7} fill="#78350F" stroke="#18181B" strokeWidth={3} />
+      </g>
+
+      {/* Slender Tufted Tail */}
+      <path d="M 125 35 Q 148 70 142 110" stroke="#B45309" strokeWidth={6} fill="none" strokeLinecap="round" />
+      <ellipse cx={142} cy={118} rx={10} ry={16} fill="#78350F" stroke="#18181B" strokeWidth={3} transform="rotate(15 142 118)" />
+
+      {/* Near Hind Leg (Authentic camel hock joint & broad foot cushion) */}
+      <g>
+        <path d="M 75 50 L 102 105 L 88 162 L 114 162 L 122 105 L 98 50 Z" fill="#D97706" stroke="#18181B" strokeWidth={DOODLE_WIDTH} />
+        {/* Desert Sand Cushion Pad */}
+        <ellipse cx={101} cy={168} rx={18} ry={8} fill="#B45309" stroke="#18181B" strokeWidth={3.5} />
+        <line x1={101} y1={162} x2={101} y2={173} stroke="#78350F" strokeWidth={2.5} />
+      </g>
+
+      {/* Anatomical Camel Barrel Body with Tall Curved Hump */}
       <path
-        d="M -110 30 C -110 -20 -40 -15 -20 -70 C 0 -115 50 -115 70 -70 C 85 -20 130 -10 130 30 C 130 70 80 85 -20 85 C -90 85 -110 60 -110 30 Z"
-        fill="#F59E0B"
+        d="M -115 45 C -115 -10 -75 -22 -45 -28 C -15 -85 35 -115 72 -75 C 92 -50 115 -20 132 30 C 132 85 70 98 -10 98 C -75 98 -115 80 -115 45 Z"
+        fill="#D97706"
         stroke="#18181B"
         strokeWidth={DOODLE_WIDTH}
+        strokeLinejoin="round"
       />
-      {/* Long S-curve Neck and Head */}
-      <g transform="translate(-110, 10)">
+
+      {/* Woolly Hair Tufts on the Hump */}
+      <path
+        d="M -10 -80 Q 5 -105 25 -95 Q 45 -110 65 -75"
+        stroke="#B45309"
+        strokeWidth={7}
+        fill="none"
+        strokeLinecap="round"
+      />
+
+      {/* Sternal Callosity (Chest resting pad) */}
+      <path d="M -110 55 C -110 75 -90 85 -70 85" stroke="#92400E" strokeWidth={7} fill="none" strokeLinecap="round" />
+
+      {/* Near Foreleg (Slender, tall front limb with knee and padded foot) */}
+      <g>
+        <path d="M -70 50 L -76 105 L -68 162 L -44 162 L -54 105 L -50 50 Z" fill="#D97706" stroke="#18181B" strokeWidth={DOODLE_WIDTH} />
+        {/* Desert Sand Cushion Pad */}
+        <ellipse cx={-56} cy={168} rx={18} ry={8} fill="#B45309" stroke="#18181B" strokeWidth={3.5} />
+        <line x1={-56} y1={162} x2={-56} y2={173} stroke="#78350F" strokeWidth={2.5} />
+      </g>
+
+      {/* Graceful Muscular S-Curved Neck */}
+      <path
+        d="M -105 35 C -145 20 -165 -35 -148 -105 C -138 -135 -118 -155 -102 -168 C -92 -150 -105 -115 -112 -80 C -120 -35 -90 10 -75 35 Z"
+        fill="#D97706"
+        stroke="#18181B"
+        strokeWidth={DOODLE_WIDTH}
+        strokeLinejoin="round"
+      />
+
+      {/* Ventral Neck Hair Fringe */}
+      <path
+        d="M -135 -50 Q -148 -70 -140 -95 Q -145 -115 -130 -135"
+        stroke="#B45309"
+        strokeWidth={5}
+        fill="none"
+        strokeLinecap="round"
+      />
+
+      {/* Noble Camel Head with Chewing Jaw */}
+      <g transform={`translate(-104, -172) rotate(${chew})`}>
+        {/* Small Furry Rounded Ear */}
+        <ellipse cx={12} cy={-12} rx={10} ry={7} fill="#B45309" stroke="#18181B" strokeWidth={3} transform="rotate(35 12 -12)" />
+
+        {/* Aristocratic Head Silhouette with Roman Snout */}
         <path
-          d="M 0 20 C -40 20 -70 -40 -60 -100 C -55 -130 -40 -150 -35 -160"
-          stroke="#F59E0B"
-          strokeWidth={35}
-          fill="none"
-          strokeLinecap="round"
-        />
-        <path
-          d="M 0 20 C -40 20 -70 -40 -60 -100 C -55 -130 -40 -150 -35 -160"
+          d="M -28 14 C -36 12 -38 0 -30 -6 C -20 -14 6 -18 18 -6 C 24 6 16 18 4 18 C -12 18 -20 16 -28 14 Z"
+          fill="#D97706"
           stroke="#18181B"
           strokeWidth={DOODLE_WIDTH}
-          fill="none"
+          strokeLinejoin="round"
         />
-        {/* Head */}
-        <g transform="translate(-35, -165)">
-          <ellipse cx={0} cy={0} rx={28} ry={18} fill="#F59E0B" stroke="#18181B" strokeWidth={4} />
-          {/* Ear */}
-          <polygon points="10,-14 22,-26 5,-20" fill="#D97706" stroke="#18181B" strokeWidth={3} />
-          {/* Eye */}
-          <circle cx={-6} cy={-4} r={4.5} fill="#18181B" />
-          {/* Snout */}
-          <ellipse cx={-25} cy={5} rx={14} ry={10} fill="#FDE68A" stroke="#18181B" strokeWidth={3.5} />
-        </g>
+
+        {/* Soft Cream Muzzle with Split Prehensile Upper Lip */}
+        <ellipse cx={-26} cy={8} rx={14} ry={10} fill="#FEF3C7" stroke="#18181B" strokeWidth={3} />
+        {/* Nostril Slit */}
+        <line x1={-30} y1={5} x2={-24} y2={8} stroke="#78350F" strokeWidth={3} strokeLinecap="round" />
+        {/* Split Lip */}
+        <line x1={-32} y1={12} x2={-22} y2={12} stroke="#78350F" strokeWidth={2.5} strokeLinecap="round" />
+
+        {/* Large Dark Almond Eye with Arched Brow */}
+        <ellipse cx={-2} cy={-2} rx={7} ry={5.5} fill="#18181B" />
+        <circle cx={-3} cy={-3} r={2} fill="#FFFFFF" />
+        {/* Curved Brow / Lashes */}
+        <path d="M -8 -8 Q -2 -14 5 -8" stroke="#78350F" strokeWidth={3} fill="none" strokeLinecap="round" />
       </g>
     </g>
   );

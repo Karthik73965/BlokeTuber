@@ -85,21 +85,21 @@ export const Chapter1_Hook: React.FC = () => {
             pupilDirection="center"
           />
 
-          {/* Goat on Left */}
+          {/* Goat on Left with clean bucket placement */}
           <SlideIn direction="left" startFrame={0} distance={400} withSfx>
             <g>
-              <DoodleGoat x={440} y={650} scale={1.15} />
-              <MilkingBucket x={460} y={730} scale={0.9} fillLevel={0.8} />
+              <DoodleGoat x={440} y={640} scale={1.2} />
+              <MilkingBucket x={280} y={720} scale={0.9} fillLevel={0.8} />
               <StoryBadge text="GOAT MILK 🐐" x={440} y={380} fontSize={32} bgColor="#047857" />
             </g>
           </SlideIn>
 
-          {/* Sheep on Right */}
+          {/* Sheep on Right with clean bucket placement */}
           <SlideIn direction="right" startFrame={20} distance={400} withSfx>
             <g>
-              <DoodleSheep x={1480} y={670} scale={1.2} />
-              <MilkingBucket x={1500} y={730} scale={0.9} fillLevel={0.85} />
-              <StoryBadge text="SHEEP MILK 🐑" x={1480} y={380} fontSize={32} bgColor="#475569" />
+              <DoodleSheep x={1460} y={650} scale={1.25} />
+              <MilkingBucket x={1640} y={720} scale={0.9} fillLevel={0.85} />
+              <StoryBadge text="SHEEP MILK 🐑" x={1460} y={380} fontSize={32} bgColor="#475569" />
             </g>
           </SlideIn>
         </FarmPastureEnv>
@@ -112,7 +112,7 @@ export const Chapter1_Hook: React.FC = () => {
         <FarmPastureEnv skyColor="#60A5FA" groundColor="#FDE68A" horizonY={520} showBarn={false}>
           {/* Desert Herder Stickman */}
           <DoodleStickman
-            x={580}
+            x={420}
             y={500}
             scale={1.3}
             shirtColor="#F59E0B"
@@ -122,9 +122,9 @@ export const Chapter1_Hook: React.FC = () => {
             pupilDirection="center"
           />
 
-          {/* Camel */}
-          <DoodleCamel x={1260} y={560} scale={1.1} />
-          <MilkCanister x={1560} y={670} scale={0.9} isOverflowing />
+          {/* Realistic Camel & Clean Metal Canister */}
+          <DoodleCamel x={1120} y={540} scale={1.05} />
+          <MilkCanister x={1480} y={650} scale={1.0} isOverflowing />
 
           <PopIn startFrame={10} withSfx>
             <StoryBadge text="CAMEL MILK 🐫 (DESERT GOLD)" x={960} y={180} fontSize={36} bgColor="#B45309" />

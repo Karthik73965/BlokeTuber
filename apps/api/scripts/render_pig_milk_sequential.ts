@@ -159,12 +159,29 @@ async function main() {
       stdio: 'inherit',
     });
 
+    // Mix in non-copyright background music bed (YouTube Audio Library)
+    const bgmPath = path.resolve(rootDir, 'packages/remotion-video/public/audio/Way Back Home - Simon Herody.mp3');
+    if (fs.existsSync(bgmPath)) {
+      console.log('\n[Audio] 🎵 Mixing non-copyright BGM bed (volume=0.08, voice stays crisp & loud)...');
+      const tempMixedPath = path.resolve(outDir, 'temp_master_with_bgm.mp4');
+      execSync(
+        `ffmpeg -y -i "${masterPath}" -stream_loop -1 -i "${bgmPath}" -filter_complex "[1:a]volume=0.08[bgm];[0:a][bgm]amix=inputs=2:duration=first:dropout_transition=2[aout]" -map 0:v -map "[aout]" -c:v copy -c:a aac -b:a 320k "${tempMixedPath}"`,
+        { stdio: 'inherit' }
+      );
+      fs.copyFileSync(tempMixedPath, masterPath);
+      try { fs.unlinkSync(tempMixedPath); } catch (e) {}
+      console.log('✓ [Audio] BGM bed mixed into Master video losslessly!');
+    }
+
     const masterSizeMb = (fs.statSync(masterPath).size / (1024 * 1024)).toFixed(2);
     console.log(`\n✓ Master Video Stitched Successfully: ${masterPath} (${masterSizeMb} MB)`);
 
     // Snapshot master verification points
     const masterSnaps = [
+      { sec: 4, label: 'ch1_goat_sheep_realism' },
+      { sec: 9, label: 'ch1_camel_realism' },
       { sec: 15, label: 'ch1_hook' },
+      { sec: 50, label: 'ch2_50s_zoom_fixed' },
       { sec: 70, label: 'ch2_access_sow_teats' },
       { sec: 140, label: 'ch3_quantity_40L_canister' },
       { sec: 180, label: 'ch4_cows_won_grass' },
