@@ -13,6 +13,14 @@ import { Chapter3_Health } from './white-home/chapters/Chapter3_Health';
 import { Chapter4_Ritual } from './white-home/chapters/Chapter4_Ritual';
 import { Chapter5_Closing } from './white-home/chapters/Chapter5_Closing';
 import { WhiteHomeMasterVideo } from './white-home/WhiteHomeMasterVideo';
+import { Chapter1_Hook } from './pig-milk/chapters/Chapter1_Hook';
+import { Chapter2_Access } from './pig-milk/chapters/Chapter2_Access';
+import { Chapter3_Quantity } from './pig-milk/chapters/Chapter3_Quantity';
+import { Chapter4_CowsWon } from './pig-milk/chapters/Chapter4_CowsWon';
+import { Chapter5_Processing } from './pig-milk/chapters/Chapter5_Processing';
+import { Chapter6_Domestication } from './pig-milk/chapters/Chapter6_Domestication';
+import { Chapter7_Close } from './pig-milk/chapters/Chapter7_Close';
+import { PigMilkMasterVideo } from './pig-milk/PigMilkMasterVideo';
 
 const defaultProps: DocumentaryVideoProps = {
   timeline: {
@@ -661,6 +669,79 @@ export const RemotionRoot: React.FC = () => {
         id="WhiteHome-Master"
         component={WhiteHomeMasterVideo}
         durationInFrames={21224}
+        fps={30}
+        width={1920}
+        height={1080}
+      />
+
+      {/* Pig Milk Documentary Chapters */}
+      <Composition
+        id="PigMilk-Chapter1-Hook"
+        component={Chapter1_Hook}
+        durationInFrames={1350}
+        fps={30}
+        width={1920}
+        height={1080}
+      />
+
+      <Composition
+        id="PigMilk-Chapter2-Access"
+        component={Chapter2_Access}
+        durationInFrames={2363}
+        fps={30}
+        width={1920}
+        height={1080}
+      />
+
+      <Composition
+        id="PigMilk-Chapter3-Quantity"
+        component={Chapter3_Quantity}
+        durationInFrames={1211}
+        fps={30}
+        width={1920}
+        height={1080}
+      />
+
+      <Composition
+        id="PigMilk-Chapter4-CowsWon"
+        component={Chapter4_CowsWon}
+        durationInFrames={2012}
+        fps={30}
+        width={1920}
+        height={1080}
+      />
+
+      <Composition
+        id="PigMilk-Chapter5-Processing"
+        component={Chapter5_Processing}
+        durationInFrames={2456}
+        fps={30}
+        width={1920}
+        height={1080}
+      />
+
+      <Composition
+        id="PigMilk-Chapter6-Domestication"
+        component={Chapter6_Domestication}
+        durationInFrames={2842}
+        fps={30}
+        width={1920}
+        height={1080}
+      />
+
+      <Composition
+        id="PigMilk-Chapter7-Close"
+        component={Chapter7_Close}
+        durationInFrames={2735}
+        fps={30}
+        width={1920}
+        height={1080}
+      />
+
+      <Composition
+        id="PigMilk-Master"
+        component={PigMilkMasterVideo}
+        durationInFrames={14969}
         fps={30}
         width={1920}
         height={1080}
