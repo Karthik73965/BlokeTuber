@@ -4,6 +4,15 @@ import { DocumentaryVideo } from './compositions/DocumentaryVideo';
 import { DocumentaryVideoProps } from './types';
 import { ChatGPTVideo } from './chatgpt/ChatGPTVideo';
 import { ChatGPTVideoProps } from './chatgpt/types';
+import { AnimatedStoryVideo } from './animated-story/AnimatedStoryVideo';
+import { EnvironmentShowcase } from './animated-story/EnvironmentShowcase';
+import { Chapter0_Hook } from './white-home/chapters/Chapter0_Hook';
+import { Chapter1_Physics } from './white-home/chapters/Chapter1_Physics';
+import { Chapter2_PeoplePain } from './white-home/chapters/Chapter2_PeoplePain';
+import { Chapter3_Health } from './white-home/chapters/Chapter3_Health';
+import { Chapter4_Ritual } from './white-home/chapters/Chapter4_Ritual';
+import { Chapter5_Closing } from './white-home/chapters/Chapter5_Closing';
+import { WhiteHomeMasterVideo } from './white-home/WhiteHomeMasterVideo';
 
 const defaultProps: DocumentaryVideoProps = {
   timeline: {
@@ -567,6 +576,94 @@ export const RemotionRoot: React.FC = () => {
             fps,
           };
         }}
+      />
+
+      <Composition
+        id="WhiteVillagesExplainer"
+        component={AnimatedStoryVideo}
+        durationInFrames={2000}
+        fps={30}
+        width={1920}
+        height={1080}
+        defaultProps={{
+          enableVoiceover: true,
+          enableBgm: true,
+          enableSfx: true,
+        }}
+      />
+
+      <Composition
+        id="EnvironmentShowcase"
+        component={EnvironmentShowcase}
+        durationInFrames={180}
+        fps={30}
+        width={1920}
+        height={1080}
+      />
+
+      {/* White Home 6 Chapters */}
+      <Composition
+        id="WhiteHome-Chapter0-Hook"
+        component={Chapter0_Hook}
+        durationInFrames={2420}
+        fps={30}
+        width={1920}
+        height={1080}
+      />
+
+      <Composition
+        id="WhiteHome-Chapter1-Physics"
+        component={Chapter1_Physics}
+        durationInFrames={4775}
+        fps={30}
+        width={1920}
+        height={1080}
+      />
+
+      <Composition
+        id="WhiteHome-Chapter2-PeoplePain"
+        component={Chapter2_PeoplePain}
+        durationInFrames={2257}
+        fps={30}
+        width={1920}
+        height={1080}
+      />
+
+      <Composition
+        id="WhiteHome-Chapter3-Health"
+        component={Chapter3_Health}
+        durationInFrames={5114}
+        fps={30}
+        width={1920}
+        height={1080}
+      />
+
+      <Composition
+        id="WhiteHome-Chapter4-Ritual"
+        component={Chapter4_Ritual}
+        durationInFrames={1607}
+        fps={30}
+        width={1920}
+        height={1080}
+      />
+
+      <Composition
+        id="WhiteHome-Chapter5-Closing"
+        component={Chapter5_Closing}
+        durationInFrames={5051}
+        fps={30}
+        width={1920}
+        height={1080}
+      />
+
+      {/* Full Stitched Master Documentary */}
+      <Composition
+        id="WhiteHome-Master"
+        component={WhiteHomeMasterVideo}
+        durationInFrames={21224}
+        fps={30}
+        width={1920}
+        height={1080}
       />
     </>
   );

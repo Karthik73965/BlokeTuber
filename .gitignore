@@ -21,6 +21,24 @@ apps/api/uploads/
 apps/api/output/
 uploads/
 output/
+scratch/
+
+# Media & assets (audio, video, images, render stills)
+packages/remotion-video/public/audio/
+packages/remotion-video/public/scenes/
+packages/remotion-video/public/sfx/camera_shutter.mp3
+packages/remotion-video/public/sfx/paper_slide.mp3
+packages/remotion-video/public/sfx/stat_click.mp3
+packages/remotion-video/public/sfx/subtle_hit.mp3
+packages/remotion-video/public/sfx/whoosh_air.mp3
+packages/remotion-video/public/sfx/whoosh_cinematic.mp3
+*.mp4
+*.m4v
+*.mov
+*.avi
+*.jpg
+*.jpeg
+stills/
 
 # Turbo
 .turbo/
