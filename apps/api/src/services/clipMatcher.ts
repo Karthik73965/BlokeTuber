@@ -64,12 +64,15 @@ Rules:
 2. If no available clip matches well, set clipFilename to null, useStock to true, and generate a clean 2-4 word American/USA stockQuery.
 3. Keep stockQuery visual, specific, and grounded in high-quality American documentary real estate style.`;
 
+  // Exclude previously used clips completely to guarantee zero repetition across the entire documentary
+  const validClips = availableClips.filter((c) => !usedClips.has(c) && !usedClips.has(path.basename(c)));
+
   const userMessage = `Script beat: "${beat.text}"
 
-Available clips:
-${availableClips.map((c, i) => `${i + 1}. ${c}${usedClips.has(c) ? ' [already used]' : ''}`).join('\n')}
+Available clips (strictly unique):
+${validClips.length > 0 ? validClips.map((c, i) => `${i + 1}. ${c}`).join('\n') : '(No unused clips available in local library)'}
 
-Pick the best matching clip.`;
+Pick the best matching clip from the list, or set clipFilename to null if none fit accurately.`;
 
   let response = await fetch(`${OPENROUTER_BASE_URL}/chat/completions`, {
     method: 'POST',

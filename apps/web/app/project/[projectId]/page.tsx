@@ -4,6 +4,7 @@ import { useState, useEffect, use } from 'react';
 import Link from 'next/link';
 import styles from '../../dashboard.module.css';
 import { Project, Chapter } from '@repo/shared';
+import { YouTubeLinksModal } from '../../components/YouTubeLinksModal';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
 
@@ -22,6 +23,7 @@ export default function ProjectOverviewPage({
 
   const [isStitching, setIsStitching] = useState(false);
   const [stitchedVideoUrl, setStitchedVideoUrl] = useState<string | null>(null);
+  const [isYouTubeModalOpen, setIsYouTubeModalOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const fetchProjectData = async () => {
@@ -126,6 +128,14 @@ export default function ProjectOverviewPage({
               <span>/</span>
               <span className={styles.breadcrumbActive}>{project.name}</span>
             </div>
+
+            <button
+              className={styles.secondaryBtn}
+              onClick={() => setIsYouTubeModalOpen(true)}
+              style={{ display: 'flex', alignItems: 'center', gap: 6 }}
+            >
+              <span>🎥</span> Add YouTube Links
+            </button>
 
             <button
               className={styles.secondaryBtn}
@@ -346,6 +356,14 @@ export default function ProjectOverviewPage({
           </div>
         </div>
       )}
+
+      {/* YouTube Links Ingestion Modal */}
+      <YouTubeLinksModal
+        projectId={projectId}
+        isOpen={isYouTubeModalOpen}
+        onClose={() => setIsYouTubeModalOpen(false)}
+        apiUrl={API_URL}
+      />
     </div>
   );
 }

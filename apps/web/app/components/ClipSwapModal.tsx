@@ -34,7 +34,7 @@ export const ClipSwapModal: React.FC<ClipSwapModalProps> = ({
   onClose,
   onSwapped,
 }) => {
-  type Tab = 'stock' | 'local';
+  type Tab = 'stock' | 'local' | 'pool';
   const [activeTab, setActiveTab] = useState<Tab>(clipLibraryRoot ? 'local' : 'stock');
 
   // Stock tab state
@@ -49,8 +49,39 @@ export const ClipSwapModal: React.FC<ClipSwapModalProps> = ({
   const [localFolder, setLocalFolder] = useState(clipLibraryRoot || '');
   const [localError, setLocalError] = useState<string | null>(null);
 
+  // Pool tab state (YouTube Sourced Footage)
+  interface SourcedClip {
+    id: string;
+    filename: string;
+    fullPath: string;
+    duration: number;
+    sourceUrl?: string;
+    screenshots: string[];
+    status: 'pending' | 'approved' | 'rejected';
+    rejectionReason?: string;
+    tags?: string[];
+  }
+  const [poolClips, setPoolClips] = useState<SourcedClip[]>([]);
+  const [isLoadingPool, setIsLoadingPool] = useState(false);
+  const [poolFilter, setPoolFilter] = useState<'all' | 'approved'>('all');
+
   const [isSwapping, setIsSwapping] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  const fetchPoolClips = async () => {
+    setIsLoadingPool(true);
+    try {
+      const res = await fetch(`${API_URL}/api/projects/${projectId}/media-pool`);
+      if (res.ok) {
+        const data = await res.json();
+        setPoolClips(data.manifest?.clips || []);
+      }
+    } catch {
+      // ignore
+    } finally {
+      setIsLoadingPool(false);
+    }
+  };
 
   const fetchCandidates = async (searchQuery: string, type: 'video' | 'image') => {
     if (!searchQuery.trim()) return;
@@ -302,6 +333,24 @@ export const ClipSwapModal: React.FC<ClipSwapModalProps> = ({
             }}
           >
             📁 Local Video Folder
+          </button>
+          <button
+            style={{
+              padding: '8px 18px',
+              background: activeTab === 'pool' ? '#0F172A' : '#F8FAFC',
+              color: activeTab === 'pool' ? '#FFFFFF' : '#475569',
+              border: activeTab === 'pool' ? '1px solid #0F172A' : '1px solid #E2E8F0',
+              borderRadius: 8,
+              fontSize: 13,
+              fontWeight: 700,
+              cursor: 'pointer',
+            }}
+            onClick={() => {
+              setActiveTab('pool');
+              fetchPoolClips();
+            }}
+          >
+            🎥 Sourced Raw Footage (YouTube Pool)
           </button>
         </div>
 
@@ -684,6 +733,235 @@ export const ClipSwapModal: React.FC<ClipSwapModalProps> = ({
                     </div>
                   </div>
                 ))}
+            </div>
+          </>
+        )}
+
+        {/* ── TAB 3: SOURCED RAW FOOTAGE (YOUTUBE POOL) ── */}
+        {activeTab === 'pool' && (
+          <>
+            <div
+              style={{
+                padding: '14px 24px',
+                borderBottom: '1px solid #E2E8F0',
+                backgroundColor: '#FFFFFF',
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+              }}
+            >
+              <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+                <span style={{ fontSize: 13, fontWeight: 700, color: '#334155' }}>Filter Status:</span>
+                <button
+                  type="button"
+                  onClick={() => setPoolFilter('all')}
+                  style={{
+                    padding: '6px 12px',
+                    borderRadius: 6,
+                    border: poolFilter === 'all' ? '1px solid #0F172A' : '1px solid #CBD5E1',
+                    background: poolFilter === 'all' ? '#0F172A' : '#F8FAFC',
+                    color: poolFilter === 'all' ? '#FFF' : '#475569',
+                    fontSize: 12,
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                  }}
+                >
+                  All Clips ({poolClips.length})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPoolFilter('approved')}
+                  style={{
+                    padding: '6px 12px',
+                    borderRadius: 6,
+                    border: poolFilter === 'approved' ? '1px solid #16A34A' : '1px solid #CBD5E1',
+                    background: poolFilter === 'approved' ? '#16A34A' : '#F8FAFC',
+                    color: poolFilter === 'approved' ? '#FFF' : '#475569',
+                    fontSize: 12,
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                  }}
+                >
+                  ✅ Approved Only ({poolClips.filter((c) => c.status === 'approved').length})
+                </button>
+              </div>
+
+              <button
+                type="button"
+                onClick={fetchPoolClips}
+                disabled={isLoadingPool}
+                style={{
+                  background: '#F1F5F9',
+                  border: '1px solid #CBD5E1',
+                  borderRadius: 6,
+                  padding: '6px 12px',
+                  fontSize: 12,
+                  fontWeight: 600,
+                  color: '#334155',
+                  cursor: 'pointer',
+                }}
+              >
+                {isLoadingPool ? '⏳ Refreshing...' : '🔄 Refresh Pool'}
+              </button>
+            </div>
+
+            <div
+              style={{
+                padding: '20px 24px',
+                overflowY: 'auto',
+                flex: 1,
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))',
+                gap: 16,
+                alignContent: 'start',
+              }}
+            >
+              {isLoadingPool && (
+                <div style={{ gridColumn: '1 / -1', textAlign: 'center', padding: '40px 0', color: '#64748B' }}>
+                  ⏳ Loading sourced clips from media pool...
+                </div>
+              )}
+
+              {!isLoadingPool && poolClips.length === 0 && (
+                <div
+                  style={{
+                    gridColumn: '1 / -1',
+                    textAlign: 'center',
+                    padding: '40px 0',
+                    color: '#64748B',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    gap: 8,
+                  }}
+                >
+                  <span style={{ fontSize: 36 }}>🎥</span>
+                  <div style={{ fontSize: 14, fontWeight: 600, color: '#334155' }}>
+                    No Sourced Clips in Media Pool Yet
+                  </div>
+                  <div style={{ fontSize: 12, maxWidth: 420 }}>
+                    Click <strong>"🎥 Source Footage (YT)"</strong> in the header to paste YouTube links or auto-search a documentary topic.
+                  </div>
+                </div>
+              )}
+
+              {!isLoadingPool &&
+                poolClips
+                  .filter((c) => (poolFilter === 'approved' ? c.status === 'approved' : true))
+                  .map((clip) => {
+                    const videoSrc = `${API_URL}/api/pipeline/media?file=${encodeURIComponent(clip.fullPath.replace(/\\/g, '/'))}`;
+                    const posterSrc =
+                      clip.screenshots && clip.screenshots.length > 0
+                        ? `${API_URL}/api/pipeline/media?file=${encodeURIComponent(clip.screenshots[0]!.replace(/\\/g, '/'))}`
+                        : undefined;
+
+                    return (
+                      <div
+                        key={clip.id}
+                        style={{
+                          backgroundColor: '#FAF9F6',
+                          border: isSwapping === clip.filename ? '2px solid #D97706' : '1.5px solid #E2E8F0',
+                          borderRadius: 12,
+                          overflow: 'hidden',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          cursor: 'pointer',
+                          transition: 'all 0.15s ease',
+                        }}
+                        onClick={() =>
+                          handleSelectLocalClip({
+                            filename: clip.filename,
+                            localPath: clip.fullPath,
+                            url: '',
+                          })
+                        }
+                      >
+                        <div style={{ position: 'relative', width: '100%', aspectRatio: '16 / 9', backgroundColor: '#000' }}>
+                          <video
+                            src={videoSrc}
+                            poster={posterSrc}
+                            muted
+                            loop
+                            preload="metadata"
+                            onMouseEnter={(e) => e.currentTarget.play().catch(() => {})}
+                            onMouseLeave={(e) => {
+                              e.currentTarget.pause();
+                              e.currentTarget.currentTime = 0;
+                            }}
+                            style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                          />
+
+                          <div style={{ position: 'absolute', top: 8, left: 8, display: 'flex', gap: 6 }}>
+                            <span
+                              style={{
+                                background: 'rgba(15, 23, 42, 0.85)',
+                                color: '#FFF',
+                                fontSize: 10,
+                                fontFamily: 'JetBrains Mono, monospace',
+                                fontWeight: 700,
+                                padding: '2px 6px',
+                                borderRadius: 4,
+                              }}
+                            >
+                              RAW • {clip.duration ? `${clip.duration.toFixed(1)}s` : '5s'}
+                            </span>
+                            <span
+                              style={{
+                                background:
+                                  clip.status === 'approved'
+                                    ? '#16A34A'
+                                    : clip.status === 'rejected'
+                                    ? '#DC2626'
+                                    : '#D97706',
+                                color: '#FFF',
+                                fontSize: 10,
+                                fontFamily: 'JetBrains Mono, monospace',
+                                fontWeight: 700,
+                                padding: '2px 6px',
+                                borderRadius: 4,
+                                textTransform: 'uppercase',
+                              }}
+                            >
+                              {clip.status}
+                            </span>
+                          </div>
+                        </div>
+
+                        <div style={{ padding: '10px 12px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                          <span
+                            style={{
+                              fontSize: 12,
+                              color: '#1E293B',
+                              fontWeight: 600,
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis',
+                              whiteSpace: 'nowrap',
+                              maxWidth: 160,
+                              fontFamily: 'JetBrains Mono, monospace',
+                            }}
+                            title={clip.filename}
+                          >
+                            {clip.filename}
+                          </span>
+                          <button
+                            disabled={Boolean(isSwapping)}
+                            style={{
+                              backgroundColor: '#0F172A',
+                              color: '#FFF',
+                              border: 'none',
+                              borderRadius: 6,
+                              padding: '5px 10px',
+                              fontSize: 11,
+                              fontWeight: 700,
+                              cursor: 'pointer',
+                            }}
+                          >
+                            {isSwapping === clip.filename ? '⏳ Swapping...' : '✓ Use This'}
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
             </div>
           </>
         )}

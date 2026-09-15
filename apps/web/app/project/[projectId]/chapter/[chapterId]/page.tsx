@@ -7,6 +7,7 @@ import { Timeline, Chapter, Project, PacingSpeed } from '@repo/shared';
 import { RemotionPreviewModal } from '../../../../components/RemotionPreviewModal';
 import { ClipSwapModal } from '../../../../components/ClipSwapModal';
 import { BeatCustomizeModal } from '../../../../components/BeatCustomizeModal';
+import { YouTubeLinksModal } from '../../../../components/YouTubeLinksModal';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
 
@@ -103,6 +104,7 @@ export default function ChapterStudioPage({
   const [error, setError] = useState<string | null>(null);
 
   // Modals
+  const [isYouTubeModalOpen, setIsYouTubeModalOpen] = useState(false);
   const [previewModalOpen, setPreviewModalOpen] = useState(false);
   const [swapModalClip, setSwapModalClip] = useState<{
     clipIndex: number;
@@ -347,6 +349,14 @@ export default function ChapterStudioPage({
               <span>/</span>
               <span className={styles.breadcrumbActive}>Chapter 0{chapter.chapterIndex}</span>
             </div>
+
+            <button
+              className={styles.secondaryBtn}
+              onClick={() => setIsYouTubeModalOpen(true)}
+              style={{ display: 'flex', alignItems: 'center', gap: 6 }}
+            >
+              <span>🎥</span> Source Footage (YT)
+            </button>
 
             {timeline && (
               <button className={styles.secondaryBtn} onClick={() => setPreviewModalOpen(true)}>
@@ -1099,6 +1109,14 @@ export default function ChapterStudioPage({
           onClose={() => setPreviewModalOpen(false)}
         />
       )}
+
+      {/* ── YOUTUBE SOURCE FOOTAGE MODAL ───────────────────────────────── */}
+      <YouTubeLinksModal
+        projectId={projectId}
+        isOpen={isYouTubeModalOpen}
+        onClose={() => setIsYouTubeModalOpen(false)}
+        apiUrl={API_URL}
+      />
     </div>
   );
 }

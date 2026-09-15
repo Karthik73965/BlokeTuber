@@ -18,7 +18,10 @@ import { planScriptWithAI, mapPlannedBeatsToTiming } from '../services/aiScriptP
 import { generateDocumentaryImage } from '../services/aiImageGenerator';
 import { buildTimeline, TimedPlannedBeat } from '../services/timelineBuilder';
 import { renderTimelineVideo } from '../services/remotionRenderer';
-import { Timeline, TimelineClip } from '@repo/shared';
+import { Timeline, TimelineClip, OverlayType } from '@repo/shared';
+import { isMediaAllowed, lockMedia, getBannedMediaSet } from '../services/mediaRegistry';
+import { getApprovedClips } from '../services/visualScreening';
+import { getProjectRawDir } from '../services/youtubeSourcing';
 
 export const pipelineRouter = Router();
 
@@ -503,7 +506,8 @@ pipelineRouter.post('/swap-clip', async (req: Request, res: Response) => {
     }
     chaptersStore.update(projectId, chapterId, { timelineJson: timeline });
 
-    // Track used media
+    // Track used media & lock permanently across whole project
+    lockMedia(projectId, mediaUrl, mediaType || 'video', chapter.chapterIndex || 1, clipIndex, destPath);
     projectsStore.addUsedMedia(projectId, [
       {
         id: mediaUrl,
@@ -1079,7 +1083,10 @@ export async function runPipeline(params: {
     );
   }
 
-  let clipFilenames = clipsStore.forProject(project.id).map((c) => c.filename);
+  const projectRawDir = getProjectRawDir(project.id);
+  const approvedRawClips = getApprovedClips(project.id);
+  let clipFilenames = approvedRawClips.map((c) => c.filename);
+
   if (clipLibraryRoot && fs.existsSync(clipLibraryRoot)) {
     try {
       const localFiles = fs.readdirSync(clipLibraryRoot).filter((f) => /\.(mp4|mov|webm|mkv|avi|m4v|jpg|jpeg|png|webp)$/i.test(f));
@@ -1089,6 +1096,12 @@ export async function runPipeline(params: {
       console.warn(`[Job ${jobId}] Could not read local clipLibraryRoot:`, err);
     }
   }
+
+  // Strictly filter out any clip that was already locked out anywhere across the project
+  const bannedMediaSet = getBannedMediaSet(project.id);
+  clipFilenames = clipFilenames.filter((f) => !bannedMediaSet.has(f) && !bannedMediaSet.has(path.basename(f)));
+  console.log(`[Job ${jobId}] 🎯 Available unique raw clips after global lockout filter: ${clipFilenames.length}`);
+
   const masterDuration = timingMap[timingMap.length - 1]?.end || 45;
   const plan = await planScriptWithAI(
     effectiveScript,
@@ -1104,9 +1117,6 @@ export async function runPipeline(params: {
   const timedBeatsRaw = mapPlannedBeatsToTiming(plan.beats, alignments, masterDuration, pacing || chapter?.pacing || 'medium');
 
   // ── 5. Resolve media for every beat ──────────────────────────────────────
-  // Fallback chain:
-  //   video → local clip → stock video → retry broader query → Pexels photo → placeholder
-  //   image → Pexels photo → placeholder
   step('media_resolution');
 
   const stockDir = path.join(jobOutputDir, 'stock');
@@ -1115,14 +1125,15 @@ export async function runPipeline(params: {
   const numberCallouts: Array<{ beatIndex: number; texts: string[] }> = [];
   const timedBeats: TimedPlannedBeat[] = [];
 
-  // Load persistent project-wide used media to guarantee zero duplicate media across chapters
+  // Load persistent project-wide used media to guarantee zero duplicate media anywhere in the video
   const existingProjectMedia = projectsStore.getUsedMedia(project.id);
   const usedMediaUrls = new Set<string>();
   for (const m of existingProjectMedia) {
     if (m.url) usedMediaUrls.add(m.url);
     if (m.id) usedMediaUrls.add(m.id);
   }
-  console.log(`[Job ${jobId}] 🔒 Loaded ${usedMediaUrls.size} previously used media items across project to exclude`);
+  bannedMediaSet.forEach((b) => usedMediaUrls.add(b));
+  console.log(`[Job ${jobId}] 🔒 Loaded ${usedMediaUrls.size} permanently locked media items across project to exclude`);
 
   const newlyUsedMedia: UsedMediaItem[] = [];
 
@@ -1159,40 +1170,39 @@ export async function runPipeline(params: {
     };
 
     if (beat.mediaType === 'video') {
-      // 1. Local clip from library
+      // 1. Local / Approved Raw clip from library or project raw
       if (beat.clipFilename) {
-        const localPath = path.join(clipLibraryRoot, beat.clipFilename);
-        if (fs.existsSync(localPath)) {
+        let localPath = path.join(clipLibraryRoot || '', beat.clipFilename);
+        if (!fs.existsSync(localPath)) {
+          localPath = path.join(projectRawDir, beat.clipFilename);
+        }
+        if (fs.existsSync(localPath) && isMediaAllowed(project.id, beat.clipFilename, localPath)) {
           resolvedPath = localPath;
           if (/\.(jpg|jpeg|png|webp)$/i.test(beat.clipFilename)) {
             (beat as any).mediaType = 'image';
             (beat as any).kenBurns = true;
           }
-          console.log(`  ✅ Local clip: ${beat.clipFilename} (${(beat as any).mediaType})`);
+          lockMedia(project.id, beat.clipFilename, (beat as any).mediaType || 'video', chapterIndex || 1, beat.beatIndex, localPath);
+          console.log(`  ✅ Local clip permanently locked for project: ${beat.clipFilename} (${(beat as any).mediaType})`);
+        } else if (fs.existsSync(localPath)) {
+          console.log(`  🚫 Local clip "${beat.clipFilename}" is locked out (re-use strictly forbidden).`);
         }
       }
 
       // 2. Multi-tier Stock video search with uniqueness tracking & AI vision verification
       if (!resolvedPath && (beat.stockVideoQuery || beat.backupVideoQuery)) {
         const stockResult = await findStockFootage(beat.stockVideoQuery || '', beat.backupVideoQuery, usedMediaUrls, searchOptions);
-        // If isWeak, skip stock and let AI generation handle it (weak = 50–64% confidence)
         if (stockResult && !stockResult.isWeak) {
           const video = stockResult.video;
-          const dest = path.join(stockDir, `video_${i}.mp4`);
-          try {
-            await downloadStockVideo(video, dest);
-            resolvedPath = dest;
-            newlyUsedMedia.push({
-              id: video.url,
-              url: video.url,
-              source: video.source,
-              mediaType: 'video',
-              chapterIndex: chapterIndex || 1,
-              query: beat.stockVideoQuery || '',
-              usedAt: new Date().toISOString(),
-            });
-            console.log(`  📹 Real Stock Video [${video.source}]: ${video.title.slice(0, 40)}`);
-          } catch { /* fall through */ }
+          if (isMediaAllowed(project.id, video.url)) {
+            const dest = path.join(stockDir, `video_${i}.mp4`);
+            try {
+              await downloadStockVideo(video, dest);
+              resolvedPath = dest;
+              lockMedia(project.id, video.url, 'video', chapterIndex || 1, beat.beatIndex, dest);
+              console.log(`  📹 Real Stock Video [${video.source}] permanently locked: ${video.title.slice(0, 40)}`);
+            } catch { /* fall through */ }
+          }
         } else if (stockResult?.isWeak) {
           console.log(`  ⚠️  Skipping weak stock match (50–64%) — will try AI image generation instead`);
         }
@@ -1203,36 +1213,32 @@ export async function runPipeline(params: {
         const photoQuery = beat.stockPhotoQuery || beat.stockVideoQuery || beat.text.slice(0, 40);
         console.log(`  🔄 Video not found — trying real photography: ${photoQuery}`);
         const photo = await findStockPhoto(photoQuery, usedMediaUrls, searchOptions);
-        if (photo) {
+        if (photo && isMediaAllowed(project.id, photo.url)) {
           const dest = path.join(stockDir, `photo_${i}.jpg`);
           try {
             await downloadStockPhoto(photo, dest);
             resolvedPath = dest;
             (beat as any).mediaType = 'image';
-            newlyUsedMedia.push({
-              id: photo.id || photo.url,
-              url: photo.url,
-              source: photo.source,
-              mediaType: 'image',
-              chapterIndex: chapterIndex || 1,
-              query: photoQuery,
-              usedAt: new Date().toISOString(),
-            });
+            lockMedia(project.id, photo.url, 'image', chapterIndex || 1, beat.beatIndex, dest);
             console.log(`  📷 Real Photo: ${photoQuery}`);
           } catch { /* fall through */ }
         }
       }
     } else {
-      // 1. Local clip from library
+      // 1. Local clip from library or project raw
       if (beat.clipFilename) {
-        const localPath = path.join(clipLibraryRoot, beat.clipFilename);
-        if (fs.existsSync(localPath)) {
+        let localPath = path.join(clipLibraryRoot || '', beat.clipFilename);
+        if (!fs.existsSync(localPath)) {
+          localPath = path.join(projectRawDir, beat.clipFilename);
+        }
+        if (fs.existsSync(localPath) && isMediaAllowed(project.id, beat.clipFilename, localPath)) {
           resolvedPath = localPath;
           if (/\.(jpg|jpeg|png|webp)$/i.test(beat.clipFilename)) {
             (beat as any).mediaType = 'image';
             (beat as any).kenBurns = true;
           }
-          console.log(`  ✅ Local clip: ${beat.clipFilename} (${(beat as any).mediaType})`);
+          lockMedia(project.id, beat.clipFilename, (beat as any).mediaType || 'image', chapterIndex || 1, beat.beatIndex, localPath);
+          console.log(`  ✅ Local clip permanently locked: ${beat.clipFilename} (${(beat as any).mediaType})`);
         }
       }
 
@@ -1240,21 +1246,14 @@ export async function runPipeline(params: {
       if (!resolvedPath) {
         const photoQuery = beat.stockPhotoQuery || beat.text.slice(0, 40);
         const photo = await findStockPhoto(photoQuery, usedMediaUrls, searchOptions);
-        if (photo) {
+        if (photo && isMediaAllowed(project.id, photo.url)) {
           const dest = path.join(stockDir, `photo_${i}.jpg`);
           try {
             await downloadStockPhoto(photo, dest);
             resolvedPath = dest;
-            newlyUsedMedia.push({
-              id: photo.id || photo.url,
-              url: photo.url,
-              source: photo.source,
-              mediaType: 'image',
-              chapterIndex: chapterIndex || 1,
-              query: photoQuery,
-              usedAt: new Date().toISOString(),
-            });
-            console.log(`  📷 Real Photo: ${photoQuery}`);
+            (beat as any).mediaType = 'image';
+            lockMedia(project.id, photo.url, 'image', chapterIndex || 1, beat.beatIndex, dest);
+            console.log(`  📷 Real Photo permanently locked: ${photoQuery}`);
           } catch { /* fall through */ }
         }
       }
@@ -1264,22 +1263,16 @@ export async function runPipeline(params: {
         const stockResult = await findStockFootage(beat.stockVideoQuery || beat.stockPhotoQuery || '', beat.backupVideoQuery, usedMediaUrls, searchOptions);
         if (stockResult && !stockResult.isWeak) {
           const video = stockResult.video;
-          const dest = path.join(stockDir, `video_${i}.mp4`);
-          try {
-            await downloadStockVideo(video, dest);
-            resolvedPath = dest;
-            (beat as any).mediaType = 'video';
-            newlyUsedMedia.push({
-              id: video.url,
-              url: video.url,
-              source: video.source,
-              mediaType: 'video',
-              chapterIndex: chapterIndex || 1,
-              query: beat.stockVideoQuery || '',
-              usedAt: new Date().toISOString(),
-            });
-            console.log(`  📹 Fallback Stock Video: ${video.title.slice(0, 40)}`);
-          } catch { /* fall through */ }
+          if (isMediaAllowed(project.id, video.url)) {
+            const dest = path.join(stockDir, `video_${i}.mp4`);
+            try {
+              await downloadStockVideo(video, dest);
+              resolvedPath = dest;
+              (beat as any).mediaType = 'video';
+              lockMedia(project.id, video.url, 'video', chapterIndex || 1, beat.beatIndex, dest);
+              console.log(`  📹 Fallback Stock Video permanently locked: ${video.title.slice(0, 40)}`);
+            } catch { /* fall through */ }
+          }
         }
       }
     }
@@ -1339,127 +1332,14 @@ export async function runPipeline(params: {
       'split_title',
     ]);
 
-    if (beat.layout && BANNED_LAYOUTS.has(beat.layout)) {
-      beat.layout = 'full_bleed_cinematic';
-      beat.layoutData = undefined;
-    }
+    // Enforce Clean Full-Bleed 16:9 Documentary: Zero gimmicky templates
+    beat.layout = 'full_bleed_cinematic';
+    beat.layoutData = undefined;
     if (beat.callout && BANNED_CALLOUT_TYPES.has(beat.callout.type)) {
       beat.callout = null as any;
     }
 
-    // 5. Fetch additional multi-asset stock items for multi-angle layouts (Quad Surveillance, Triptych, etc.)
-    const additionalClipPaths: string[] = [];
-    if (beat.additionalStockQueries && beat.additionalStockQueries.length > 0) {
-      for (let sIdx = 0; sIdx < beat.additionalStockQueries.length; sIdx++) {
-        const sub = beat.additionalStockQueries[sIdx];
-        if (!sub) continue;
-        if (sub.mediaType === 'video') {
-          const slotResult = await findStockFootage(sub.query, null, usedMediaUrls, {
-            visualSubject: sub.query,
-            negativeKeywords: beat.negativeKeywords,
-            useVisionVerification: true,
-            storyContext,
-          });
-          if (slotResult && !slotResult.isWeak) {
-            const v = slotResult.video;
-            const dest = path.join(stockDir, `video_${i}_sub_${sIdx}.mp4`);
-            try {
-              await downloadStockVideo(v, dest);
-              additionalClipPaths.push(dest);
-              newlyUsedMedia.push({
-                id: v.url,
-                url: v.url,
-                source: v.source,
-                mediaType: 'video',
-                chapterIndex: chapterIndex || 1,
-                query: sub.query,
-                usedAt: new Date().toISOString(),
-              });
-            } catch { /* ignore */ }
-          }
-        } else {
-          const p = await findStockPhoto(sub.query, usedMediaUrls, {
-            visualSubject: sub.query,
-            negativeKeywords: beat.negativeKeywords,
-            useVisionVerification: true,
-            storyContext,
-          });
-          if (p) {
-            const dest = path.join(stockDir, `photo_${i}_sub_${sIdx}.jpg`);
-            try {
-              await downloadStockPhoto(p, dest);
-              additionalClipPaths.push(dest);
-              newlyUsedMedia.push({
-                id: p.id || p.url,
-                url: p.url,
-                source: p.source,
-                mediaType: 'image',
-                chapterIndex: chapterIndex || 1,
-                query: sub.query,
-                usedAt: new Date().toISOString(),
-              });
-            } catch { /* ignore */ }
-          }
-        }
-
-        // Slot AI image generation fallback if stock failed for this slot
-        if (additionalClipPaths.length <= sIdx) {
-          const slotDest = path.join(stockDir, `ai_photo_${i}_sub_${sIdx}.png`);
-          const slotGen = await generateDocumentaryImage({
-            visualSubject: sub.query,
-            text: beat.text,
-            projectContext: (project as any).description || '',
-            chapterContext: chapterObj?.description || '',
-            negativeKeywords: beat.negativeKeywords,
-            outputPath: slotDest,
-          });
-          if (slotGen.success && slotGen.outputPath) {
-            additionalClipPaths.push(slotDest);
-            newlyUsedMedia.push({
-              id: `ai_gen_${i}_sub_${sIdx}_${Date.now()}`,
-              url: slotDest,
-              source: 'ai_generated',
-              mediaType: 'image',
-              chapterIndex: chapterIndex || 1,
-              query: sub.query,
-              usedAt: new Date().toISOString(),
-            });
-          }
-        }
-      }
-    }
-
-    // Fix: For polaroid_scatter_desk layout, guarantee all 3 photo slots are filled.
-    // If additionalClipPaths doesn't have 2 side photos, AI-generate them to avoid black boxes.
-    if ((beat as any).layout === 'polaroid_scatter_desk') {
-      const slotsNeeded = 2;
-      while (additionalClipPaths.length < slotsNeeded) {
-        const slotIdx = additionalClipPaths.length;
-        const slotDest = path.join(stockDir, `ai_polaroid_${i}_slot${slotIdx}_${Date.now()}.png`);
-        console.log(`  🎨 [Polaroid Fix] Generating AI photo for empty polaroid slot ${slotIdx + 1}...`);
-        const slotGen = await generateDocumentaryImage({
-          visualSubject: beat.visualSubject || beat.stockPhotoQuery || undefined,
-          text: beat.text,
-          projectContext: (project as any).description || project.scriptText?.slice(0, 300) || '',
-          chapterContext: chapterObj?.description || '',
-          negativeKeywords: beat.negativeKeywords,
-          outputPath: slotDest,
-        });
-        if (slotGen.success && slotGen.outputPath) {
-          additionalClipPaths.push(slotDest);
-        } else {
-          break; // Don't infinite loop if AI gen is failing
-        }
-      }
-    }
-
-    timedBeats.push({ ...beat, resolvedPath, additionalClipPaths } as TimedPlannedBeat);
-  }
-
-  // Persist newly used media to the project
-  if (newlyUsedMedia.length > 0) {
-    projectsStore.addUsedMedia(project.id, newlyUsedMedia);
-    console.log(`[Job ${jobId}] 💾 Saved ${newlyUsedMedia.length} newly used media items to project registry`);
+    timedBeats.push({ ...beat, resolvedPath } as TimedPlannedBeat);
   }
 
   // ── 6. Build Timeline JSON ─────────────────────────────────────────────────
@@ -1474,6 +1354,9 @@ export async function runPipeline(params: {
     chapterTimings: timingMap,
     numberCallouts,
   });
+
+  // Attach authentic film grain and dust/scratch textures
+  timeline.globalOverlays = ['micro_film_grain', 'film_dust_scratches'];
 
   const timelineJsonPath = path.join(jobOutputDir, 'timeline.json');
   fs.writeFileSync(timelineJsonPath, JSON.stringify(timeline, null, 2));
