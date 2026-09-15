@@ -76,6 +76,32 @@ export interface Timeline {
   globalOverlays?: OverlayType[];
 }
 
+export const BANNED_LAYOUTS = new Set<string>([
+  'vintage_crt_monitor',        // L03
+  'editorial_sidebar_column',   // L04
+  'museum_archive_matte',       // L07
+  'desktop_corkboard',          // L08
+  'illuminated_lightbox',       // L10
+  'magnifying_loupe_inspector', // L12
+  'quad_surveillance_matrix',   // L15
+  'horizon_top_bottom_split',   // L16
+]);
+
+export const BANNED_CALLOUT_TYPES = new Set<string>([
+  'map_pingeotag',          // C04
+  'location_badge',         // legacy C04
+  'editorial_quote',        // C05
+  'quote_card',             // legacy C05
+  'court_transcript_card',  // C07
+  'wiretap_intercept',      // C08
+  'polaroid_snapshot',      // C11
+  'marker_circle',          // C13
+  'archival_evidence_tag',  // C14
+  'corner_tag',             // legacy C14
+  'split_milestone_card',   // C18
+  'split_title',            // legacy C18
+]);
+
 /**
  * Maps script beats to seamless, non-overlapping audio timestamps
  * so the sum of all beat durations EXACTLY equals totalAudioDuration.
@@ -275,17 +301,9 @@ export function resolveOverlayForBeat(beat: TimedPlannedBeat, index: number): Ov
   const layout = (beat as any).layout;
   const calloutType = beat.callout?.type;
 
-  if (layout === 'vintage_crt_monitor' || calloutType === 'wiretap_intercept') {
-    return 'vintage_crt_scanlines';
-  }
-  if (layout === 'quad_surveillance_matrix' || calloutType === 'map_pingeotag') {
-    return 'camera_viewfinder_hud';
-  }
   if (
     layout === 'polaroid_scatter_desk' ||
-    layout === 'filmstrip_spool_reel' ||
-    calloutType === 'archival_evidence_tag' ||
-    calloutType === 'polaroid_snapshot'
+    layout === 'filmstrip_spool_reel'
   ) {
     return 'film_dust_scratches';
   }
@@ -297,7 +315,7 @@ export function resolveOverlayForBeat(beat: TimedPlannedBeat, index: number): Ov
   ) {
     return 'archival_halftone_paper';
   }
-  if (calloutType === 'odometer_stat' || calloutType === 'split_milestone_card') {
+  if (calloutType === 'odometer_stat') {
     return 'film_burn_light_leak';
   }
 
@@ -327,25 +345,14 @@ export function resolveTransitionForBeat(beat: TimedPlannedBeat, index: number):
   const layout = (beat as any).layout;
   const calloutType = beat.callout?.type;
 
-  if (calloutType === 'wiretap_intercept' || layout === 'vintage_crt_monitor' || layout === 'quad_surveillance_matrix') {
-    return 'glitch_blink';
-  }
   if (calloutType === 'odometer_stat') {
     return 'zoom_punch';
   }
-  if (
-    calloutType === 'newspaper_headline' ||
-    calloutType === 'polaroid_snapshot' ||
-    calloutType === 'marker_circle' ||
-    layout === 'polaroid_scatter_desk'
-  ) {
+  if (calloutType === 'newspaper_headline' || layout === 'polaroid_scatter_desk') {
     return 'shutter_flash';
   }
-  if (layout === 'split_dual_screen' || layout === 'horizon_top_bottom_split') {
+  if (layout === 'split_dual_screen') {
     return index % 2 === 0 ? 'whip_pan_left' : 'whip_pan_right';
-  }
-  if (layout === 'illuminated_lightbox' || layout === 'museum_archive_matte') {
-    return 'film_burn';
   }
 
   // Dynamic rhythmic variety across cuts
@@ -400,26 +407,13 @@ export function buildTimeline(params: {
       };
     }
 
-    // Number overlays — use word-level alignment for precision
+    // Number overlays — Spoken number badges completely disabled per user directive
     const numberOverlays: NumberOverlay[] = [];
-    if (callout && callout.texts.length > 0) {
-      for (const text of callout.texts) {
-        const phraseTs = findPhraseTimestamp(text, alignments);
-        if (phraseTs) {
-          numberOverlays.push({
-            text,
-            startTime: Math.max(0, phraseTs.start - beat.startTime),
-            endTime: Math.max(0.5, phraseTs.end - beat.startTime),
-            style: 'badge',
-          });
-        }
-      }
-    }
 
     // Resolve exact word-level timing for AI text callouts
     let clipCallout: TimelineClip['callout'] = null;
     const rawCallout = (beat as any).callout;
-    if (rawCallout && rawCallout.line1) {
+    if (rawCallout && rawCallout.line1 && !BANNED_CALLOUT_TYPES.has(rawCallout.type)) {
       const clipDuration = Math.max(0.5, beat.endTime - beat.startTime);
       let startOffset = 0.1; // default: appear almost immediately at clip start
 
@@ -488,8 +482,8 @@ export function buildTimeline(params: {
       endTime: beat.endTime,
       mediaType: beat.mediaType,
       clipPath: beat.resolvedPath,
-      layout: (beat as any).layout,
-      layoutData: (beat as any).layoutData,
+      layout: BANNED_LAYOUTS.has((beat as any).layout) ? 'full_bleed_cinematic' : ((beat as any).layout || 'full_bleed_cinematic'),
+      layoutData: BANNED_LAYOUTS.has((beat as any).layout) ? undefined : (beat as any).layoutData,
       additionalClipPaths: (beat as any).additionalClipPaths || [],
       // AI-generated stock search queries — preserved for audit, regeneration, and dedup
       stockVideoQuery: beat.stockVideoQuery ?? null,

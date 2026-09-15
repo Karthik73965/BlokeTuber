@@ -237,80 +237,68 @@ ${contextDirective ? `\n⚠️ STRICT DIRECTOR BRIEF:\n${contextDirective}\n` : 
 
 ---
 
-### 3. BALANCED 50/50 MOTION GRAPHIC SCREEN LAYOUT RHYTHM (CRITICAL):
-- **~50% Motion Graphic Screen Layouts**: Every other beat (approximately 1 out of every 2 beats) MUST deploy a stylized motion graphic screen layout!
-- **Alternating Rhythm**: Alternate dynamically between a rich motion graphic layout beat (split dual screen, ambient blur frame, open case binder, illuminated lightbox, vintage CRT, museum matte, polaroid desk scatter, filmstrip reel, forensic drafting table, etc.) and a clean full-bleed cinematic b-roll beat.
-- Viewers crave visual stimulation, rich textures, physical evidence desks, and multi-panel motion design. DO NOT leave the video in plain full-bleed b-roll.
+### 3. STORY-FIRST DOCUMENTARY VISUAL RHYTHM (CRITICAL):
+- **85–90% Clean Full-Bleed Cinematic**: The vast majority of beats MUST be clean "full_bleed_cinematic" video or photo with subtle Ken Burns motion. Real documentaries (Vox, Frontline, NYT) let the footage breathe and tell the story.
+- **Stylized Layouts ONLY When Directly Called For**: Use stylized layouts sparingly (only ~10–15% of beats) when presenting specific physical evidence, architectural plans, or documents. NEVER alternate layouts just for the sake of alternating!
+- **Zero Gimmick Layouts**: Do NOT use split sidebars, fake CRT monitors, or complex multi-grids that distract from the narrative.
 
 ---
 
-### 4. SCENE PRESENTATION LAYOUTS (18 Unique Styles):
-- "full_bleed_cinematic": Fullscreen 16:9 + 2.35:1 Cinema Letterbox Bars + 35mm Film Grain (Baseline full-bleed cut).
-- "split_dual_screen": 50/50 Dual Screen Split with golden vertical accent line & independent Ken Burns (Best for before vs after, comparing two perspectives, subject vs environment).
-- "open_case_binder": 3D Manila case file folder with metal 2-hole top prongs on warm blonde oak desk (Best for official records, legal files, transcripts, medical paperwork).
-- "forensic_drafting_table": Blueprint technical drafting paper with GPS grid crosshairs & bottom measurement ruler (Best for site plans, maps, industrial facilities, architectural layouts).
-- "illuminated_lightbox": Backlit light table with 35mm slide mount frame & Kodak Tri-X stamps (Best for photo slides, historical archives, portraits, inspection).
-- "museum_archive_matte": Warm ivory museum wall with framed gallery mat card & subtle camera pull-back (Best for fine art photos, historic moments, formal documents).
-- "desktop_corkboard": Dark mahogany detective desk with blueprint grid overlay and taped evidence (Best for crime scene notes, suspect tracking, evidence photos).
-- "hero_graphic_centerpiece": Floating hero centerpiece frame over deep ambient blurred background (Best for key evidence, hero documents, featured subjects).
-- "ambient_blur_frame": Floating 3D card over bright softened ambient mirror background (Great for portrait photos, stats, human profiles).
-- "vintage_crt_monitor": Retro 1990s beige broadcast terminal on studio desk with scanlines & green timecode (Best for police radio, wiretaps, CCTV, dispatch).
-- "filmstrip_spool_reel": Horizontal 35mm film negative ribbon scrolling sideways on warm ivory paper (Best for archival photos, timelines, historical sequences).
-- "editorial_sidebar_column": 72/28 Asymmetric Video on left + Ivory investigative data rail on right (Best for news articles, court records, statistical breakdowns).
-- "red_string_pinboard": Light blonde corkboard with connected red strings & 3D camera swoop (Best for connecting suspects, clues, locations).
-- "horizon_top_bottom_split": 50/50 Horizontal Split: Aerial Top + Ground Bottom (Best for aerial vs ground comparisons, before vs after).
-- "parallax_triptych_gallery": 3-Panel 3D Parallax Triptych on bright gallery wall (Best for presenting 3 suspects, 3 locations, or 3-step timeline).
-- "quad_surveillance_matrix": 2x2 Multi-Angle Forensic CCTV Grid (Best for multi-angle police raids, perimeter surveillance, building sweeps).
-- "polaroid_scatter_desk": Organic polaroid photo scatter on blonde oak desk (Best for eyewitness photos, physical evidence, family memories).
-- "magnifying_loupe_inspector": Circular optical magnifying loupe gliding over an archival map (Best for GPS coordinates, property boundaries, blueprints).
+### 4. SCENE PRESENTATION LAYOUTS (Approved Styles Only):
+- "full_bleed_cinematic": Fullscreen 16:9 + 2.35:1 Cinema Letterbox Bars + 35mm Film Grain (Baseline standard — use for 85–90% of beats).
+- "split_dual_screen": 50/50 Dual Screen Split with golden vertical accent line (Best for before vs after, comparing two perspectives).
+- "open_case_binder": 3D Manila case file folder with metal 2-hole top prongs on warm blonde oak desk (Best for official records, legal files, paperwork).
+- "forensic_drafting_table": Blueprint technical drafting paper with GPS grid crosshairs & bottom measurement ruler (Best for site plans, maps, architectural layouts).
+- "hero_graphic_centerpiece": Floating hero centerpiece frame over deep ambient blurred background (Best for key evidence, hero documents).
+- "ambient_blur_frame": Floating 3D card over bright softened ambient mirror background (Great for portrait photos, vertical images).
+- "filmstrip_spool_reel": Horizontal 35mm film negative ribbon scrolling sideways on warm ivory paper (Best for archival photos, timelines).
+- "red_string_pinboard": Light blonde corkboard with connected red strings (Best for connecting suspects, clues, locations).
+- "parallax_triptych_gallery": 3-Panel 3D Parallax Triptych on bright gallery wall (Best for presenting 3 locations or 3-step timeline).
+- "polaroid_scatter_desk": Organic polaroid photo scatter on blonde oak desk (Best for eyewitness photos, family memories).
+*BANNED LAYOUTS: NEVER USE vintage_crt_monitor, editorial_sidebar_column, museum_archive_matte, desktop_corkboard, illuminated_lightbox, magnifying_loupe_inspector, quad_surveillance_matrix, horizon_top_bottom_split.*
 
 ---
 
 ### 5. MULTI-ASSET STOCK QUERIES:
 When you choose a multi-asset layout, provide "additionalStockQueries" array so all slots get real matching footage:
 - "split_dual_screen" ➔ provide 1 additional video/image query for the right panel (slot="right_panel", mediaType="video" or "image").
-- "editorial_sidebar_column" ➔ provide 1 additional image query for the right-column context thumbnail (slot="context_image", mediaType="image" e.g. archival document, location photograph, police report, or newspaper snippet).
-- "quad_surveillance_matrix" ➔ provide 3 additional queries for CAM 02, CAM 03, CAM 04 (e.g. slot="cam2", slot="cam3", slot="cam4").
 - "parallax_triptych_gallery" ➔ provide 2 additional queries for Left and Right panels (slot="left_wing", slot="right_wing").
 - "red_string_pinboard" ➔ provide 2 additional queries for Clue Photo A and B (slot="clue_a", slot="clue_b").
 - "polaroid_scatter_desk" ➔ provide 2 additional queries for Photo 1 and Photo 2.
-- "horizon_top_bottom_split" ➔ provide 1 additional query for the ground shot (slot="ground_view").
 
 ---
 
-### 6. TEXT CALLOUTS (20 Documentary Styles):
-Generate callouts ONLY on high-impact story moments (~30–40% of beats). Write like a headline editor at Vice or NYT — specific, punchy, story-driven (3–7 words per line).
-- "newspaper_headline", "redacted_dossier", "polaroid_snapshot", "typewriter_paper", "marker_circle", "wiretap_intercept", "editorial_lower_third", "police_crime_sheet", "odometer_stat", "map_pingeotag", "editorial_quote", "social_tweet_card", "reddit_thread_card", "caution_tape_banner", "archival_evidence_tag", "split_milestone_card", "karaoke_captions", "fullscreen_chapter_title", "court_transcript_card", "forensic_data_card".
+### 6. TEXT CALLOUTS (Approved Documentary Styles Only):
+Generate callouts ONLY on high-impact story moments (~25–35% of beats). Write like a headline editor at Vice or NYT — specific, punchy, story-driven (3–7 words per line).
+- Approved: "newspaper_headline", "editorial_lower_third", "odometer_stat", "redacted_dossier", "police_crime_sheet", "forensic_data_card", "typewriter_paper", "social_tweet_card", "reddit_thread_card", "caution_tape_banner", "fullscreen_chapter_title", "karaoke_captions".
+*BANNED CALLOUTS: NEVER USE map_pingeotag, editorial_quote, court_transcript_card, wiretap_intercept, polaroid_snapshot, marker_circle, archival_evidence_tag, split_milestone_card.*
+*NUMBER BADGES: Spoken number badge popups are completely disabled. Do not generate number callout triggers.*
 
 ---
 
-### 7. VISUAL ATMOSPHERE OVERLAYS (12 Documentary Styles):
-Deploy subtle textural overlays to enhance authenticity, history, surveillance, or mood (~40–60% of beats):
+### 7. VISUAL ATMOSPHERE OVERLAYS (Documentary Styles):
+Deploy subtle textural overlays to enhance authenticity, history, or mood (~30–40% of beats):
 - "film_dust_scratches": Organic 35mm lint, specks & micro-scratches (Best for archival photos, case binders, historic flashbacks).
-- "camera_viewfinder_hud": Investigative crosshairs, REC indicator & lens grid (Best for drone shots, surveillance matrix, tracking).
-- "vhs_glitch_tape_tear": Analog magnetic tape dropouts & sync tear (Best for CRT monitors, wiretaps, leaked tapes, 90s archival).
 - "film_burn_light_leak": Warm amber/crimson edge light flare (Best for sunset landscapes, emotional revelations, memory sequences).
 - "star_sparkle_bokeh": Floating soft luminous light orbs (Best for wealthy estates, city skylines, aspirational scenes).
 - "cinematic_vignette": Deep edge shadow falloff (Best for intense tension, isolated subjects, night b-roll).
 - "micro_film_grain": Fine 35mm grain texture (Best for gritty realism and documentary credibility).
-- "archival_halftone_paper": Newsprint dot texture & aged parchment fibers (Best for newspaper headlines, court filings).
+- "archival_halftone_paper": Newsprint dot texture & aged parchment fibers (Best for newspaper headlines).
 - "chromatic_aberration": Edge color fringing (Best for corruption, distress, unraveling scandals).
 - "sprocket_16mm_film_frame": Vintage film reel perforated edges (Best for filmstrip layouts, family archives).
 - "rain_lens_streaks": Water streaks & cold atmosphere (Best for bleak weather, eviction, somber scenes).
-- "vintage_crt_scanlines": Horizontal phosphor raster lines (Best for news broadcasts, dispatch audio, terminals).
 
 ---
 
-### 8. CINEMATIC SCENE TRANSITIONS (8 Broadcast Styles):
+### 8. CINEMATIC SCENE TRANSITIONS:
 Choose dynamic documentary cut transitions entering this beat to keep the video visually arresting:
-- "shutter_flash": Blinding white camera shutter flash (0.08s) (Best for cutting into newspaper headlines, polaroids, evidence tags).
+- "shutter_flash": Blinding white camera shutter flash (0.08s) (Best for cutting into newspaper headlines, evidence).
 - "film_burn": Warm 35mm light leak flare cut (0.2s) (Best for emotional topic shifts, flashbacks, location transitions).
 - "film_dip_black": Smooth cinematic dip/fade from black (0.25s) (Best for chapter openings, heavy solemn moments, dramatic pauses).
-- "whip_pan_left" / "whip_pan_right": High-speed horizontal camera swipe blur (0.15s) (Best for moving between subjects, cities, rapid narrative progression).
-- "zoom_punch": Rapid snap-zoom scale impact (0.18s) (Best for shocking stats, odometer numbers, key accusations).
-- "glitch_blink": 2-frame CRT sync twitch with chromatic flash (0.1s) (Best for wiretap intercepts, CCTV angles, surveillance matrix).
+- "whip_pan_left" / "whip_pan_right": High-speed horizontal camera swipe blur (0.15s) (Best for moving between subjects, cities).
+- "zoom_punch": Rapid snap-zoom scale impact (0.18s) (Best for shocking stats, key accusations).
 - "crossfade": Gentle documentary dissolve (0.3s) (Best for scenic drone shots, ambient reflections).
-- "cut": Crisp hard cut (The baseline rhythm).
+- "cut": Crisp hard cut (The baseline standard).
 
 ---
 
@@ -319,18 +307,11 @@ Every stylized layout MUST have unique, scene-specific text generated in "layout
 - For "split_dual_screen": provide "title" (e.g. "PERSPECTIVE COMPARISON"), "subtitle" (e.g. "ORIGIN vs DESTINATION").
 - For "open_case_binder": provide "title" (e.g. "CASE FILE #8492"), "subtitle" (e.g. "OFFICIAL RECORD • HOUSING ASSESSMENT"), "tag" (e.g. "CONFIDENTIAL").
 - For "forensic_drafting_table": provide "title" (e.g. "SITE BLUEPRINT"), "coords" (e.g. "SEATTLE, WA • 47.60° N, 122.33° W"), "stamp" (e.g. "ARCHIVAL SURVEY").
-- For "illuminated_lightbox": provide "title" (e.g. "35MM ARCHIVE"), "subtitle" (e.g. "CONTACT SHEET // FRAME 24A").
-- For "museum_archive_matte": provide "title" (e.g. "HISTORICAL DOCUMENT"), "subtitle" (e.g. "KING COUNTY ARCHIVES • 2019").
-- For "desktop_corkboard": provide "notes": 3 evidence notes matching the scene (e.g. ["INCIDENT LOG", "OUTREACH REPORT", "CASEWORKER NOTES"]).
-- For "quad_surveillance_matrix": provide "camLabels": 4 custom camera names tailored to this scene (e.g. ["DASHCAM // ROUTE 66", "CABIN REAR // LIVING AREA", "SIDE MIRROR // NIGHT HIGHWAY", "OVERHEAD SATELLITE"]).
-- For "editorial_sidebar_column": provide "title" (e.g. "EVICTION TRANSCRIPT"), "subtitle" (e.g. "NOTICE TO VACATE • 2018"), "tag" (e.g. "HOUSING FORENSICS"), "coords" (e.g. "QUARTZSITE, AZ • 33.66° N, 114.22° W").
-- For "vintage_crt_monitor": provide "title" (e.g. "POLICE DISPATCH AUDIO"), "tag" (e.g. "FREQ: 460.125 MHz"), "timestamp" (e.g. "OCTOBER 1995 • 04:18 AM").
-- For "red_string_pinboard": provide "notes": 3 evidence notes matching the scene (e.g. ["1995 FORD ECONOLINE", "FINAL EVICTION NOTICE", "PENSION $740/MO"]).
-- For "polaroid_scatter_desk": provide "notes": 3 photo handwriting captions (e.g. ["CAMPGROUND SPOT #4", "VEHICLE REPAIRS", "WINTER 2019"]).
-- For "magnifying_loupe_inspector": provide "title" (e.g. "PROPERTY BOUNDARY SURVEY"), "coords" (e.g. "PARK LIMITS • SECTOR 09"), "stamp" (e.g. "PUBLIC LAND BOUNDARY").
-- For "horizon_top_bottom_split": provide "title" (e.g. "DESERT ENCAMPMENT"), "subtitle" (e.g. "AERIAL PERSPECTIVE vs GROUND REALITY").
+- For "hero_graphic_centerpiece": provide "title" (e.g. "EVIDENCE HIGHLIGHT"), "subtitle" (e.g. "PRIMARY ARTIFACT").
 - For "filmstrip_spool_reel": provide "title" (e.g. "HISTORICAL TIMELINE"), "tag" (e.g. "35MM ARCHIVE • 1998").
-- For "ambient_blur_frame": provide "title" (e.g. "SUBJECT PROFILE"), "subtitle" (e.g. "AGE 71 • NOMAD RESIDENT").
+- For "ambient_blur_frame": provide "title" (e.g. "SUBJECT PROFILE"), "subtitle" (e.g. "AGE 71 • RESIDENT").
+- For "red_string_pinboard": provide "notes": 3 evidence notes matching the scene.
+- For "polaroid_scatter_desk": provide "notes": 3 photo handwriting captions.
 
 ---
 
@@ -687,16 +668,11 @@ export function mapPlannedBeatsToTiming(
       const wordsPerCut = Math.max(1, Math.ceil(beatWords.length / numCuts));
 
       const SUBDIVIDED_LAYOUT_ROTATION: SceneLayoutType[] = [
-        'split_dual_screen',
+        'full_bleed_cinematic',
         'ambient_blur_frame',
         'open_case_binder',
-        'illuminated_lightbox',
-        'vintage_crt_monitor',
-        'museum_archive_matte',
         'forensic_drafting_table',
-        'desktop_corkboard',
-        'editorial_sidebar_column',
-        'filmstrip_spool_reel',
+        'split_dual_screen',
       ];
 
       for (let b = 0; b < numCuts; b++) {

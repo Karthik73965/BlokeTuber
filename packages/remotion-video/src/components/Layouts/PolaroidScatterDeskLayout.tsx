@@ -80,51 +80,117 @@ export const PolaroidScatterDeskLayout: React.FC<LayoutProps> = ({
           position: 'relative',
         }}
       >
-        {/* SCATTERED POLAROID 1 (Top-Left) */}
-        <div
-          style={{
-            position: 'absolute',
-            top: 100,
-            left: 180,
-            width: 320,
-            backgroundColor: '#FAF8F5',
-            padding: '12px 12px 28px',
-            borderRadius: 2,
-            boxShadow: '0 16px 40px rgba(0,0,0,0.14)',
-            transform: 'rotate(-9deg)',
-            overflow: 'hidden',
-          }}
-        >
-          <div style={{ width: '100%', height: 200, backgroundColor: '#27272A', overflow: 'hidden' }}>
-            {renderSlotMedia(photo1)}
+        {/* SCATTERED SLOT 1 (Top-Left) */}
+        {photo1 ? (
+          <div
+            style={{
+              position: 'absolute',
+              top: 100,
+              left: 180,
+              width: 320,
+              backgroundColor: '#FAF8F5',
+              padding: '12px 12px 28px',
+              borderRadius: 2,
+              boxShadow: '0 16px 40px rgba(0,0,0,0.14)',
+              transform: 'rotate(-9deg)',
+              overflow: 'hidden',
+            }}
+          >
+            <div style={{ width: '100%', height: 200, backgroundColor: '#27272A', overflow: 'hidden' }}>
+              {renderSlotMedia(photo1)}
+            </div>
+            <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 700, color: '#44403C', marginTop: 6, textTransform: 'uppercase' }}>
+              {notes[0] || defaultNotes[0]}
+            </div>
           </div>
-          <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 700, color: '#44403C', marginTop: 6, textTransform: 'uppercase' }}>
-            {notes[0] || defaultNotes[0]}
+        ) : (
+          <div
+            style={{
+              position: 'absolute',
+              top: 110,
+              left: 180,
+              width: 310,
+              backgroundColor: '#F9F6F0',
+              padding: '18px 20px',
+              borderRadius: 2,
+              boxShadow: '0 16px 36px rgba(0,0,0,0.12)',
+              transform: 'rotate(-8deg)',
+              border: '1px solid #E2DCD2',
+            }}
+          >
+            <div style={{ borderBottom: '2px solid #991B1B', paddingBottom: 6, marginBottom: 10, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ fontFamily: '"Courier New", monospace', fontSize: 11, fontWeight: 800, color: '#991B1B', letterSpacing: '0.1em' }}>
+                CASE EVIDENCE
+              </span>
+              <span style={{ fontFamily: '"Courier New", monospace', fontSize: 9, color: '#78716C' }}>
+                REC: #084
+              </span>
+            </div>
+            <div style={{ fontFamily: '"Courier New", monospace', fontSize: 10, color: '#44403C', lineHeight: 1.6 }}>
+              <div>TAG: {clip.layoutData?.tag || 'DOCUMENTARY ARCHIVE'}</div>
+              <div>LOC: {clip.layoutData?.coords || 'LOS ANGELES, CA'}</div>
+              <div>DATE: {clip.layoutData?.timestamp || 'SPRING 2015'}</div>
+            </div>
+            <div style={{ marginTop: 12, display: 'inline-block', border: '1.5px solid #991B1B', borderRadius: 2, padding: '2px 8px' }}>
+              <span style={{ fontFamily: '"Courier New", monospace', fontSize: 9, fontWeight: 800, color: '#991B1B', letterSpacing: '0.08em' }}>
+                OFFICIAL RECORD
+              </span>
+            </div>
           </div>
-        </div>
+        )}
 
-        {/* SCATTERED POLAROID 2 (Bottom-Left) */}
-        <div
-          style={{
-            position: 'absolute',
-            bottom: 80,
-            left: 260,
-            width: 300,
-            backgroundColor: '#FAF8F5',
-            padding: '12px 12px 28px',
-            borderRadius: 2,
-            boxShadow: '0 16px 40px rgba(0,0,0,0.14)',
-            transform: 'rotate(11deg)',
-            overflow: 'hidden',
-          }}
-        >
-          <div style={{ width: '100%', height: 190, backgroundColor: '#27272A', overflow: 'hidden' }}>
-            {renderSlotMedia(photo2)}
+        {/* SCATTERED SLOT 2 (Bottom-Left) */}
+        {photo2 ? (
+          <div
+            style={{
+              position: 'absolute',
+              bottom: 80,
+              left: 260,
+              width: 300,
+              backgroundColor: '#FAF8F5',
+              padding: '12px 12px 28px',
+              borderRadius: 2,
+              boxShadow: '0 16px 40px rgba(0,0,0,0.14)',
+              transform: 'rotate(11deg)',
+              overflow: 'hidden',
+            }}
+          >
+            <div style={{ width: '100%', height: 190, backgroundColor: '#27272A', overflow: 'hidden' }}>
+              {renderSlotMedia(photo2)}
+            </div>
+            <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 700, color: '#44403C', marginTop: 6, textTransform: 'uppercase' }}>
+              {notes[1] || defaultNotes[1]}
+            </div>
           </div>
-          <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 700, color: '#44403C', marginTop: 6, textTransform: 'uppercase' }}>
-            {notes[1] || defaultNotes[1]}
+        ) : (
+          <div
+            style={{
+              position: 'absolute',
+              bottom: 90,
+              left: 260,
+              width: 290,
+              backgroundColor: '#F5F1E9',
+              padding: '16px 20px',
+              borderRadius: 2,
+              boxShadow: '0 14px 32px rgba(0,0,0,0.11)',
+              transform: 'rotate(10deg)',
+              border: '1px solid #DFD7C8',
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
+              <div style={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: '#D97706' }} />
+              <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 10, fontWeight: 800, color: '#78350F', letterSpacing: '0.08em' }}>
+                SPECIFICATION MEMO
+              </span>
+            </div>
+            <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 600, color: '#292524', lineHeight: 1.4 }}>
+              {clip.layoutData?.title || 'FIELD INSPECTION & HOUSING LOG'}
+            </div>
+            <div style={{ marginTop: 8, fontFamily: '"Courier New", monospace', fontSize: 9, color: '#78716C' }}>
+              STATUS: VERIFIED CITIZEN REPORT
+            </div>
           </div>
-        </div>
+        )}
 
         {/* PRIMARY HERO POLAROID (Large Center-Right, Focus Target) */}
         <div

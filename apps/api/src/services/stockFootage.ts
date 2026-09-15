@@ -331,6 +331,16 @@ export function computeMetadataRelevanceScore(
     for (const ib of insectBans) allNegative.add(ib);
   }
 
+  // Geographic / cultural demographic guardrails: Prevent foreign slum or non-US crowds in American stories
+  const isAmericanStory = /\b(usa|america|american|los angeles|california|seattle|washington|oakland|detroit|chicago|new york|angeles)\b/i.test(queryLower);
+  if (isAmericanStory) {
+    const foreignBans = [
+      'india', 'indian', 'asia', 'asian', 'delhi', 'mumbai', 'bangladesh', 'pakistan',
+      'africa', 'african', 'slum', 'dhaka', 'philippines', 'third world', 'foreign'
+    ];
+    for (const fb of foreignBans) allNegative.add(fb);
+  }
+
   for (const neg of allNegative) {
     if (neg) {
       const negRegex = new RegExp(`\\b${neg.replace(/[-/\\^$*+?.()|[\]{}]/g, '\\$&')}\\b`, 'i');
@@ -631,8 +641,8 @@ export async function findStockFootage(
         searchPixabay(urbanWords, 6),
       ]);
       const poolU: StockVideo[] = [
-        ...(pexelsU.status === 'fulfilled' ? pexelsU.value : []),
-        ...(pixabayU.status === 'fulfilled' ? pixabayU.value : []),
+        ...(pexelsU.status === 'fulfilled' ? (pexelsU as PromiseFulfilledResult<StockVideo[]>).value : []),
+        ...(pixabayU.status === 'fulfilled' ? (pixabayU as PromiseFulfilledResult<StockVideo[]>).value : []),
       ];
       const scoredU = poolU
         .filter((v) => !usedUrls?.has(v.url))

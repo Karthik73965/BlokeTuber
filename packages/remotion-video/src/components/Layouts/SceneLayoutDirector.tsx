@@ -26,73 +26,63 @@ export interface SceneDirectorProps {
   durationInSeconds: number;
 }
 
-const MOTION_GRAPHIC_ROTATION: SceneLayoutType[] = [
-  'split_dual_screen',
+const SINGLE_ASSET_LAYOUTS: SceneLayoutType[] = [
   'ambient_blur_frame',
-  'open_case_binder',
   'vintage_crt_monitor',
-  'illuminated_lightbox',
-  'filmstrip_spool_reel',
+  'open_case_binder',
+  'editorial_sidebar_column',
   'forensic_drafting_table',
-  'polaroid_scatter_desk',
   'museum_archive_matte',
   'desktop_corkboard',
-  'editorial_sidebar_column',
-  'parallax_triptych_gallery',
   'hero_graphic_centerpiece',
-  'quad_surveillance_matrix',
-  'red_string_pinboard',
-  'horizon_top_bottom_split',
+  'illuminated_lightbox',
+  'filmstrip_spool_reel',
   'magnifying_loupe_inspector',
 ];
 
+const MULTI_ASSET_LAYOUTS: SceneLayoutType[] = [
+  'split_dual_screen',
+  'parallax_triptych_gallery',
+  'quad_surveillance_matrix',
+  'horizon_top_bottom_split',
+  'polaroid_scatter_desk',
+  'red_string_pinboard',
+];
+
+// User-selected banned layouts: L3, L4, L7, L8, L10, L12, L15, L16
+const BANNED_LAYOUTS = new Set<string>([
+  'vintage_crt_monitor',        // L03
+  'editorial_sidebar_column',   // L04
+  'museum_archive_matte',       // L07
+  'desktop_corkboard',          // L08
+  'illuminated_lightbox',       // L10
+  'magnifying_loupe_inspector', // L12
+  'quad_surveillance_matrix',   // L15
+  'horizon_top_bottom_split',   // L16
+]);
+
 export function resolveSceneLayout(clip: TimelineClip, clipIndex: number): SceneLayoutType {
-  // 1. Explicit stylized layout assignment (non-full-bleed)
-  if (clip.layout && clip.layout !== 'full_bleed_cinematic') {
+  const hasMultipleAssets = !!(
+    clip.secondaryClipPath ||
+    (clip.additionalClipPaths && clip.additionalClipPaths.length > 0)
+  );
+
+  // 1. Explicit layout assignment (STRICTLY OBEYED, with banned layout filtering)
+  if (clip.layout) {
+    if (clip.layout === 'full_bleed_cinematic' || BANNED_LAYOUTS.has(clip.layout)) {
+      return 'full_bleed_cinematic';
+    }
+    // If layout requires multiple assets but clip has only 1, gracefully downgrade to full_bleed_cinematic
+    if (
+      !hasMultipleAssets &&
+      ['parallax_triptych_gallery', 'split_dual_screen', 'polaroid_scatter_desk', 'red_string_pinboard'].includes(clip.layout)
+    ) {
+      return 'full_bleed_cinematic';
+    }
     return clip.layout;
   }
 
-  // 2. Intelligent rule-based director based on callout type
-  const calloutType = clip.callout?.type;
-
-  if (calloutType === 'wiretap_intercept' || calloutType === 'police_crime_sheet') {
-    return 'vintage_crt_monitor';
-  }
-
-  if (calloutType === 'archival_evidence_tag' || calloutType === 'marker_circle') {
-    return 'red_string_pinboard';
-  }
-
-  if (calloutType === 'polaroid_snapshot') {
-    return 'polaroid_scatter_desk';
-  }
-
-  if (calloutType === 'court_transcript_card' || calloutType === 'redacted_dossier') {
-    return 'open_case_binder';
-  }
-
-  if (calloutType === 'map_pingeotag' || calloutType === 'forensic_data_card') {
-    return 'forensic_drafting_table';
-  }
-
-  if (
-    calloutType === 'newspaper_headline' ||
-    calloutType === 'editorial_quote' ||
-    calloutType === 'editorial_lower_third'
-  ) {
-    return 'editorial_sidebar_column';
-  }
-
-  if (calloutType === 'split_milestone_card') {
-    return 'split_dual_screen';
-  }
-
-  // 3. Balanced 50/50 Rhythm: Alternate every other beat between motion graphics and full-bleed b-roll
-  if (clipIndex % 2 === 1) {
-    const layoutIdx = Math.floor(clipIndex / 2) % MOTION_GRAPHIC_ROTATION.length;
-    return MOTION_GRAPHIC_ROTATION[layoutIdx]!;
-  }
-
+  // 2. Default to clean full-bleed cinematic (NO random layout roulette)
   return 'full_bleed_cinematic';
 }
 

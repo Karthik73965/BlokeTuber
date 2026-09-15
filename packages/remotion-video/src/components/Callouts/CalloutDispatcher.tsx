@@ -44,100 +44,85 @@ export interface OverlayLayerProps {
   clipDurationInSeconds: number;
 }
 
+// User-selected banned callouts: C04, C05, C07, C08, C11, C13, C14, C18
+const BANNED_CALLOUT_TYPES = new Set<string>([
+  'map_pingeotag',          // C04
+  'location_badge',         // legacy C04
+  'editorial_quote',        // C05
+  'quote_card',             // legacy C05
+  'court_transcript_card',  // C07
+  'wiretap_intercept',      // C08
+  'polaroid_snapshot',      // C11
+  'marker_circle',          // C13
+  'archival_evidence_tag',  // C14
+  'corner_tag',             // legacy C14
+  'split_milestone_card',   // C18
+  'split_title',            // legacy C18
+]);
+
 export const CalloutDispatcher: React.FC<OverlayLayerProps> = ({
   callout,
-  numberOverlays,
   clipDurationInSeconds,
 }) => {
-  return (
-    <>
-      {/* Legacy Number Badges if present */}
-      {numberOverlays?.map((overlay, index) => (
-        <NumberBadge
-          key={`num_${index}`}
-          overlay={overlay}
-          clipDurationInSeconds={clipDurationInSeconds}
-        />
-      ))}
+  // Spoken number badges are completely removed per user instruction.
 
-      {/* Main AI Callout */}
-      {callout && callout.line1 && (() => {
-        const type = callout.type || 'editorial_lower_third';
-        const props = { callout, clipDurationInSeconds };
+  /* Main AI Callout */
+  if (!callout || !callout.line1) return null;
 
-        switch (type) {
-          // ── The 20 Unique Documentary Styles ──
-          case 'newspaper_headline':
-            return <NewspaperHeadline {...props} />;
-          case 'redacted_dossier':
-            return <RedactedDossier {...props} />;
-          case 'polaroid_snapshot':
-            return <PolaroidSnapshot {...props} />;
-          case 'typewriter_paper':
-            return <TypewriterPaper {...props} />;
-          case 'marker_circle':
-            return <MarkerCircle {...props} />;
-          case 'wiretap_intercept':
-            return <WiretapIntercept {...props} />;
-          case 'editorial_lower_third':
-            return <EditorialLowerThird {...props} />;
-          case 'police_crime_sheet':
-            return <PoliceCrimeSheet {...props} />;
-          case 'odometer_stat':
-            return <OdometerStat {...props} />;
-          case 'map_pingeotag':
-            return <MapPinGeotag {...props} />;
-          case 'editorial_quote':
-            return <EditorialQuote {...props} />;
-          case 'social_tweet_card':
-            return <SocialTweetCard {...props} />;
-          case 'reddit_thread_card':
-            return <RedditThreadCard {...props} />;
-          case 'caution_tape_banner':
-            return <CautionTapeBanner {...props} />;
-          case 'archival_evidence_tag':
-            return <ArchivalEvidenceTag {...props} />;
-          case 'split_milestone_card':
-            return <SplitMilestoneCard {...props} />;
-          case 'karaoke_captions':
-            return <KaraokeCaptions {...props} />;
-          case 'fullscreen_chapter_title':
-            return <FullScreenChapterTitle {...props} />;
-          case 'court_transcript_card':
-            return <CourtTranscriptCard {...props} />;
-          case 'forensic_data_card':
-            return <ForensicDataCard {...props} />;
+  const type = callout.type || 'editorial_lower_third';
 
-          // ── Legacy fallbacks ──
-          case 'stat_callout':
-          case 'center_title':
-            return <OdometerStat {...props} />;
-          case 'lower_third':
-            return <EditorialLowerThird {...props} />;
-          case 'location_badge':
-            return <MapPinGeotag {...props} />;
-          case 'evidence_tag':
-            return <RedactedDossier {...props} />;
-          case 'quote_card':
-            return <EditorialQuote {...props} />;
-          case 'chapter_header':
-            return <FullScreenChapterTitle {...props} />;
-          case 'highlight_pill':
-            return <HighlightPill {...props} />;
-          case 'split_title':
-            return <SplitMilestoneCard {...props} />;
-          case 'ticker_bar':
-            return <TickerBar {...props} />;
-          case 'corner_tag':
-            return <ArchivalEvidenceTag {...props} />;
-          case 'full_screen_title':
-            return <FullScreenChapterTitle {...props} />;
-          case 'breaking_news':
-            return <CautionTapeBanner {...props} />;
-          default:
-            return <EditorialLowerThird {...props} />;
-        }
-      })()}
-    </>
-  );
+  // Filter out any banned callouts
+  if (BANNED_CALLOUT_TYPES.has(type)) {
+    return null;
+  }
+
+  const props = { callout, clipDurationInSeconds };
+
+  switch (type) {
+    // ── Approved Documentary Styles ──
+    case 'newspaper_headline':
+      return <NewspaperHeadline {...props} />;
+    case 'editorial_lower_third':
+      return <EditorialLowerThird {...props} />;
+    case 'odometer_stat':
+      return <OdometerStat {...props} />;
+    case 'redacted_dossier':
+      return <RedactedDossier {...props} />;
+    case 'police_crime_sheet':
+      return <PoliceCrimeSheet {...props} />;
+    case 'forensic_data_card':
+      return <ForensicDataCard {...props} />;
+    case 'typewriter_paper':
+      return <TypewriterPaper {...props} />;
+    case 'social_tweet_card':
+      return <SocialTweetCard {...props} />;
+    case 'reddit_thread_card':
+      return <RedditThreadCard {...props} />;
+    case 'caution_tape_banner':
+      return <CautionTapeBanner {...props} />;
+    case 'karaoke_captions':
+      return <KaraokeCaptions {...props} />;
+    case 'fullscreen_chapter_title':
+      return <FullScreenChapterTitle {...props} />;
+
+    // ── Approved Legacy fallbacks ──
+    case 'stat_callout':
+    case 'center_title':
+      return <OdometerStat {...props} />;
+    case 'lower_third':
+      return <EditorialLowerThird {...props} />;
+    case 'evidence_tag':
+      return <RedactedDossier {...props} />;
+    case 'chapter_header':
+    case 'full_screen_title':
+      return <FullScreenChapterTitle {...props} />;
+    case 'highlight_pill':
+      return <HighlightPill {...props} />;
+    case 'ticker_bar':
+      return <TickerBar {...props} />;
+    case 'breaking_news':
+      return <CautionTapeBanner {...props} />;
+    default:
+      return <EditorialLowerThird {...props} />;
+  }
 };

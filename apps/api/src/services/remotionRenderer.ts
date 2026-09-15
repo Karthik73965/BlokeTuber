@@ -318,7 +318,7 @@ export async function renderTimelineVideo(
     serveUrl: bundleUrl,
     codec: 'h264',
     outputLocation: finalOut,
-    timeoutInMilliseconds: 120000,
+    timeoutInMilliseconds: 600000,
     enforceAudioTrack: true,
     inputProps: {
       timeline: resolvedTimeline,

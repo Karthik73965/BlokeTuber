@@ -151,7 +151,48 @@ export const SplitDualScreenLayout: React.FC<LayoutProps> = ({
             />
           )
         ) : (
-          <div style={{ width: '100%', height: '100%', backgroundColor: '#18181F' }} />
+          <div
+            style={{
+              width: '100%',
+              height: '100%',
+              backgroundColor: '#121216',
+              backgroundImage:
+                'radial-gradient(ellipse at 70% 30%, #1E1E28 0%, #0D0D11 100%)',
+              padding: '60px 50px',
+              display: 'flex',
+              flexDirection: 'column',
+              justifyContent: 'center',
+              position: 'relative',
+            }}
+          >
+            {/* Archival watermark grid */}
+            <div
+              style={{
+                position: 'absolute',
+                top: 30,
+                right: 40,
+                fontFamily: '"Courier New", monospace',
+                fontSize: 11,
+                fontWeight: 800,
+                color: '#D97706',
+                letterSpacing: '0.15em',
+              }}
+            >
+              ARCHIVAL DOSSIER // COMP-B
+            </div>
+            <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 700, color: '#F59E0B', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 12 }}>
+              {clip.layoutData?.subtitle || 'DOCUMENTARY INVESTIGATION'}
+            </div>
+            <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 32, fontWeight: 900, color: '#FAFAFA', lineHeight: 1.2, textTransform: 'uppercase', marginBottom: 20 }}>
+              {clip.layoutData?.title || clip.callout?.line1 || 'PARALLEL PERSPECTIVE'}
+            </div>
+            <div style={{ width: 60, height: 3, backgroundColor: '#D97706', marginBottom: 24 }} />
+            <div style={{ fontFamily: '"Courier New", monospace', fontSize: 12, color: '#A1A1AA', lineHeight: 1.8 }}>
+              <div>LOCATION: {clip.layoutData?.coords || 'LOS ANGELES, CALIFORNIA'}</div>
+              <div>CLASSIFICATION: {clip.layoutData?.tag || 'CIVIC ENFORCEMENT RECORD'}</div>
+              <div>VERIFICATION: 100% FIELD-AUTHENTICATED</div>
+            </div>
+          </div>
         )}
         <div
           style={{

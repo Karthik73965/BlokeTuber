@@ -1166,7 +1166,7 @@ export async function runPipeline(params: {
           resolvedPath = localPath;
           if (/\.(jpg|jpeg|png|webp)$/i.test(beat.clipFilename)) {
             (beat as any).mediaType = 'image';
-            beat.kenBurns = true;
+            (beat as any).kenBurns = true;
           }
           console.log(`  ✅ Local clip: ${beat.clipFilename} (${(beat as any).mediaType})`);
         }
@@ -1230,7 +1230,7 @@ export async function runPipeline(params: {
           resolvedPath = localPath;
           if (/\.(jpg|jpeg|png|webp)$/i.test(beat.clipFilename)) {
             (beat as any).mediaType = 'image';
-            beat.kenBurns = true;
+            (beat as any).kenBurns = true;
           }
           console.log(`  ✅ Local clip: ${beat.clipFilename} (${(beat as any).mediaType})`);
         }
@@ -1313,19 +1313,38 @@ export async function runPipeline(params: {
       }
     }
 
-    // Auto-generate additional queries for layouts if not provided by planner
-    if (!beat.additionalStockQueries || beat.additionalStockQueries.length === 0) {
-      if (beat.layout === 'editorial_sidebar_column') {
-        const query = beat.layoutData?.subtitle || beat.layoutData?.title || beat.stockPhotoQuery || beat.text.slice(0, 50);
-        beat.additionalStockQueries = [
-          { slot: 'context_image', query, mediaType: 'image' },
-        ];
-      } else if (beat.layout === 'horizon_top_bottom_split') {
-        const query = beat.layoutData?.subtitle || beat.stockPhotoQuery || beat.text.slice(0, 50);
-        beat.additionalStockQueries = [
-          { slot: 'ground_view', query, mediaType: 'image' },
-        ];
-      }
+    // Sanitize layout and callout against banned lists
+    const BANNED_LAYOUTS = new Set<string>([
+      'vintage_crt_monitor',
+      'editorial_sidebar_column',
+      'museum_archive_matte',
+      'desktop_corkboard',
+      'illuminated_lightbox',
+      'magnifying_loupe_inspector',
+      'quad_surveillance_matrix',
+      'horizon_top_bottom_split',
+    ]);
+    const BANNED_CALLOUT_TYPES = new Set<string>([
+      'map_pingeotag',
+      'location_badge',
+      'editorial_quote',
+      'quote_card',
+      'court_transcript_card',
+      'wiretap_intercept',
+      'polaroid_snapshot',
+      'marker_circle',
+      'archival_evidence_tag',
+      'corner_tag',
+      'split_milestone_card',
+      'split_title',
+    ]);
+
+    if (beat.layout && BANNED_LAYOUTS.has(beat.layout)) {
+      beat.layout = 'full_bleed_cinematic';
+      beat.layoutData = undefined;
+    }
+    if (beat.callout && BANNED_CALLOUT_TYPES.has(beat.callout.type)) {
+      beat.callout = null as any;
     }
 
     // 5. Fetch additional multi-asset stock items for multi-angle layouts (Quad Surveillance, Triptych, etc.)

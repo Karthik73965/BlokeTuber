@@ -87,12 +87,41 @@ export const ParallaxTriptychGalleryLayout: React.FC<LayoutProps> = ({
           border: '1px solid #DCD6C8',
           boxShadow: '0 20px 50px rgba(0,0,0,0.12)',
           transform: `translateY(${leftTranslateY}px) rotateY(8deg) rotate(-1.5deg)`,
-          opacity: 0.85,
+          opacity: 0.9,
           overflow: 'hidden',
         }}
       >
         <div style={{ width: '100%', height: '90%', borderRadius: 2, overflow: 'hidden' }}>
-          {renderMedia(leftSrc)}
+          {clip.additionalClipPaths?.[0] ? (
+            renderMedia(clip.additionalClipPaths[0])
+          ) : (
+            <div
+              style={{
+                width: '100%',
+                height: '100%',
+                backgroundColor: '#F5EFEB',
+                padding: '24px 20px',
+                display: 'flex',
+                flexDirection: 'column',
+                justifyContent: 'space-between',
+                border: '1px dashed #C8BEAC',
+              }}
+            >
+              <div>
+                <div style={{ fontFamily: '"Courier New", monospace', fontSize: 10, fontWeight: 800, color: '#991B1B', letterSpacing: '0.1em' }}>
+                  ARCHIVE // EXHIBIT A
+                </div>
+                <div style={{ width: 30, height: 2, backgroundColor: '#991B1B', margin: '8px 0 12px' }} />
+                <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 700, color: '#292524', lineHeight: 1.4 }}>
+                  {clip.layoutData?.notes?.[0] || 'FIELD CASE RECORD'}
+                </div>
+              </div>
+              <div style={{ fontFamily: '"Courier New", monospace', fontSize: 9, color: '#78716C' }}>
+                <div>LOC: {clip.layoutData?.coords || 'LOS ANGELES, CA'}</div>
+                <div>AUTHENTICITY: VERIFIED</div>
+              </div>
+            </div>
+          )}
         </div>
         <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 10, fontWeight: 800, color: '#78716C', marginTop: 4, textTransform: 'uppercase' }}>
           {clip.layoutData?.notes?.[0] || 'WING A // PERSPECTIVE'}
@@ -143,15 +172,44 @@ export const ParallaxTriptychGalleryLayout: React.FC<LayoutProps> = ({
           border: '1px solid #DCD6C8',
           boxShadow: '0 20px 50px rgba(0,0,0,0.12)',
           transform: `translateY(${rightTranslateY}px) rotateY(-8deg) rotate(1.5deg)`,
-          opacity: 0.85,
+          opacity: 0.9,
           overflow: 'hidden',
         }}
       >
         <div style={{ width: '100%', height: '90%', borderRadius: 2, overflow: 'hidden' }}>
-          {renderMedia(rightSrc)}
+          {clip.additionalClipPaths?.[1] ? (
+            renderMedia(clip.additionalClipPaths[1])
+          ) : (
+            <div
+              style={{
+                width: '100%',
+                height: '100%',
+                backgroundColor: '#F5EFEB',
+                padding: '24px 20px',
+                display: 'flex',
+                flexDirection: 'column',
+                justifyContent: 'space-between',
+                border: '1px dashed #C8BEAC',
+              }}
+            >
+              <div>
+                <div style={{ fontFamily: '"Courier New", monospace', fontSize: 10, fontWeight: 800, color: '#D97706', letterSpacing: '0.1em' }}>
+                  SPECIFICATION // REF-02
+                </div>
+                <div style={{ width: 30, height: 2, backgroundColor: '#D97706', margin: '8px 0 12px' }} />
+                <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 700, color: '#292524', lineHeight: 1.4 }}>
+                  {clip.layoutData?.notes?.[1] || 'FIELD TELEMETRY LOG'}
+                </div>
+              </div>
+              <div style={{ fontFamily: '"Courier New", monospace', fontSize: 9, color: '#78716C' }}>
+                <div>STATUS: OFFICIAL MUNICIPAL RECORD</div>
+                <div>PROJECT: AMERICAN HIDEAWAYS</div>
+              </div>
+            </div>
+          )}
         </div>
         <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 10, fontWeight: 800, color: '#78716C', marginTop: 4, textTransform: 'uppercase' }}>
-          {clip.layoutData?.notes?.[1] || 'WING B // CHRONICLE'}
+          {clip.layoutData?.notes?.[1] || 'WING B // TELEMETRY'}
         </div>
       </div>
 

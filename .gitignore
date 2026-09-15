@@ -21,6 +21,8 @@ apps/api/uploads/
 apps/api/output/
 uploads/
 output/
+scratch/
+packages/remotion-video/public/audio/
 
 # Turbo
 .turbo/
