@@ -31,7 +31,8 @@ export const PopIn: React.FC<{
 
 
 /**
- * 🏷️ High-Contrast Story Pill Badge
+ * 🏷️ High-Contrast Story Pill Badge (SVG)
+ * Engineered with extra safety margins and resilient font fallback to prevent any text clipping
  */
 export const StoryBadge: React.FC<{
   text: string;
@@ -50,11 +51,11 @@ export const StoryBadge: React.FC<{
   fontSize = 32,
   scale = 1,
 }) => {
-  // Generous character width + generous horizontal padding so text and emojis NEVER overflow the pill
-  const charWidth = fontSize * 0.78;
-  const padX = fontSize * 1.6;
-  const width = Math.max(text.length * charWidth + padX * 2, 160);
-  const height = fontSize * 1.9;
+  // Conservative character width (0.85 * fontSize) + generous horizontal padding so text & emojis NEVER clip
+  const charWidth = fontSize * 0.85;
+  const padX = fontSize * 2.2;
+  const width = Math.max(text.length * charWidth + padX, 200);
+  const height = fontSize * 2.1;
 
   return (
     <g transform={`translate(${x}, ${y}) scale(${scale})`}>
@@ -73,7 +74,7 @@ export const StoryBadge: React.FC<{
         y={fontSize * 0.35}
         textAnchor="middle"
         fontSize={fontSize}
-        fontFamily="'Comic Sans MS', cursive, sans-serif"
+        fontFamily="'Comic Sans MS', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif"
         fontWeight="900"
         fill={textColor}
         letterSpacing="0.5px"
@@ -83,6 +84,70 @@ export const StoryBadge: React.FC<{
     </g>
   );
 };
+
+/**
+ * 🏷️ HTML-Based Bulletproof Badge
+ * Zero text-overflow guarantee because the browser computes exact text metrics via flexbox
+ */
+export const HtmlBadge: React.FC<{
+  text: string;
+  x: number;
+  y: number;
+  bgColor?: string;
+  textColor?: string;
+  fontSize?: number;
+  scale?: number;
+}> = ({
+  text,
+  x,
+  y,
+  bgColor = '#0F172A',
+  textColor = '#FFFFFF',
+  fontSize = 28,
+  scale = 1,
+}) => {
+  return (
+    <div
+      style={{
+        position: 'absolute',
+        left: x,
+        top: y,
+        transform: `translate(-50%, -50%) scale(${scale})`,
+        backgroundColor: bgColor,
+        color: textColor,
+        fontFamily: "'Comic Sans MS', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
+        fontWeight: 900,
+        fontSize: `${fontSize}px`,
+        padding: `${Math.round(fontSize * 0.35)}px ${Math.round(fontSize * 0.9)}px`,
+        borderRadius: 9999,
+        border: '3.5px solid #FFFFFF',
+        boxShadow: '0 6px 20px rgba(0,0,0,0.3)',
+        whiteSpace: 'nowrap',
+        display: 'inline-flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        zIndex: 50,
+        pointerEvents: 'none',
+      }}
+    >
+      {text}
+    </div>
+  );
+};
+
+/**
+ * 🌑 Physical Ground Contact Shadow
+ * Grounds characters, animals, and props so they never appear to float like random stickers
+ */
+export const GroundShadow: React.FC<{
+  x: number;
+  y: number;
+  rx: number;
+  ry: number;
+  opacity?: number;
+}> = ({ x, y, rx, ry, opacity = 0.2 }) => (
+  <ellipse cx={x} cy={y} rx={rx} ry={ry} fill="#0F172A" opacity={opacity} />
+);
 
 /**
  * 🐮 Hand-Drawn Holstein Dairy Cow
@@ -1416,45 +1481,47 @@ export const MammalianNutritionCard: React.FC<{
   return (
     <g transform={`translate(${x}, ${y}) scale(${scale})`}>
       {/* Card Background */}
-      <rect x={-260} y={-170} width={520} height={340} rx={24} fill="#0F172A" stroke="#FFFFFF" strokeWidth={5} />
+      <rect x={-310} y={-175} width={620} height={355} rx={26} fill="#0F172A" stroke="#FFFFFF" strokeWidth={5} />
 
-      {/* Header */}
-      <text x={0} y={-120} textAnchor="middle" fill="#38BDF8" fontSize={26} fontWeight="900" fontFamily="sans-serif">
-        PIG MILK NUTRITION PROFILE
+      {/* Header with Visual Icon */}
+      <text
+        x={0}
+        y={-125}
+        textAnchor="middle"
+        fill="#38BDF8"
+        fontSize={24}
+        fontWeight="900"
+        fontFamily="'Comic Sans MS', -apple-system, BlinkMacSystemFont, sans-serif"
+      >
+        🥛 PIG MILK NUTRITION PROFILE
       </text>
 
       {/* Row 1: FAT */}
-      <g transform="translate(-220, -70)">
-        <text x={0} y={0} fill="#FFFFFF" fontSize={20} fontWeight="bold">FAT CONTENT</text>
-        <text x={330} y={0} fill="#F43F5E" fontSize={22} fontWeight="900">8.5% (High!)</text>
-        <rect x={0} y={10} width={440} height={16} rx={8} fill="#334155" />
-        <rect x={0} y={10} width={440 * 0.85 * barAnim} height={16} rx={8} fill="#F43F5E" />
-        <text x={0} y={38} fill="#94A3B8" fontSize={14}>Cow milk avg: 3.8% fat</text>
+      <g transform="translate(-260, -70)">
+        <text x={0} y={0} fill="#FFFFFF" fontSize={19} fontWeight="bold" fontFamily="'Comic Sans MS', sans-serif">🧈 BUTTERFAT</text>
+        <text x={420} y={0} fill="#F43F5E" fontSize={21} fontWeight="900" fontFamily="'Comic Sans MS', sans-serif">8.5% (Rich!)</text>
+        <rect x={0} y={10} width={520} height={16} rx={8} fill="#334155" />
+        <rect x={0} y={10} width={520 * 0.85 * barAnim} height={16} rx={8} fill="#F43F5E" />
       </g>
 
       {/* Row 2: PROTEIN */}
-      <g transform="translate(-220, 0)">
-        <text x={0} y={0} fill="#FFFFFF" fontSize={20} fontWeight="bold">PROTEIN</text>
-        <text x={330} y={0} fill="#10B981" fontSize={22} fontWeight="900">5.5%</text>
-        <rect x={0} y={10} width={440} height={16} rx={8} fill="#334155" />
-        <rect x={0} y={10} width={440 * 0.65 * barAnim} height={16} rx={8} fill="#10B981" />
-        <text x={0} y={38} fill="#94A3B8" fontSize={14}>Cow milk avg: 3.2% protein</text>
+      <g transform="translate(-260, -5)">
+        <text x={0} y={0} fill="#FFFFFF" fontSize={19} fontWeight="bold" fontFamily="'Comic Sans MS', sans-serif">🥩 PROTEIN</text>
+        <text x={420} y={0} fill="#10B981" fontSize={21} fontWeight="900" fontFamily="'Comic Sans MS', sans-serif">5.5% (High!)</text>
+        <rect x={0} y={10} width={520} height={16} rx={8} fill="#334155" />
+        <rect x={0} y={10} width={520 * 0.65 * barAnim} height={16} rx={8} fill="#10B981" />
       </g>
 
       {/* Row 3: SUGAR & LACTOSE */}
-      <g transform="translate(-220, 70)">
-        <text x={0} y={0} fill="#FFFFFF" fontSize={20} fontWeight="bold">SUGAR / LACTOSE</text>
-        <text x={330} y={0} fill="#FACC15" fontSize={22} fontWeight="900">5.0%</text>
-        <rect x={0} y={10} width={440} height={16} rx={8} fill="#334155" />
-        <rect x={0} y={10} width={440 * 0.55 * barAnim} height={16} rx={8} fill="#FACC15" />
-        <text x={0} y={38} fill="#94A3B8" fontSize={14}>Normal mammalian sugar ratio</text>
+      <g transform="translate(-260, 60)">
+        <text x={0} y={0} fill="#FFFFFF" fontSize={19} fontWeight="bold" fontFamily="'Comic Sans MS', sans-serif">⚡ NATURAL SUGARS</text>
+        <text x={420} y={0} fill="#FACC15" fontSize={21} fontWeight="900" fontFamily="'Comic Sans MS', sans-serif">5.0%</text>
+        <rect x={0} y={10} width={520} height={16} rx={8} fill="#334155" />
+        <rect x={0} y={10} width={520 * 0.55 * barAnim} height={16} rx={8} fill="#FACC15" />
       </g>
 
-      {/* Stamp */}
-      <rect x={-140} y={120} width={280} height={38} rx={19} fill="#059669" stroke="#FFFFFF" strokeWidth={2} />
-      <text x={0} y={145} textAnchor="middle" fill="#FFFFFF" fontSize={18} fontWeight="900">
-        VERDICT: 100% EDIBLE & NUTRITIOUS
-      </text>
+      {/* Auto-Sized Zero-Overflow Verdict Pill */}
+      <StoryBadge text="✔ VERDICT: 100% EDIBLE & NUTRITIOUS" x={0} y={135} fontSize={18} bgColor="#059669" />
     </g>
   );
 };

@@ -209,30 +209,15 @@ export const Chapter1_Hook: React.FC = () => {
           {/* Mammalian Biological Checklist */}
           <g transform="translate(900, 260)">
             <PopIn startFrame={10} withSfx>
-              <g transform="translate(0, 0)">
-                <rect x={-190} y={-24} width={380} height={48} rx={24} fill="#0F172A" stroke="#22C55E" strokeWidth={3} />
-                <text x={0} y={8} textAnchor="middle" fill="#22C55E" fontSize={24} fontWeight="900">
-                  ✔ MAMMALIAN CLASS
-                </text>
-              </g>
+              <StoryBadge text="✔ MAMMALIAN CLASS" x={0} y={0} fontSize={22} bgColor="#0F172A" textColor="#22C55E" />
             </PopIn>
 
             <PopIn startFrame={40} withSfx>
-              <g transform="translate(0, 65)">
-                <rect x={-190} y={-24} width={380} height={48} rx={24} fill="#0F172A" stroke="#22C55E" strokeWidth={3} />
-                <text x={0} y={8} textAnchor="middle" fill="#22C55E" fontSize={24} fontWeight="900">
-                  ✔ PRODUCES REAL MILK
-                </text>
-              </g>
+              <StoryBadge text="✔ PRODUCES REAL MILK" x={0} y={65} fontSize={22} bgColor="#0F172A" textColor="#22C55E" />
             </PopIn>
 
             <PopIn startFrame={75} withSfx>
-              <g transform="translate(0, 130)">
-                <rect x={-190} y={-24} width={380} height={48} rx={24} fill="#0F172A" stroke="#F43F5E" strokeWidth={3} />
-                <text x={0} y={8} textAnchor="middle" fill="#F43F5E" fontSize={24} fontWeight="900">
-                  ✔ HIGH BUTTERFAT: 8.5%
-                </text>
-              </g>
+              <StoryBadge text="✔ HIGH BUTTERFAT: 8.5%" x={0} y={130} fontSize={22} bgColor="#0F172A" textColor="#F43F5E" />
             </PopIn>
           </g>
         </BarnInteriorEnv>
@@ -265,8 +250,8 @@ export const Chapter1_Hook: React.FC = () => {
       {/* BEAT 7: (715 - 845f / 23.8s - 28.1s) "So what's stopping us? Why did humans look at a cow..." */}
       {/* ================================================================ */}
       <Sequence from={715} durationInFrames={130}>
-        <FarmPastureEnv skyColor="#7DD3FC" groundColor="#86EFAC" horizonY={530}>
-          <StoryBadge text="WHY DID HUMANS CHOOSE THE COW? 🐄" x={960} y={170} fontSize={36} bgColor="#1E3A8A" />
+        <FarmPastureEnv skyColor="#7DD3FC" groundColor="#86EFAC" horizonY={530} showBarn={false}>
+          <StoryBadge text="WHY DID HUMANS CHOOSE THE COW? 🐄" x={960} y={150} fontSize={36} bgColor="#1E3A8A" />
 
           {/* Stickman Farmer Inspecting Cow */}
           <DoodleStickman
@@ -276,19 +261,14 @@ export const Chapter1_Hook: React.FC = () => {
             shirtColor="#3B82F6"
             expression="curious"
             pose="holding_magnifier"
-            pupilDirection="center"
+            pupilDirection="right"
           />
 
           <DoodleCow x={1320} y={630} scale={1.15} mood="proud" />
 
-          {/* Decision Pill */}
+          {/* Decision Pill - Using StoryBadge with guaranteed zero-overflow padding */}
           <PopIn startFrame={40} withSfx>
-            <g transform="translate(1320, 360)">
-              <rect x={-180} y={-26} width={360} height={52} rx={26} fill="#059669" stroke="#FFFFFF" strokeWidth={3} />
-              <text x={0} y={10} textAnchor="middle" fill="#FFFFFF" fontSize={26} fontWeight="900">
-                HUMAN: "YES, MILK THAT!" ✔
-              </text>
-            </g>
+            <StoryBadge text='HUMAN: "YES, MILK THAT!" ✔' x={1320} y={330} fontSize={26} bgColor="#059669" />
           </PopIn>
         </FarmPastureEnv>
       </Sequence>
@@ -298,15 +278,12 @@ export const Chapter1_Hook: React.FC = () => {
       {/* ================================================================ */}
       <Sequence from={845} durationInFrames={130}>
         <BarnInteriorEnv>
-          <StoryBadge text="THE REJECTION: COW VS PIG" x={960} y={160} fontSize={36} bgColor="#0F172A" />
+          <StoryBadge text="THE REJECTION: COW VS PIG" x={960} y={150} fontSize={36} bgColor="#0F172A" />
 
           {/* Left Cow: YES */}
           <g transform="translate(420, 640) scale(0.85)">
             <DoodleCow x={0} y={0} scale={1.0} mood="happy" />
-            <rect x={-150} y={-230} width={300} height={48} rx={24} fill="#16A34A" stroke="#FFFFFF" strokeWidth={3} />
-            <text x={0} y={-198} textAnchor="middle" fill="#FFFFFF" fontSize={26} fontWeight="900">
-              COW: "YES! MILK THAT"
-            </text>
+            <StoryBadge text='COW: "YES! MILK THAT"' x={0} y={-210} fontSize={24} bgColor="#16A34A" />
           </g>
 
           {/* Middle Panicking Stickman */}
@@ -325,12 +302,7 @@ export const Chapter1_Hook: React.FC = () => {
             <DoodlePig x={0} y={0} scale={1.1} mood="irritated" />
             <SfxTrigger sound="subtle_hit" volume={0.6} startFrame={30} />
             <PopIn startFrame={30} withSfx>
-              <g transform="translate(0, -220)">
-                <rect x={-180} y={-30} width={360} height={60} rx={30} fill="#DC2626" stroke="#FFFFFF" strokeWidth={4} />
-                <text x={0} y={12} textAnchor="middle" fill="#FFFFFF" fontSize={30} fontWeight="900">
-                  PIG: "ABSOLUTELY NOT!" ❌
-                </text>
-              </g>
+              <StoryBadge text='PIG: "ABSOLUTELY NOT!" ❌' x={0} y={-210} fontSize={26} bgColor="#DC2626" />
             </PopIn>
           </g>
         </BarnInteriorEnv>
@@ -340,39 +312,40 @@ export const Chapter1_Hook: React.FC = () => {
       {/* BEAT 9: (975 - 1105f / 32.5s - 36.8s) "And the answer has almost nothing to do with whether..." */}
       {/* ================================================================ */}
       <Sequence from={975} durationInFrames={130}>
-        <FarmPastureEnv skyColor="#38BDF8" groundColor="#86EFAC" horizonY={530}>
+        <FarmPastureEnv skyColor="#38BDF8" groundColor="#86EFAC" horizonY={530} showBarn={false}>
+          {/* Cafe Stool & Table for Latte Stickman */}
+          <g stroke="#18181B" strokeWidth={5} fill="#B45309">
+            {/* Wooden Table */}
+            <rect x={740} y={600} width={120} height={18} rx={6} fill="#78350F" />
+            <line x1={800} y1={618} x2={800} y2={740} strokeWidth={8} />
+            <line x1={760} y1={740} x2={840} y2={740} strokeWidth={6} />
+            {/* Cute Ceramic Mug with Latte Heart */}
+            <rect x={780} y={565} width={40} height={35} rx={6} fill="#FFFFFF" />
+            <path d="M 820 572 Q 835 580 820 588" fill="none" strokeWidth={4} />
+            {/* Steam Wisp */}
+            <path d="M 795 555 Q 790 540 800 530" fill="none" stroke="#94A3B8" strokeWidth={3} strokeLinecap="round" />
+            <path d="M 808 555 Q 815 540 805 530" fill="none" stroke="#94A3B8" strokeWidth={3} strokeLinecap="round" />
+          </g>
+
           {/* Stickman Sipping Pig Milk Latte */}
           <DoodleStickman
-            x={640}
-            y={510}
+            x={660}
+            y={490}
             scale={1.35}
             shirtColor="#3B82F6"
             expression="smile"
             pose="sipping_drink"
-            pupilDirection="center"
+            pupilDirection="right"
           />
 
-          {/* Myth Buster Stamp */}
-          <g transform="translate(1320, 520)">
-            <rect x={-260} y={-140} width={520} height={280} rx={24} fill="#0F172A" stroke="#FFFFFF" strokeWidth={5} />
-            <text x={0} y={-80} textAnchor="middle" fill="#94A3B8" fontSize={24} fontWeight="bold">
-              COMMON MYTH:
-            </text>
-            <text x={0} y={-35} textAnchor="middle" fill="#F87171" fontSize={32} fontWeight="900">
-              "IS PIG MILK INEDIBLE?"
-            </text>
-
-            {/* Red Cross Stamp over Myth */}
-            <g stroke="#DC2626" strokeWidth={10} strokeLinecap="round">
-              <line x1={-180} y1={-110} x2={180} y2={40} />
-              <line x1={180} y1={-110} x2={-180} y2={40} />
-            </g>
-
-            {/* Reality stamp */}
-            <rect x={-200} y={65} width={400} height={44} rx={22} fill="#059669" />
-            <text x={0} y={96} textAnchor="middle" fill="#FFFFFF" fontSize={22} fontWeight="900">
-              REALITY: TOTALLY SAFE & EDIBLE
-            </text>
+          {/* Visual Reality Callouts with Safe Spacing */}
+          <g transform="translate(1320, 430)">
+            <PopIn startFrame={5}>
+              <StoryBadge text='MYTH: "PIG MILK IS INEDIBLE?" ❌' x={0} y={-60} fontSize={26} bgColor="#DC2626" />
+            </PopIn>
+            <PopIn startFrame={35} withSfx>
+              <StoryBadge text="REALITY: TOTALLY SAFE & EDIBLE ✔" x={0} y={60} fontSize={28} bgColor="#059669" />
+            </PopIn>
           </g>
         </FarmPastureEnv>
       </Sequence>

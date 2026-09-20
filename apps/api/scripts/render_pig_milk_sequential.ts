@@ -14,7 +14,7 @@ async function main() {
   const entryPoint = path.resolve(rootDir, 'packages/remotion-video/src/index.ts');
   const outDir = path.resolve(rootDir, 'output/pig_milk');
   const stillsDir = path.resolve(outDir, 'stills');
-  const brainDir = 'C:/Users/karth/.gemini/antigravity-cli/brain/a521e0b0-65c1-4498-b0b2-c77d21ee3b5a';
+  const brainDir = 'C:/Users/karth/.gemini/antigravity-cli/brain/e3a3e8ed-2d39-49c4-b1b9-4cfed45a11e2';
 
   fs.mkdirSync(outDir, { recursive: true });
   fs.mkdirSync(stillsDir, { recursive: true });
@@ -32,7 +32,7 @@ async function main() {
       id: 'PigMilk-Chapter1-Hook',
       filename: 'ch1_hook.mp4',
       label: 'Chapter 1: Hook (45.0s)',
-      snapSecs: [5, 15, 25, 38],
+      snapSecs: [5, 15, 26, 30, 38],
     },
     {
       id: 'PigMilk-Chapter2-Access',
@@ -132,6 +132,9 @@ async function main() {
       const snapPath = path.resolve(stillsDir, `${item.filename.replace('.mp4', '')}_${sec}s.jpg`);
       try {
         execSync(`ffmpeg -y -ss ${sec} -i "${outPath}" -frames:v 1 -update 1 "${snapPath}"`, { stdio: 'ignore' });
+        if (brainDir && fs.existsSync(brainDir)) {
+          fs.copyFileSync(snapPath, path.resolve(brainDir, `${item.filename.replace('.mp4', '')}_${sec}s.jpg`));
+        }
       } catch (e) {
         // ignore
       }

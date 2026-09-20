@@ -21,6 +21,24 @@ import { Chapter5_Processing } from './pig-milk/chapters/Chapter5_Processing';
 import { Chapter6_Domestication } from './pig-milk/chapters/Chapter6_Domestication';
 import { Chapter7_Close } from './pig-milk/chapters/Chapter7_Close';
 import { PigMilkMasterVideo } from './pig-milk/PigMilkMasterVideo';
+import { Chapter0_Hook as Mosquito_Ch0 } from './mosquito/chapters/Chapter0_Hook';
+import { Chapter1_NotGuessing as Mosquito_Ch1 } from './mosquito/chapters/Chapter1_NotGuessing';
+import { Chapter2_Skin as Mosquito_Ch2 } from './mosquito/chapters/Chapter2_Skin';
+import { Chapter3_BloodAndGenes as Mosquito_Ch3 } from './mosquito/chapters/Chapter3_BloodAndGenes';
+import { Chapter4_WhyMatters as Mosquito_Ch4 } from './mosquito/chapters/Chapter4_WhyMatters';
+import { Chapter5_Defense as Mosquito_Ch5 } from './mosquito/chapters/Chapter5_Defense';
+import { Chapter6_Closing as Mosquito_Ch6 } from './mosquito/chapters/Chapter6_Closing';
+import {
+  MosquitoMasterVideo,
+  CH0_FRAMES as MOSQ_CH0,
+  CH1_FRAMES as MOSQ_CH1,
+  CH2_FRAMES as MOSQ_CH2,
+  CH3_FRAMES as MOSQ_CH3,
+  CH4_FRAMES as MOSQ_CH4,
+  CH5_FRAMES as MOSQ_CH5,
+  CH6_FRAMES as MOSQ_CH6,
+  TOTAL_MOSQUITO_FRAMES,
+} from './mosquito/MosquitoMasterVideo';
 
 const defaultProps: DocumentaryVideoProps = {
   timeline: {
@@ -742,6 +760,79 @@ export const RemotionRoot: React.FC = () => {
         id="PigMilk-Master"
         component={PigMilkMasterVideo}
         durationInFrames={14969}
+        fps={30}
+        width={1920}
+        height={1080}
+      />
+
+      {/* 🦟 Mosquito Magnet Educational Documentary (7 Chapters) */}
+      <Composition
+        id="Mosquito-Chapter0-Hook"
+        component={Mosquito_Ch0}
+        durationInFrames={MOSQ_CH0}
+        fps={30}
+        width={1920}
+        height={1080}
+      />
+
+      <Composition
+        id="Mosquito-Chapter1-NotGuessing"
+        component={Mosquito_Ch1}
+        durationInFrames={MOSQ_CH1}
+        fps={30}
+        width={1920}
+        height={1080}
+      />
+
+      <Composition
+        id="Mosquito-Chapter2-Skin"
+        component={Mosquito_Ch2}
+        durationInFrames={MOSQ_CH2}
+        fps={30}
+        width={1920}
+        height={1080}
+      />
+
+      <Composition
+        id="Mosquito-Chapter3-BloodAndGenes"
+        component={Mosquito_Ch3}
+        durationInFrames={MOSQ_CH3}
+        fps={30}
+        width={1920}
+        height={1080}
+      />
+
+      <Composition
+        id="Mosquito-Chapter4-WhyMatters"
+        component={Mosquito_Ch4}
+        durationInFrames={MOSQ_CH4}
+        fps={30}
+        width={1920}
+        height={1080}
+      />
+
+      <Composition
+        id="Mosquito-Chapter5-Defense"
+        component={Mosquito_Ch5}
+        durationInFrames={MOSQ_CH5}
+        fps={30}
+        width={1920}
+        height={1080}
+      />
+
+      <Composition
+        id="Mosquito-Chapter6-Closing"
+        component={Mosquito_Ch6}
+        durationInFrames={MOSQ_CH6}
+        fps={30}
+        width={1920}
+        height={1080}
+      />
+
+      <Composition
+        id="Mosquito-Master"
+        component={MosquitoMasterVideo}
+        durationInFrames={TOTAL_MOSQUITO_FRAMES}
         fps={30}
         width={1920}
         height={1080}

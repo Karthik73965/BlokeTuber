@@ -32,7 +32,7 @@ export interface DoodleStickmanProps {
   pose?: StickmanPose;
   hat?: 'none' | 'safari' | 'sunglasses';
   bodyColor?: string;
-  pupilDirection?: 'center' | 'up_right' | 'left' | 'down';
+  pupilDirection?: 'center' | 'up_right' | 'right' | 'left' | 'down';
   shirtColor?: string;
   shortsColor?: string;
 }
@@ -62,6 +62,9 @@ export const DoodleStickman: React.FC<DoodleStickmanProps> = ({
   let pupilOffsetY = -4;
   if (pupilDirection === 'center') {
     pupilOffsetX = 0;
+    pupilOffsetY = 0;
+  } else if (pupilDirection === 'right') {
+    pupilOffsetX = 5;
     pupilOffsetY = 0;
   } else if (pupilDirection === 'left') {
     pupilOffsetX = -5;

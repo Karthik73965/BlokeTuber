@@ -17,15 +17,16 @@ Traditional educational videos fail when they resemble classroom PowerPoint slid
 
 ## 🎯 2. Strict Visual & Audio Directives
 
-Every automated video must strictly enforce these five non-negotiable rules:
+Every automated video must strictly enforce these six non-negotiable rules:
 
 | Rule | Requirement | Implementation |
 | :--- | :--- | :--- |
-| **1. Zero SFX** | Voiceover only. No cartoon pops, whooshes, clicks, or chimes. | Load voiceover once per chapter via `<Audio src={...} volume={1.0} />`. Strip all sound effect tags. |
-| **2. Micro-Beat Pacing** | Every cut/sequence must be **strictly $\le 5$ seconds** ($\le 140$ frames @ 30fps). | Greedy binning of Whisper transcript words into 75f–135f contiguous `<Sequence>` beats. |
-| **3. 100% Environmental Backdrops** | Absolutely **no plain white or cream void/paper backgrounds** (`#FAF8F5`). | Use `SummerSkyGroundEnv`, `MediterraneanVillageBackdrop`, `ParkingLotEnv`, or themed split screens. |
-| **4. Stickman Anatomy (ref_107s)** | Parallel vertical legs `\|  \|`, outward flaring arms `\  /`, clean T-shirt paths. | Vector geometry in [`DoodleStickman.tsx`](file:///C:/Users/karth/Documents/BlokeTuber/packages/remotion-video/src/animated-story/DoodleStickman.tsx). |
-| **5. Minimalist Text & Safe Badges** | 1 to 3 punchy words maximum. High-contrast pill containers. | `<StoryLabel>` or `<rect rx={30} fill="#0F172A">` badges placed above roofs ($y \le 120$) to prevent character overlap. |
+| **1. Beat Duration ($\ge$ 4.0s)** | Every sequence/beat must be **at least 4.0 seconds** ($\ge 120$ frames @ 30fps). Sweet spot: 120f–180f (4.0s–6.0s). | Never cut under 120 frames. Allow visual gags and characters breathing room to act and register. |
+| **2. Word-Level Audio Sync** | Visuals, labels, and character reactions must sync tightly to spoken words. | Use Whisper word-level timestamps (`word.start`, `word.end`). Pop-in props/labels on the exact spoken syllable. |
+| **3. Zero Text-Overflow & Safe Badges** | Text must NEVER spill outside pills; pills must NEVER collide with background buildings. | Use `<StoryBadge>` (generous $2.2\times$ padding, Comic Sans / system sans bold) or `<HtmlBadge>`. Title badges $y \le 160$; speech pills cleared of background props. |
+| **4. Immersive Staging & Grounding** | No floating stickers or random clipart feel. World must feel cohesive and alive. | All characters and ground props have `<GroundShadow>` ellipses. 3-layer depth (Sky/Hills $\to$ Midground Barn/Fence $\to$ Foreground Stage). Stickman pupils gaze at props. |
+| **5. 100% Environmental Backdrops** | Absolutely **no plain white or cream void/paper backgrounds** (`#FAF8F5`). | Use `FarmPastureEnv`, `BarnInteriorEnv`, `SummerSkyGroundEnv`, `MediterraneanVillageBackdrop`, or themed split screens. |
+| **6. Stickman Anatomy (ref_107s)** | Parallel vertical legs `\|  \|`, outward flaring arms `\  /`, clean T-shirt paths. | Vector geometry in [`DoodleStickman.tsx`](file:///C:/Users/karth/Documents/BlokeTuber/packages/remotion-video/src/animated-story/DoodleStickman.tsx). |
 
 ---
 
@@ -117,20 +118,25 @@ Every scene must be wrapped in one of the full-bleed environmental templates:
 To ensure zero lag between speech and animation:
 
 1. **Extract Exact Word Timestamps**: Run Whisper (`whisper.transcribe` with `word_timestamps=True`) on each chapter's voiceover MP3.
-2. **Greedy Beat Aggregator**:
-   - Audio sentences are grouped into logical narrative beats of **2.5s to 4.5s** (75 to 135 frames @ 30fps).
-   - **Hard Limit**: If a segment exceeds 140 frames (4.67s), it is automatically split into two sequential sub-beats.
-3. **Remotion Sequence Mapping**:
+2. **Beat Aggregator & Strict $\ge 4.0$s Rule**:
+   - Every beat/cut must have a **strict minimum duration of 4.0 seconds ($\ge 120$ frames @ 30fps)**.
+   - Ideal beat range: **120 to 180 frames (4.0s to 6.0s)**.
+   - **Never cut under 120 frames**. If a spoken sentence is brief, extend the beat to $\ge 120$ frames with secondary character acting (stickman looking around, blinking, subtle camera zoom) to avoid visual whiplash.
+3. **Word-Level Visual Synchronization**:
+   - Map key nouns, verbs, and punchlines directly to Remotion frames:
+     `startFrame = Math.max(0, Math.round((word.start - beat.startTime) * 30))`
+   - When the narrator says "cow", the cow appears or animates. When the narrator says "YES, MILK THAT!", the decision pill pops in on that exact syllable.
+4. **Remotion Sequence Mapping**:
    ```tsx
-   {/* BEAT 1: (0 - 95f / 0.0s - 3.17s) "Go to the hottest sun-blasted parts of the world..." */}
-   <Sequence from={0} durationInFrames={95}>
+   {/* BEAT 1: (0 - 135f / 0.0s - 4.5s) "Go to the hottest sun-blasted parts of the world..." */}
+   <Sequence from={0} durationInFrames={135}>
      <SummerSkyGroundEnv ...>
        <DoodleStickman ... />
      </SummerSkyGroundEnv>
    </Sequence>
 
-   {/* BEAT 2: (95 - 180f / 3.17s - 6.0s) "...and you'll see the same thing over and over." */}
-   <Sequence from={95} durationInFrames={85}>
+   {/* BEAT 2: (135 - 270f / 4.5s - 9.0s) "...and you'll see the same thing over and over." */}
+   <Sequence from={135} durationInFrames={135}>
      ...
    </Sequence>
    ```
