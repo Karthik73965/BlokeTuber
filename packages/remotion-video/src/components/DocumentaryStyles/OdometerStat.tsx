@@ -38,8 +38,9 @@ export const OdometerStat: React.FC<StyleProps> = ({ callout, clipDurationInSeco
     { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' }
   );
 
-  const opacity = enterSpring * exitProgress;
-  const translateY = interpolate(enterSpring, [0, 1], [40, 0]);
+  const isStatic = callout.staticDisplay === true;
+  const opacity = isStatic ? 1 : enterSpring * exitProgress;
+  const translateY = isStatic ? 0 : interpolate(enterSpring, [0, 1], [40, 0]);
 
   return (
     <div

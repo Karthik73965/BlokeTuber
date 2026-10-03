@@ -83,6 +83,7 @@ export const SplitDualScreenLayout: React.FC<LayoutProps> = ({
           ) : (
             <OffthreadVideo
               src={clip.clipPath}
+              volume={0}
               style={{
                 width: '100%',
                 height: '100%',
@@ -141,6 +142,7 @@ export const SplitDualScreenLayout: React.FC<LayoutProps> = ({
           ) : (
             <OffthreadVideo
               src={secondaryPath}
+              volume={0}
               style={{
                 width: '100%',
                 height: '100%',

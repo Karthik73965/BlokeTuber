@@ -125,6 +125,8 @@ export interface CalloutOverlay {
   themeColor?: CalloutThemeColor;
   startTime?: number;
   endTime?: number;
+  /** Keep the callout fixed on screen instead of animating its entry and exit. */
+  staticDisplay?: boolean;
 }
 
 export type SceneLayoutType =
@@ -166,6 +168,8 @@ export interface TimelineClip {
   startTime: number;
   endTime: number;
   clipPath: string | null;
+  /** Offset, in seconds, into a source video before its visual is shown. */
+  sourceStart?: number;
   secondaryClipPath?: string | null;
   additionalClipPaths?: string[];
   mediaType?: 'video' | 'image';
@@ -185,6 +189,8 @@ export interface TimelineClip {
   overlay?: OverlayType | OverlayType[];
   sfxPath?: string | null;
   sfxVolume?: number;
+  hideWatermark?: boolean;
+  watermarkCrop?: { scale?: number; translateY?: number; translateX?: number };
 }
 
 export type TransitionType =

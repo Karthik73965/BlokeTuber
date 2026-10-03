@@ -38,3 +38,13 @@ npm-debug.log*
 # Editor
 .vscode/
 .idea/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Scratch & temporary files
+tmp/
+scratch_*
+

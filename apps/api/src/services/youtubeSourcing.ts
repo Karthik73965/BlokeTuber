@@ -37,13 +37,17 @@ function findYtDlp(): string {
 }
 
 export function getProjectRawDir(projectId: string): string {
-  const dir = path.resolve(process.cwd(), 'uploads', 'raw', projectId);
-  fs.mkdirSync(dir, { recursive: true });
-  return dir;
+  const rootUploads = path.resolve(__dirname, '../../../../uploads/raw', projectId);
+  if (fs.existsSync(rootUploads)) return rootUploads;
+  const cwdUploads = path.resolve(process.cwd(), 'uploads', 'raw', projectId);
+  if (fs.existsSync(cwdUploads)) return cwdUploads;
+  fs.mkdirSync(rootUploads, { recursive: true });
+  return rootUploads;
 }
 
 export function getProjectScreenshotsDir(projectId: string): string {
-  const dir = path.resolve(process.cwd(), 'uploads', 'raw', projectId, 'screenshots');
+  const rawDir = getProjectRawDir(projectId);
+  const dir = path.join(rawDir, 'screenshots');
   fs.mkdirSync(dir, { recursive: true });
   return dir;
 }

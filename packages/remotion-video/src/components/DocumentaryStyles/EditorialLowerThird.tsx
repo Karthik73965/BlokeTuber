@@ -38,8 +38,9 @@ export const EditorialLowerThird: React.FC<StyleProps> = ({ callout, clipDuratio
     { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' }
   );
 
-  const opacity = enterSpring * exitProgress;
-  const translateX = interpolate(enterSpring, [0, 1], [-60, 0]);
+  const isStatic = callout.staticDisplay === true;
+  const opacity = isStatic ? 1 : enterSpring * exitProgress;
+  const translateX = isStatic ? 0 : interpolate(enterSpring, [0, 1], [-60, 0]);
 
   return (
     <div

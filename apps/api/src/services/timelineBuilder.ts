@@ -59,6 +59,8 @@ export interface TimelineClip {
     startTime?: number;
     endTime?: number;
   } | null;
+  hideWatermark?: boolean;
+  watermarkCrop?: { scale?: number; translateY?: number; translateX?: number };
 }
 
 export interface NumberOverlay {
@@ -496,6 +498,8 @@ export function buildTimeline(params: {
       overlay: resolveOverlayForBeat(beat, i),
       numberOverlays,
       callout: clipCallout,
+      hideWatermark: Boolean((beat as any).hideWatermark || (beat as any).cropWatermark),
+      watermarkCrop: (beat as any).watermarkCrop,
     };
   });
 

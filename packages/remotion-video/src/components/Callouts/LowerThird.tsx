@@ -48,7 +48,7 @@ export const LowerThird: React.FC<CalloutProps> = ({ callout, clipDurationInSeco
     <div
       style={{
         position: 'absolute',
-        bottom: 80,
+        bottom: 104,
         left: 60,
         opacity,
         transform: `translateX(${translateX}px)`,

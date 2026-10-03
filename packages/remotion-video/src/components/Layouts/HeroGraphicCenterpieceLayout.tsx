@@ -57,6 +57,8 @@ export const HeroGraphicCenterpieceLayout: React.FC<LayoutProps> = ({
           ) : (
             <OffthreadVideo
               src={clip.clipPath}
+              volume={0}
+              trimBefore={clip.sourceStart ? Math.round(clip.sourceStart * fps) : undefined}
               style={{
                 width: '100%',
                 height: '100%',
