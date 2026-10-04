@@ -27,7 +27,13 @@ export const HeroGraphicCenterpieceLayout: React.FC<LayoutProps> = ({
   const progress = durationInFrames > 0 ? frame / durationInFrames : 0;
 
   // Background subtle cinematic drift
-  const bgScale = interpolate(progress, [0, 1], [1.15, 1.22]);
+  const hasForeground = Boolean(
+    clip.callout || (clip.numberOverlays && clip.numberOverlays.length > 0)
+  );
+
+  const bgFilter = hasForeground
+    ? 'blur(14px) brightness(0.68) contrast(1.05)'
+    : 'contrast(1.05) saturate(1.05)';
 
   return (
     <div
@@ -38,13 +44,13 @@ export const HeroGraphicCenterpieceLayout: React.FC<LayoutProps> = ({
         overflow: 'hidden',
       }}
     >
-      {/* ── 1. ATMOSPHERIC HEAVILY DIMMED BACKGROUND FOOTAGE ───────── */}
+      {/* ── 1. ATMOSPHERIC BACKGROUND FOOTAGE ───────── */}
       {clip.clipPath ? (
         <div
           style={{
             position: 'absolute',
             inset: -40,
-            filter: 'blur(30px) brightness(0.22) contrast(1.1)',
+            filter: bgFilter,
             transform: `scale(${bgScale})`,
             overflow: 'hidden',
           }}
@@ -78,15 +84,17 @@ export const HeroGraphicCenterpieceLayout: React.FC<LayoutProps> = ({
         />
       )}
 
-      {/* Heavy Cinematic Vignette */}
-      <div
-        style={{
-          position: 'absolute',
-          inset: 0,
-          background: 'radial-gradient(ellipse at center, rgba(0,0,0,0.4) 0%, rgba(0,0,0,0.95) 100%)',
-          pointerEvents: 'none',
-        }}
-      />
+      {/* Subtle Cinematic Vignette */}
+      {hasForeground && (
+        <div
+          style={{
+            position: 'absolute',
+            inset: 0,
+            background: 'radial-gradient(ellipse at center, rgba(0,0,0,0.1) 0%, rgba(0,0,0,0.55) 100%)',
+            pointerEvents: 'none',
+          }}
+        />
+      )}
 
       {/* 35mm Procedural Film Grain */}
       <svg

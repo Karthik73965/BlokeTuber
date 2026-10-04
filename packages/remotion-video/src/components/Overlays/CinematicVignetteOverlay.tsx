@@ -15,7 +15,7 @@ export const CinematicVignetteOverlay: React.FC = () => {
         pointerEvents: 'none',
         zIndex: 40,
         overflow: 'hidden',
-        background: `radial-gradient(ellipse at 50% 50%, transparent 45%, rgba(0, 0, 0, ${0.55 + breathing * 0.15}) 80%, rgba(0, 0, 0, 0.95) 100%)`,
+        background: `radial-gradient(ellipse at 50% 50%, transparent 60%, rgba(0, 0, 0, ${0.2 + breathing * 0.08}) 85%, rgba(0, 0, 0, 0.5) 100%)`,
         mixBlendMode: 'multiply',
       }}
     />

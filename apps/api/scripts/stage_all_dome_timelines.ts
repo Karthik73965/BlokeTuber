@@ -396,22 +396,7 @@ export function stageAllDomeTimelines() {
 
       usedPaths.add(chosen.fullPath);
 
-      // Determine Layout (clean alternation)
-      let layout: SceneLayoutType = 'full_bleed_cinematic';
-      let layoutData: SceneLayoutData | undefined = undefined;
-
-      if (bIdx % 4 === 1) {
-        layout = 'split_dual_screen';
-        layoutData = { title: config.title.toUpperCase(), subtitle: 'FIELD PERSPECTIVE' };
-      } else if (bIdx % 4 === 2) {
-        layout = 'ambient_blur_frame';
-        layoutData = { title: 'DOME VILLAGES', subtitle: 'ARCHITECTURAL PROFILE' };
-      } else if (bIdx % 4 === 3) {
-        layout = 'hero_graphic_centerpiece';
-        layoutData = { title: 'DOCUMENTARY RECORD', subtitle: 'LOS ANGELES & BEYOND' };
-      }
-
-      // Callouts: intro on beat 0 or 1, mid on beat ~floor(N/2)
+      // 1. Callouts: intro on beat 1, mid on beat ~floor(N/2)
       let callout: CalloutOverlay | null = null;
       if (bIdx === 1) {
         callout = {
@@ -431,6 +416,20 @@ export function stageAllDomeTimelines() {
           startTime: 0.3,
           endTime: Math.min(dur - 0.2, 3.8),
         };
+      }
+
+      // 2. Determine Layout (Never assign hero_graphic_centerpiece without a callout)
+      let layout: SceneLayoutType = 'full_bleed_cinematic';
+      let layoutData: SceneLayoutData | undefined = undefined;
+
+      if (callout) {
+        layout = 'hero_graphic_centerpiece';
+        layoutData = { title: config.title.toUpperCase(), subtitle: 'HISTORICAL RECORD' };
+      } else if (bIdx % 2 === 1) {
+        layout = 'ambient_blur_frame';
+        layoutData = { title: 'DOME VILLAGES', subtitle: 'ARCHITECTURAL PROFILE' };
+      } else {
+        layout = 'full_bleed_cinematic';
       }
 
       // Sound effect

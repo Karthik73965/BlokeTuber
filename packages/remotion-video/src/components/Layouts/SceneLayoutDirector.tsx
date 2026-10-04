@@ -79,6 +79,14 @@ export function resolveSceneLayout(clip: TimelineClip, clipIndex: number): Scene
     ) {
       return 'full_bleed_cinematic';
     }
+    // If hero_graphic_centerpiece has no callout or number overlays to display, downgrade to full_bleed_cinematic
+    if (
+      clip.layout === 'hero_graphic_centerpiece' &&
+      !clip.callout &&
+      (!clip.numberOverlays || clip.numberOverlays.length === 0)
+    ) {
+      return 'full_bleed_cinematic';
+    }
     return clip.layout;
   }
 

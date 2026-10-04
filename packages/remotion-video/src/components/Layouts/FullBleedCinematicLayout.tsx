@@ -90,30 +90,6 @@ export const FullBleedCinematicLayout: React.FC<LayoutProps> = ({
         )}
       </div>
 
-      {/* ── 2.35:1 CINEMATIC LETTERBOX BARS ─────────────────────────── */}
-      <div
-        style={{
-          position: 'absolute',
-          top: 0,
-          left: 0,
-          right: 0,
-          height: 72,
-          backgroundColor: '#000000',
-          zIndex: 10,
-        }}
-      />
-      <div
-        style={{
-          position: 'absolute',
-          bottom: 0,
-          left: 0,
-          right: 0,
-          height: 72,
-          backgroundColor: '#000000',
-          zIndex: 10,
-        }}
-      />
-
       {/* ── OVERLAY CALLOUT LAYER ───────────────────────────────────── */}
       <CalloutDispatcher
         callout={clip.callout}
