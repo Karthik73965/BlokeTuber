@@ -51,13 +51,14 @@ const CHAPTER_CONFIGS: Record<
     themeColor: 'gold' | 'amber' | 'cyan' | 'crimson' | 'emerald' | 'slate' | 'white';
     introCallout: { type: any; line1: string; line2?: string };
     midCallout: { type: any; line1: string; line2?: string };
+    outroCallout?: { type: any; line1: string; line2?: string };
   }
 > = {
   1: {
     jsonFile: '01_1 - The Cold Open.json',
     audioFile: '1 - The Cold Open.mp3',
     title: 'Chapter 01: The Cold Open',
-    tagPreference: ['skid_row', 'street_homelessness', 'sidewalk_living', 'cardboard_sign', 'los_angeles', 'dome_interior', 'curved_walls'],
+    tagPreference: ['skid_row_morning', 'street_homelessness', 'sidewalk_living', 'los_angeles_streets'],
     themeColor: 'gold',
     introCallout: { type: 'editorial_lower_third', line1: 'SKID ROW, LOS ANGELES', line2: '4:00 AM • 39 DEGREES' },
     midCallout: { type: 'location_badge', line1: 'DOWNTOWN LA CORRIDOR', line2: 'TWO MILES FROM HOPE' },
@@ -66,64 +67,71 @@ const CHAPTER_CONFIGS: Record<
     jsonFile: '02_2 - The Man Who Slept Outside.json',
     audioFile: '2 - The Man Who Slept Outside.mp3',
     title: 'Chapter 02: The Man Who Slept Outside',
-    tagPreference: ['ted_hayes', 'justiceville', '1993_2006_archive', 'ted_hayes_tour', 'historic_village', 'dome_village_la'],
+    tagPreference: ['ted_hayes', 'justiceville', 'founder_ted_hayes', 'housing_activist', 'dome_village_la'],
     themeColor: 'crimson',
     introCallout: { type: 'editorial_lower_third', line1: 'TED HAYES', line2: 'HOUSING ACTIVIST • FOUNDER OF JUSTICEVILLE' },
-    midCallout: { type: 'odometer_stat', line1: '8 YEARS ON THE STREET', line2: '35-DAY HUNGER STRIKE' },
+    midCallout: { type: 'location_badge', line1: 'JUSTICEVILLE • 1985', line2: 'LOS ANGELES, CALIFORNIA' },
+    outroCallout: { type: 'odometer_stat', line1: '8 YEARS ON THE STREET', line2: '35-DAY HUNGER STRIKE' },
   },
   3: {
     jsonFile: '03_3 - A Dome That Bolts Together.json',
     audioFile: '3 - A Dome That Bolts Together.mp3',
     title: 'Chapter 03: A Dome That Bolts Together',
-    tagPreference: ['buckminster_fuller', 'geodesic_sphere', 'architecture_history', 'intershelter', 'dome_assembly', 'bolting_panels', 'craig_chamberlain'],
+    tagPreference: ['white_fiberglass_dome', 'dome_interior_bed', 'dome_shelter_door_lock', 'curved_walls', 'volunteer_bolting', 'honolulu_dome'],
     themeColor: 'amber',
     introCallout: { type: 'editorial_lower_third', line1: 'CRAIG CHAMBERLAIN', line2: 'THE OMNI-SPHERE • 20-FOOT FIBERGLASS DOME' },
-    midCallout: { type: 'odometer_stat', line1: '21 PANELS • 150 BOLTS', line2: 'BUILT UNDER 4 HOURS' },
+    midCallout: { type: 'location_badge', line1: 'GEODESIC DESIGN', line2: 'BUCKMINSTER FULLER ARCHITECTURE' },
+    outroCallout: { type: 'odometer_stat', line1: '21 PANELS • 150 BOLTS', line2: 'BUILT UNDER 4 HOURS' },
   },
   4: {
     jsonFile: '04_4 -  Life Inside the Village.json',
     audioFile: '4 -  Life Inside the Village.mp3',
     title: 'Chapter 04: Life Inside the Village',
-    tagPreference: ['dome_interior', 'curved_walls', 'porthole_window', 'floating_furniture', 'dome_bed', 'living_space', 'village_lifestyle'],
+    tagPreference: ['curved_walls', 'dome_interior_bed', 'interior_tiny_shelter', 'living_space', 'white_fiberglass_dome', 'shelter_reality'],
     themeColor: 'cyan',
     introCallout: { type: 'editorial_lower_third', line1: 'LIFE INSIDE THE SPHERE', line2: 'NO CORNERS • 314 SQUARE FEET' },
     midCallout: { type: 'location_badge', line1: 'GOLDEN AVENUE VILLAGE', line2: '12 HOMES • 8 SHARED DOMES' },
+    outroCallout: { type: 'odometer_stat', line1: 'A LOCKED DOOR', line2: 'WARMTH • ELECTRICITY • DIGNITY' },
   },
   5: {
     jsonFile: '05_5 - Thirteen Years.json',
     audioFile: '5 - Thirteen Years.mp3',
     title: 'Chapter 05: Thirteen Years',
-    tagPreference: ['village_lifestyle', 'communal_spaces', 'outdoor_pathways', 'community_living', 'dome_village_la'],
+    tagPreference: ['ted_hayes', 'dome_village_la', 'housing_activist', 'founder_ted_hayes', 'street_homelessness'],
     themeColor: 'emerald',
     introCallout: { type: 'editorial_lower_third', line1: '1993 - 2006', line2: 'A DECOMPRESSION CHAMBER BESIDE THE 110 FREEWAY' },
-    midCallout: { type: 'odometer_stat', line1: '13 YEARS OPERATING', line2: 'HUNDREDS OF RESIDENTS TRANSITIONED' },
+    midCallout: { type: 'location_badge', line1: 'DOME VILLAGE COMMUNITY', line2: 'SELF-GOVERNED SANCTUARY' },
+    outroCallout: { type: 'odometer_stat', line1: '13 YEARS OPERATING', line2: 'HUNDREDS OF RESIDENTS TRANSITIONED' },
   },
   6: {
     jsonFile: '06_6 -  The Rent.json',
     audioFile: '6 -  The Rent.mp3',
     title: 'Chapter 06: The Rent',
-    tagPreference: ['dome_village_la', 'historic_domes', 'golden_avenue_village', 'governance_rules', 'ted_hayes'],
+    tagPreference: ['ted_hayes', 'dome_village_la', 'founder_ted_hayes', 'street_homelessness', 'los_angeles_dawn'],
     themeColor: 'crimson',
     introCallout: { type: 'editorial_lower_third', line1: 'OCTOBER 31, 2006', line2: 'DOME VILLAGE PERMANENTLY CLOSES' },
-    midCallout: { type: 'odometer_stat', line1: '$2,500 TO $18,000 / MO', line2: 'THE 700% RENT HIKE THAT KILLED THE VILLAGE' },
+    midCallout: { type: 'location_badge', line1: 'DOWNTOWN LA REDEVELOPMENT', line2: 'PRIME REAL ESTATE SPECULATION' },
+    outroCallout: { type: 'odometer_stat', line1: '$2,500 TO $18,000 / MO', line2: 'THE 700% RENT HIKE THAT KILLED THE VILLAGE' },
   },
   7: {
     jsonFile: '07_7 - The Idea Multiplies.json',
     audioFile: '7 - The Idea Multiplies.mp3',
     title: 'Chapter 07: The Idea Multiplies',
-    tagPreference: ['intershelter', 'honolulu_dome', 'first_assembly_of_god', 'pringles_stack', 'alaska_kit', 'assembly_timelapse'],
+    tagPreference: ['honolulu_dome', 'first_assembly_of_god', 'church_dome_village', 'hawaii_homeless_shelter', 'volunteer_bolting'],
     themeColor: 'amber',
     introCallout: { type: 'editorial_lower_third', line1: 'INTERSHELTER • JUNEAU, AK', line2: 'HURRICANE-RATED COMPOSITE DOMES' },
     midCallout: { type: 'location_badge', line1: 'FIRST ASSEMBLY OF GOD', line2: 'HONOLULU, HAWAII • 12-DOME VILLAGE' },
+    outroCallout: { type: 'odometer_stat', line1: 'PACKAGED LIKE PRINGLES', line2: 'RAPID EMERGENCY DEPLOYMENT' },
   },
   8: {
     jsonFile: '08_8 - Dignity Village.json',
     audioFile: '8 - Dignity Village.mp3',
     title: 'Chapter 08: Dignity Village',
-    tagPreference: ['dignity_village', 'portland_oregon', 'self_governed', '25_year_village', 'grassroots_housing'],
+    tagPreference: ['dignity_village', 'portland_oregon', 'self_governed', 'grassroots_housing', 'tiny_homes_community', 'shelter_pods'],
     themeColor: 'emerald',
     introCallout: { type: 'editorial_lower_third', line1: 'DIGNITY VILLAGE', line2: 'PORTLAND, OREGON • EST. 2000' },
-    midCallout: { type: 'odometer_stat', line1: '25 YEARS RUNNING', line2: '60 RESIDENTS • SELF-GOVERNED SANCTUARY' },
+    midCallout: { type: 'location_badge', line1: 'SUNDERLAND YARD', line2: 'CITY RECOGNIZED SANCTUARY' },
+    outroCallout: { type: 'odometer_stat', line1: '25 YEARS RUNNING', line2: '60 RESIDENTS • DEMOCRATICALLY GOVERNED' },
   },
   9: {
     jsonFile: '09_9 -  Community First.json',
@@ -132,43 +140,48 @@ const CHAPTER_CONFIGS: Record<
     tagPreference: ['community_first_village', 'austin_texas', 'alan_graham', 'tiny_homes_rvs', '51_acres', 'garden_cinema'],
     themeColor: 'cyan',
     introCallout: { type: 'editorial_lower_third', line1: 'COMMUNITY FIRST! VILLAGE', line2: 'ALAN GRAHAM • AUSTIN, TEXAS' },
-    midCallout: { type: 'odometer_stat', line1: '51 ACRES • 400 RESIDENTS', line2: 'EXPANDING TO 178 ACRES & 1,900 HOMES' },
+    midCallout: { type: 'location_badge', line1: 'PERMANENT SUPPORTIVE COMMUNITY', line2: 'MICRO-HOMES & RV SITES' },
+    outroCallout: { type: 'odometer_stat', line1: '51 ACRES • 400 RESIDENTS', line2: 'EXPANDING TO 178 ACRES & 1,900 HOMES' },
   },
   10: {
     jsonFile: '10_10 -  Who Is Really Out There.json',
     audioFile: '10 -  Who Is Really Out There.mp3',
     title: 'Chapter 10: Who Is Really Out There',
-    tagPreference: ['older_unhoused', 'unhoused_elderly', 'skid_row', 'street_homelessness', 'resident_spaces', 'dignity'],
+    tagPreference: ['skid_row_morning', 'cardboard_tarp_rain', 'sidewalk_tents', 'los_angeles_streets', 'street_homelessness'],
     themeColor: 'gold',
     introCallout: { type: 'editorial_lower_third', line1: 'AMERICA’S AGING CRISIS', line2: '770,000 UNSHELTERED IN 2024' },
-    midCallout: { type: 'odometer_stat', line1: '48% OVER AGE 50', line2: 'MEDIAN AGE AT DEATH: 64.6' },
+    midCallout: { type: 'location_badge', line1: 'SKID ROW CORRIDOR', line2: 'VETERANS & SENIOR RESIDENTS' },
+    outroCallout: { type: 'odometer_stat', line1: '48% OVER AGE 50', line2: 'MEDIAN AGE AT DEATH: 64.6' },
   },
   11: {
     jsonFile: '11_11 -  The Criticism.json',
     audioFile: '11 -  The Criticism.mp3',
     title: 'Chapter 11: The Criticism',
-    tagPreference: ['governance_rules', 'village_maintenance', 'fiberglass_aging', 'weather_exposure', 'shelter_reality'],
+    tagPreference: ['interior_tiny_shelter', 'shelter_reality', 'living_space', 'rapid_housing', 'curved_walls'],
     themeColor: 'crimson',
     introCallout: { type: 'editorial_lower_third', line1: 'THE CRITICS’ CASE', line2: 'TOURNIQUET VS. CURE' },
-    midCallout: { type: 'odometer_stat', line1: '$10,000 PER SHELL', line2: 'NO PRIVATE PLUMBING • SUN-WEATHERED FIBERGLASS' },
+    midCallout: { type: 'location_badge', line1: 'THE SHELTER DEBATE', line2: 'INTERIM SAFETY VS. DECADES WAITING' },
+    outroCallout: { type: 'odometer_stat', line1: '$10,000 PER SHELL', line2: 'IMMEDIATE ROOF OVER EMPTY PROMISES' },
   },
   12: {
     jsonFile: '12_12 -  The Cost of Waiting.json',
     audioFile: '12 -  The Cost of Waiting.mp3',
     title: 'Chapter 12: The Cost of Waiting',
-    tagPreference: ['street_homelessness', 'skid_row', 'los_angeles', 'resident_spaces', 'dignity', 'closing_shots'],
+    tagPreference: ['street_homelessness', 'sidewalk_living', 'los_angeles_streets', 'cardboard_tarp_rain', 'skid_row_morning'],
     themeColor: 'slate',
     introCallout: { type: 'editorial_lower_third', line1: 'TRAVIS COUNTY STUDY', line2: 'AUSTIN, TEXAS • 1,000+ DEATHS REVIEWED' },
-    midCallout: { type: 'odometer_stat', line1: '9.5 YEARS LONGER LIFE', line2: 'WHEN GIVEN PERMANENT STABILITY' },
+    midCallout: { type: 'location_badge', line1: 'THE COST OF INACTION', line2: 'LIVES LOST ON CONCRETE' },
+    outroCallout: { type: 'odometer_stat', line1: '9.5 YEARS LONGER LIFE', line2: 'WHEN GIVEN PERMANENT STABILITY' },
   },
   13: {
     jsonFile: '13_13 - Closing.json',
     audioFile: '13 - Closing.mp3',
     title: 'Chapter 13: Closing',
-    tagPreference: ['closing_shots', 'aerial_village', 'dome_interior', 'curved_walls', 'future_housing', 'cinematic_broll'],
+    tagPreference: ['white_fiberglass_dome', 'curved_walls', 'dome_shelter_door_lock', 'church_dome_village', 'living_space'],
     themeColor: 'gold',
-    introCallout: { type: 'editorial_lower_third', line1: 'NOT JUST SHELTER', line2: 'WITNESS' },
+    introCallout: { type: 'editorial_lower_third', line1: 'NOT JUST SHELTER', line2: 'A WITNESS TO HUMAN DIGNITY' },
     midCallout: { type: 'location_badge', line1: 'TWENTY FEET WIDE', line2: 'WARMTH • SAFETY • A LOCKED DOOR' },
+    outroCallout: { type: 'odometer_stat', line1: 'A MEASURE OF CIVILIZATION', line2: 'WHAT WE REFUSE TO IGNORE' },
   },
 };
 
@@ -324,8 +337,21 @@ export function stageAllDomeTimelines() {
     throw new Error('Project manifest not found');
   }
 
-  const approvedClips = manifest.clips.filter((c) => c.screeningStatus !== 'rejected');
-  console.log(`Available Approved Clips: ${approvedClips.length}`);
+  const approvedClips = manifest.clips.filter((c) => {
+    if ((c as any).screeningStatus === 'rejected') return false;
+    const fn = c.filename;
+    if (
+      fn.startsWith('ted_haeyes_interview_at_dom_vi') ||
+      fn.startsWith('intershelter_dome_solution_to_') ||
+      fn.startsWith('doorways_to_dignity_documentar') ||
+      fn.startsWith('intershelter_disaster') ||
+      fn.includes('G2MAIJzAUhE')
+    ) {
+      return false;
+    }
+    return true;
+  });
+  console.log(`Available Approved 1080p Clips: ${approvedClips.length}`);
 
   const usedPaths = new Set<string>();
 
@@ -336,6 +362,18 @@ export function stageAllDomeTimelines() {
     console.log(`\n───────────────────────────────────────────────────────────────────`);
     console.log(`Chapter ${String(chNum).padStart(2, '0')}: ${config.title}`);
     console.log(`───────────────────────────────────────────────────────────────────`);
+
+    const outJsonPath = path.join(TIMELINES_DIR, `chapter_${String(chNum).padStart(2, '0')}_final.json`);
+
+    // Preserve Chapter 1 curated timeline if it already exists
+    if (chNum === 1 && fs.existsSync(outJsonPath)) {
+      const existingTimeline: Timeline = JSON.parse(fs.readFileSync(outJsonPath, 'utf-8'));
+      for (const c of existingTimeline.clips) {
+        if (c.clipPath) usedPaths.add(c.clipPath);
+      }
+      console.log(`Loaded curated Chapter 01 timeline with ${existingTimeline.clips.length} verified clips and callouts.`);
+      continue;
+    }
 
     const jsonPath = path.join(TRANSCRIPTS_DIR, config.jsonFile);
     if (!fs.existsSync(jsonPath)) {
@@ -396,18 +434,19 @@ export function stageAllDomeTimelines() {
 
       usedPaths.add(chosen.fullPath);
 
-      // 1. Callouts: intro on beat 1, mid on beat ~floor(N/2)
+      // Callouts: intro on beat 0, mid at ~35%, outro at ~70%
       let callout: CalloutOverlay | null = null;
-      if (bIdx === 1) {
+      if (bIdx === 0) {
+        // Start of chapter callout
         callout = {
           type: config.introCallout.type,
           line1: config.introCallout.line1,
-          line2: config.introCallout.line2,
+          line2: `CHAPTER ${String(chNum).padStart(2, '0')} • ${config.introCallout.line2 || ''}`.trim(),
           themeColor: config.themeColor,
-          startTime: 0.3,
+          startTime: 0.4,
           endTime: Math.min(dur - 0.2, 3.8),
         };
-      } else if (bIdx === Math.floor(beats.length / 2)) {
+      } else if (bIdx === Math.floor(beats.length * 0.35)) {
         callout = {
           type: config.midCallout.type,
           line1: config.midCallout.line1,
@@ -416,21 +455,20 @@ export function stageAllDomeTimelines() {
           startTime: 0.3,
           endTime: Math.min(dur - 0.2, 3.8),
         };
+      } else if (config.outroCallout && bIdx === Math.floor(beats.length * 0.70)) {
+        callout = {
+          type: config.outroCallout.type,
+          line1: config.outroCallout.line1,
+          line2: config.outroCallout.line2,
+          themeColor: config.themeColor,
+          startTime: 0.3,
+          endTime: Math.min(dur - 0.2, 3.8),
+        };
       }
 
-      // 2. Determine Layout (Never assign hero_graphic_centerpiece without a callout)
-      let layout: SceneLayoutType = 'full_bleed_cinematic';
-      let layoutData: SceneLayoutData | undefined = undefined;
-
-      if (callout) {
-        layout = 'hero_graphic_centerpiece';
-        layoutData = { title: config.title.toUpperCase(), subtitle: 'HISTORICAL RECORD' };
-      } else if (bIdx % 2 === 1) {
-        layout = 'ambient_blur_frame';
-        layoutData = { title: 'DOME VILLAGES', subtitle: 'ARCHITECTURAL PROFILE' };
-      } else {
-        layout = 'full_bleed_cinematic';
-      }
+      // Clean documentary layout (full bleed cinematic)
+      const layout: SceneLayoutType = 'full_bleed_cinematic';
+      const layoutData: SceneLayoutData | undefined = undefined;
 
       // Sound effect
       let sfxPath: string | undefined = undefined;
@@ -456,7 +494,7 @@ export function stageAllDomeTimelines() {
         transitionDuration: bIdx === 0 ? 0 : 0.35,
         numberOverlays: [],
         callout,
-        overlay: bIdx % 2 === 0 ? 'micro_film_grain' : 'cinematic_vignette',
+        overlay: undefined, // Strictly NO VIGNETTE
         sfxPath,
         sfxVolume,
       };
@@ -468,9 +506,9 @@ export function stageAllDomeTimelines() {
       masterAudioPath,
       totalDuration,
       clips,
+      outputPath: path.resolve(REPO_ROOT, `output/dome_villages/chapter_${String(chNum).padStart(2, '0')}.mp4`),
     };
 
-    const outJsonPath = path.join(TIMELINES_DIR, `chapter_${String(chNum).padStart(2, '0')}_final.json`);
     fs.writeFileSync(outJsonPath, JSON.stringify(timeline, null, 2), 'utf-8');
     console.log(`Saved timeline to: ${outJsonPath}`);
 
@@ -493,6 +531,16 @@ export function stageAllDomeTimelines() {
   console.log(`Total Unique Media Assets Locked: ${usedPaths.size}`);
   console.log(`Registry: ${REGISTRY_PATH}`);
   console.log(`═══════════════════════════════════════════════════════════════════\n`);
+
+  // Sync to root output/store/projects.json as well
+  const rootStoreDir = path.resolve(REPO_ROOT, 'output/store');
+  const rootProjectsFile = path.join(rootStoreDir, 'projects.json');
+  const apiProjectsFile = path.resolve(REPO_ROOT, 'apps/api/output/store/projects.json');
+  if (fs.existsSync(apiProjectsFile)) {
+    fs.mkdirSync(rootStoreDir, { recursive: true });
+    fs.copyFileSync(apiProjectsFile, rootProjectsFile);
+    console.log(`Synced projects.json to root store: ${rootProjectsFile}`);
+  }
 }
 
 if (require.main === module) {

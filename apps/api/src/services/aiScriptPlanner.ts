@@ -152,14 +152,14 @@ export async function planScriptWithAI(
   const pacingDirectives = {
     low: `⏱️ TARGET PACING DIRECTIVE: RELAXED / CINEMATIC (LOW PACING: ~4.5s – 6.0s per clip / ~10–16 words per beat).
 - Let scenes linger and breathe. Hold shots for emotional weight and evidence absorption.
-- MANDATORY DURATION: Every beat must be between 3.0s and 6.0s. Never less than 3.0s, never more than 6.0s.
+- MANDATORY DURATION: Every beat must be between 2.5s and 5.0s. Never less than 3.0s, never more than 6.0s.
 - Stylized layouts and text callouts hold for 4.5s–6.0s. Baseline b-roll holds for 3.5s–5.5s.`,
     medium: `⏱️ TARGET PACING DIRECTIVE: BALANCED INVESTIGATIVE (MEDIUM PACING: ~3.5s – 5.0s per clip / ~8–14 words per beat).
 - Standard investigative documentary rhythm. 4.0s–5.5s for feature layouts/callouts, 3.0s–4.5s for punchy baseline b-roll cuts.
-- MANDATORY DURATION: Every beat must be between 3.0s and 6.0s. Never less than 3.0s, never more than 6.0s.`,
+- MANDATORY DURATION: Every beat must be between 2.5s and 5.0s. Never less than 3.0s, never more than 6.0s.`,
     high: `⏱️ TARGET PACING DIRECTIVE: DYNAMIC DOCUMENTARY (HIGH PACING: ~3.0s – 4.5s per clip / ~8–12 words per beat; MAXIMUM 6.0s).
 - High visual engagement with balanced documentary pacing.
-- MANDATORY DURATION: NO beat can EVER be less than 3.0 seconds (~8 words minimum). NO beat can EVER exceed 6.0 seconds (~16 words maximum).
+- MANDATORY DURATION: NO beat can EVER be less than 3.0 seconds (~8 words minimum). NO beat can EVER exceed 5.0 seconds (~16 words maximum).
 - Feature layouts and text callouts hold between 3.5s and 5.5s.
 - Baseline b-roll cuts every 3.0s to 4.5s.
 - DO NOT create micro-beats or 1-second cuts! Every cut must stay on screen for AT LEAST 3.0 seconds so viewers can absorb the shot.`,
@@ -171,7 +171,7 @@ export async function planScriptWithAI(
     const estCuts = Math.max(4, Math.round(audioDuration / targetCutAvg));
     const minCuts = Math.max(3, Math.round(estCuts * 0.8));
     const maxCuts = Math.round(estCuts * 1.2);
-    audioTimingDirective = `⏱️ AUDIO TIMING & CUT FREQUENCY DIRECTIVE:\n- Total narration audio duration is ~${Math.round(audioDuration)} seconds.\n- For ${pacing.toUpperCase()} pacing, you MUST produce approximately ${minCuts} to ${maxCuts} distinct scene cuts!\n- STRICT RULE: Every single beat must be between 3.0s and 6.0s in length (approx 8 to 16 spoken words). NEVER create beats under 3.0s or over 6.0s.`;
+    audioTimingDirective = `⏱️ AUDIO TIMING & CUT FREQUENCY DIRECTIVE:\n- Total narration audio duration is ~${Math.round(audioDuration)} seconds.\n- For ${pacing.toUpperCase()} pacing, you MUST produce approximately ${minCuts} to ${maxCuts} distinct scene cuts!\n- STRICT RULE: Every single beat must be between 2.5s and 5.0s in length (approx 8 to 16 spoken words). NEVER create beats under 3.0s or over 6.0s.`;
   }
 
   let availableClipsDirective = '';
@@ -220,9 +220,9 @@ ${contextDirective ? `\n⚠️ STRICT DIRECTOR BRIEF:\n${contextDirective}\n` : 
 
 ---
 
-### 2. STRICT BEAT PACING CONSTRAINTS (MANDATORY 3.0s – 6.0s PER BEAT):
+### 2. STRICT BEAT PACING CONSTRAINTS (MANDATORY 2.5s – 5.0s PER BEAT):
 - **ABSOLUTE MINIMUM DURATION: 3.0 SECONDS (~8 spoken words)**. Never create short 1-second or 2-second micro-cuts. Cuts faster than 3 seconds cause visual whiplash and audio mismatch.
-- **ABSOLUTE MAXIMUM DURATION: 6.0 SECONDS (~16 spoken words)**. Never let any single shot drag beyond 6 seconds.
+- **ABSOLUTE MAXIMUM DURATION: 5.0 SECONDS (~16 spoken words)**. Never let any single shot drag beyond 6 seconds.
 - Baseline B-Roll Beats: 3.0s – 5.0s (~8–14 words).
 - Feature Layouts & Text Callouts: 3.5s – 5.5s (~9–15 words).
 - Every beat MUST cover a coherent thought or full sentence. Do NOT fragment sentences into 2-word micro-beats.
@@ -429,30 +429,30 @@ export interface PacingConfig {
   hardCap: number;
 }
 
-export const MIN_BEAT_DURATION = 3.0; // Strictly enforce >= 3.0s per feedback
-export const MAX_BEAT_DURATION = 6.0; // Strictly enforce <= 6.0s per feedback
+export const MIN_BEAT_DURATION = 2.5; // Strictly enforce >= 3.0s per feedback
+export const MAX_BEAT_DURATION = 5.0; // Strictly enforce <= 6.0s per feedback
 
 export const PACING_CONFIGS: Record<'low' | 'medium' | 'high', PacingConfig> = {
   high: {
     minBaseline: 3.0,
-    maxBaseline: 4.8,
+    maxBaseline: 4.0,
     minFeature: 3.5,
-    maxFeature: 5.8,
-    hardCap: 6.0,
+    maxFeature: 4.8,
+    hardCap: 5.0,
   },
   medium: {
     minBaseline: 3.0,
-    maxBaseline: 5.2,
+    maxBaseline: 4.5,
     minFeature: 4.0,
-    maxFeature: 6.0,
-    hardCap: 6.0,
+    maxFeature: 5.0,
+    hardCap: 5.0,
   },
   low: {
     minBaseline: 3.5,
-    maxBaseline: 6.0,
+    maxBaseline: 4.8,
     minFeature: 4.5,
-    maxFeature: 6.0,
-    hardCap: 6.0,
+    maxFeature: 5.0,
+    hardCap: 5.0,
   },
 };
 
@@ -655,14 +655,14 @@ export function mapPlannedBeatsToTiming(
   }
 
   // ── Step 3: Auto-subdivide any beat exceeding MAX_BEAT_DURATION (6.0s) ──
-  // Per feedback: "mot more than 6 sec". Split into slices each between 3.0s and 6.0s.
+  // Per feedback: "mot more than 6 sec". Split into slices each between 2.5s and 5.0s.
   const subdivided: Array<PlannedBeat & { duration: number }> = [];
 
   for (const beat of mergedBeats) {
     const dur = beat.duration;
 
     if (dur > MAX_BEAT_DURATION) {
-      const numCuts = Math.max(2, Math.round(dur / 4.5));
+      const numCuts = Math.max(2, Math.ceil(dur / 4.0));
       const eachDur = dur / numCuts;
       const beatWords = (beat.text || '').split(/\s+/).filter(Boolean);
       const wordsPerCut = Math.max(1, Math.ceil(beatWords.length / numCuts));

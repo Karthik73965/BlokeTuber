@@ -1,6 +1,6 @@
 # 🎬 Antigravity Documentary Video Automation Guide
 
-This guide documents the complete end-to-end workflow developed with **Google Antigravity** to source, screen, pace, cross-check, deduplicate, and render multi-chapter documentary films in **BlokeTuber** without relying on expensive LLM token quotas, third-party vision APIs, or manual editing steps.
+This guide documents the complete end-to-end production pipeline developed with **Google Antigravity** to source, curate, screen, pace, cross-check, deduplicate, sequentially render, and losslessly stitch multi-chapter broadcast documentary films in **BlokeTuber** without relying on expensive LLM token quotas, third-party vision APIs, or manual video editing.
 
 ---
 
@@ -8,209 +8,249 @@ This guide documents the complete end-to-end workflow developed with **Google An
 
 > [!IMPORTANT]
 > **Everything is executed directly by Antigravity in-session.**  
-> The entire documentary pipeline—from audio ingestion and YouTube clip sourcing to in-session visual screening, beat cross-checking, deduplication, and sequential Remotion rendering—is autonomously run and verified by the Antigravity agent.
+> The entire documentary pipeline—from audio ingestion and targeted clip sourcing to in-session visual screening, beat snapshot auditing, sequential isolated Remotion rendering, and FFmpeg master stitching—is autonomously run and verified by the Antigravity agent.
 
 ### Core Tenets:
 1. **Zero Third-Party Vision / LLM API Fees ($0.00)**:
-   - Visual screening of extracted keyframes is performed directly by Antigravity using `view_file` on local `.jpg` screenshots. No OpenAI Vision or Claude Vision API keys are required.
+   - Visual screening of extracted keyframes and beat snapshots is performed directly by Antigravity using `view_file` on local `.jpg` images. No OpenAI Vision or Claude Vision API keys are required.
    - Script directing and beat subdivision are written directly into structured TypeScript beat definitions, eliminating OpenRouter token limits and `402 Out-of-Credits` failures.
 2. **Autonomous Tool & CLI Execution**:
-   - Antigravity directly operates `yt-dlp`, FFmpeg, local Whisper transcription, database syncs, and Remotion render CLI commands via the terminal.
+   - Antigravity directly operates `yt-dlp`, FFmpeg, local Whisper transcription, database syncs, Remotion render CLI commands, and FFmpeg concat tools via PowerShell.
 3. **Automated Error Self-Healing**:
-   - If a clip fails download, exceeds size limits, or violates pacing rules, Antigravity diagnoses the failure, swaps fallbacks, updates manifests, and resumes rendering autonomously.
+   - If a clip fails download, exceeds size limits, trips Windows file locks (`EPERM`), or violates broadcast cleanliness, Antigravity diagnoses the failure, swaps fallbacks, updates manifests, and resumes rendering autonomously.
 4. **Hands-Off Experience**:
-   - The user provides the narration audio/script and creative direction; Antigravity executes all pipeline stages, cross-checks every beat, and delivers the finished broadcast video.
+   - The user provides the narration audio/script and creative direction; Antigravity executes all pipeline stages, audits every beat, and delivers the finished broadcast video into a dedicated directory.
 
 ---
 
-## 1. Executive Architecture
+## 1. Executive System Architecture
 
 ```mermaid
 flowchart TD
     AGENT[🤖 Antigravity Agent\nIn-Session Autonomous Orchestrator] --> AUDIO
-    AGENT --> YT
-    AGENT --> SCREEN
-    AGENT --> CROSS
-    AGENT --> DEDUP
+    AGENT --> SOURCING
+    AGENT --> SNAPSHOTS
+    AGENT --> QA_AUDIT
     AGENT --> RENDER
+    AGENT --> MASTER
 
-    AUDIO[Voiceover Narration Audio\n.mp3 in uploads/audio/] --> WHISPER[Whisper Alignment\nWord-Level Timestamps]
-    
-    YT[Curated YouTube Videos\nyt-dlp 1080p Stream] --> SLICE[FFmpeg Auto-Slicer\n4s-8s B-Roll Slices]
-    SLICE --> SHOTS[Keyframe Extraction\n_p1.jpg, _p2.jpg Screenshots]
-    RAW[Local Raw Footage\nuploads/raw/ Directory] --> SHOTS
-    
-    SHOTS --> SCREEN[In-Session Visual Screening\nAntigravity Direct view_file Inspection]
-    SCREEN -->|Approved Pool| POOL[(Approved Real B-Roll Pool\nmanifest.json)]
-    
-    BEATS[Director Beats Definition\nConcrete Subjects & Visual Anchors] --> CROSS[Beat-by-Beat Cross-Checker\n1-Sentence Match & Acceptance Checklist]
-    POOL --> CROSS
-    STOCK[Pexels & Pixabay Stock\nSecondary / Fallback Only] -.->|Fallback Only| CROSS
-    
-    WHISPER --> SUB[Pacing & Timing Subdivider\n1.0s - 3.0s baseline, max 4.5s-6.0s]
-    CROSS --> SUB
-    
-    SUB --> STAGE[Stage 1: Timeline Assembly\ntimeline.json & Staged Storyboard]
-    STAGE --> UI[Dashboard Interactive Review\nThumbnail Hover & Fast Swap]
-    
-    UI --> DEDUP[Strict Media Lockout & Deduplicator\nmediaRegistry.ts & MD5 Check]
-    DEDUP --> RENDER[Stage 2: Sequential Remotion Render\nChromium + HTTP Range Server]
-    RENDER --> FINAL[Final Rendered Documentary\nfinal_video.mp4]
+    subgraph INGESTION["1. Ingestion & Alignment"]
+        AUDIO[Voiceover Narration Audio\n.mp3 in uploads/audio/] --> WHISPER[Whisper Word Alignment\nExact Word-Level Timestamps]
+        WHISPER --> BEAT_SPLIT[Strict Beat Slicer\nHard Ceiling <= 5.00s per Beat]
+    end
+
+    subgraph CURATION["2. Sourcing & Zero-Freeze Buffer"]
+        SOURCING[Diverse Source Pool\nTargeted YouTube / Archival / Stock] --> SLICE[FFmpeg Pre-Buffered Slicer\nClip Duration >= Beat Duration + 1.0s]
+        SLICE --> DIVERSITY[Anti-YouTube Dump Guard\nZero Consecutive Slices]
+        DIVERSITY --> CLEANLINESS[Broadcast Cleanliness Filter\nZero Watermarks / Logos / Chyrons]
+    end
+
+    subgraph VERIFICATION["3. Visual & Audio Inspection Gate"]
+        CLEANLINESS --> TIMELINE[Timeline Assembly\nchapter_XX_final.json]
+        TIMELINE --> SNAPSHOTS[Beat Snapshot Extraction\nbeat_XX.jpg at 50% Timestamp]
+        SNAPSHOTS --> QA_AUDIT[Automated QA Gate\nfreezedetect + blackdetect + 100% Literal Match]
+        QA_AUDIT -->|Approved| STAGE[Staged & Verified Timeline]
+    end
+
+    subgraph SEQUENTIAL_RENDER["4. Isolated Sequential Rendering"]
+        STAGE --> DEDICATED[Dedicated Project Folder\noutput/:project_name_rendered/]
+        DEDICATED --> ISOLATED[Isolated Child Process Render\nnpx tsx render.ts per Chapter]
+        ISOLATED --> COOLDOWN[Memory Cooldown 3s-5s\n100% RAM & Chromium Reclamation]
+        COOLDOWN --> MP4S[Rendered Chapter MP4s\nchapter_01.mp4 ... chapter_NN.mp4]
+    end
+
+    subgraph ASSEMBLY["5. Lossless Master Assembly & Sync"]
+        MP4S --> CONCAT[FFmpeg Lossless Concat Demuxer\n-c copy concat_list.txt]
+        CONCAT --> MASTER[Master Documentary Video\nmaster_documentary_:project.mp4]
+        MASTER --> STORE[Dual Store Synchronization\nAPI Store + Root Store]
+        STORE --> UI[Web Dashboard Live Playback\nhttp://localhost:3000]
+    end
 ```
 
 ---
 
-## 2. Priority Rule: Authentic YouTube B-Roll Over Generic Stock
+## 2. The Golden Rules of Beat Pacing & Audio-Visual Alignment
 
-### Why Real YouTube Footage Takes Priority
-- **Documentary Authenticity**: Generic commercial stock footage (e.g. smiling corporate models, staged handshakes) immediately breaks documentary immersion.
-- **Specific Human Context**: Real YouTube documentary footage provides genuine textures, period-accurate vehicles, authentic working-class environments, and geographically accurate landscapes.
-- **Stock Footage is Strictly Fallback**: Pexels and Pixabay are used only when no relevant YouTube or local footage exists for a specific visual concept.
-- **Archive / Stock Allowed When More Relevant**: Archive.org, Pexels, Pixabay, and other usable sources may be used when they provide a stronger beat-level match than available YouTube or local footage.
-- **Images Are Acceptable When They Match Better**: A strong still image, archival photo, document scan, or relevant real-world photograph is better than a weak or generic moving clip.
-- **Avoid Generic People Footage**: For homelessness, housing insecurity, shelters, encampments, street survival, outreach, or poverty-related narration, source specific homeless people / shelter / encampment / street-life visuals instead of generic people, office workers, staged models, or unrelated crowd shots.
+> [!CAUTION]
+> **Violating beat pacing destroys viewer retention.**  
+> Never let beats drag beyond 5.0 seconds. Never allow static frames or audio-visual disconnects.
 
-### Sourcing & Ingestion Pipeline
-1. **Targeted YouTube Sourcing**:
-   - Source specific search topics or user-provided URLs matching the narration (e.g., *"desert highway camper van documentary"*, *"Renton Washington modular shelter"*).
-   - Use `yt-dlp` ([`youtubeSourcing.ts`](file:///C:/Users/karth/Documents/BlokeTuber/apps/api/src/services/youtubeSourcing.ts)) to download top-quality 1080p MP4s.
-   - If the available YouTube/local footage does not match a beat closely enough, search Archive.org, Pexels, Pixabay, or another usable source for a more relevant clip or still image.
-   - For homelessness-related beats, search specifically for shelter, encampment, street survival, outreach, eviction, and visibly unhoused-context visuals before accepting generic people footage.
-2. **Automatic Clip Slicing**:
-   - FFmpeg slices long videos into usable 4.0s–8.0s narrative B-roll clips.
-3. **Keyframe Screenshot Extraction**:
-   - For every sliced clip, two keyframes (`_p1.jpg` at 25% and `_p2.jpg` at 75% duration) are extracted into `uploads/raw/:projectId/screenshots/`.
-4. **Muted Audio Guarantee**:
-   - All external audio from YouTube and raw clips is muted (`volume: 0`) in Remotion. The voiceover narration is the sole audio track.
+### Rule 1: The Hard 5.0-Second Beat Ceiling
+- **Absolute Maximum Beat Duration: $\le 5.00$ seconds** (Strictly enforced in code and scripts).
+- **Target Beat Duration: 2.5s – 4.5s** (~6 to 12 spoken words).
+- If a sentence in the script is 8 to 12 seconds long, it **MUST NOT** be assigned to a single visual beat. It must be split at natural phrasing and breathing points into 2 or 3 distinct sub-beats (e.g. 3.5s + 4.2s), each with its own matching visual cut.
+- YouTube documentary pacing requires visual changes every 3 to 4 seconds to maintain eye fixation and viewer engagement.
 
----
+### Rule 2: Zero-Freeze Clip Buffer Requirement (`Clip Duration >= Beat Duration + 1.0s`)
+- **Why Videos Freeze for 2 Seconds**: When Remotion's `<OffthreadVideo>` reaches the end of an MP4 file, it stops seeking and **freezes on the last frame** for the remainder of the beat sequence.
+- **The Buffer Mandate**: Every video clip prepared in `pool_cfr30` MUST have a duration **greater than the beat duration by at least 1.0 second**:
+  $$\text{Clip Duration} \ge \text{Beat Duration} + 1.0\text{s}$$
+- If a source clip is only 4.0s but the beat requires 4.8s:
+  - FFmpeg must pre-loop or extend the clip (`ffmpeg -stream_loop 1 -i input.mp4 -t 6.0 ...`) so that Remotion **never exhausts frames** and **never freezes for even 1 frame**.
 
-## 3. Beat-by-Beat Visual Cross-Checking & Quality Gate
-
-Every single beat must be rigorously cross-checked by Antigravity before being placed into `timeline.json`.
-
-### The 1-Sentence Visual Match Rule
-> **Rule**: When evaluating a candidate clip screenshot against a narration beat, Antigravity must be able to state in **one clear sentence** why the visual directly supports the current spoken sentence. If the visual relationship cannot be clearly justified, the clip **must be rejected** and replaced.
-
-### Per-Beat Uniqueness Rule
-> **Rule**: Every beat must use a unique visual asset or unique source segment. No clip, still image, source URL, filename, or MD5-identical file may repeat anywhere in the same chapter or across the full project.
-
-### Clip Acceptance Checklist
-Approve a candidate clip only if **all** the following criteria pass:
-
-| Check | Requirement | Auto-Reject Trigger |
-|---|---|---|
-| **Subject & Demographic** | Visual matches the specific age, gender, role, and appearance described. | Young person when narration describes an elderly retiree; corporate attire when describing a tradesman. |
-| **Action & State** | The physical action depicted directly supports the narration line. | Sleeping when narration talks about driving; partying when discussing isolation. |
-| **Geography & Setting** | Correct location, climate, and architecture (US locations for US stories). | Tropical palm trees or European road signs in an Oregon or Midwest story. |
-| **Era Fidelity** | Technology, vehicles, clothing, and interiors fit the time period. | Modern smartphones or 2024 electric cars in a 1990s retro story. |
-| **Broadcast Cleanliness** | Clean cinematic b-roll with zero overlay artifacts. | Channel watermarks, news tickers, camera shakes, or talking-head interview busts. |
-| **Audio Independence** | Visual must make complete, coherent sense with source audio muted. | Clips that only make sense if the viewer can hear what the on-screen person is saying. |
-| **Zero Duplication** | Never repeat this clip or source portion anywhere in the video. | Clip already used in this or another chapter. |
-| **Homelessness Relevance** | For homelessness-related narration, use real shelter, encampment, street survival, outreach, eviction, poverty, or visibly unhoused-context imagery. | Generic pedestrians, corporate workers, lifestyle models, unrelated crowds, or clean staged "sad person" stock. |
-| **Still Image Fit** | Stills are allowed when they are clearer, more factual, or more emotionally accurate than available video. | Reject stills that are generic, decorative, or only loosely related to the spoken beat. |
-
-### Zero-Cost In-Session Visual Screening
-- Rather than spending third-party vision API credits, Antigravity directly inspects preview screenshots (`_p1.jpg`, `_p2.jpg`) in-session using `view_file`.
-- Screening decisions (`approved`, `rejected` with reason) are persisted in `uploads/raw/:projectId/manifest.json` via [`visualScreening.ts`](file:///C:/Users/karth/Documents/BlokeTuber/apps/api/src/services/visualScreening.ts).
+### Rule 3: Whisper Word-Level Semantic Audio Sync
+- **No Metaphorical Visuals**: The visual subject must literally depict what is being spoken at that exact moment.
+  - *Bad*: Spoken words: *"Her rent was $850 a month, leaving her with $190."* Visual: Dollar General shelves of canned soup (out of sync).
+  - *Good*: Spoken words: *"Her rent was $850 a month"* $\rightarrow$ Residential apartment building / eviction notice. Spoken words: *"leaving her with $190"* $\rightarrow$ Cash counting / empty wallet / payroll check.
+- **Timestamp Precision**: Use Faster-Whisper word timestamps (`start`, `end`) to cut precisely when the narrator transitions to the next concept.
 
 ---
 
-## 4. Why Antigravity Instead of OpenRouter / External LLMs?
+## 3. The "Anti-YouTube Dump" & Broadcast Cleanliness Mandate
 
-### The 402 Out-Of-Credits Issue
-When calling external LLM providers (e.g. OpenRouter `claude-3-5-sonnet` or `gemini-pro`), if `max_tokens` is omitted in the API request payload, the provider calculates credit reserve for the model's **maximum potential output token ceiling** (typically 64,000 tokens). Even if your prompt only generates 1,000 tokens, OpenRouter blocks the request with:
-```
-402: "You requested up to 64000 tokens, but can only afford 51506."
-```
+### The Core Problem: Why Raw YouTube Slices Ruin Documentaries
+When automated pipelines pull long external YouTube broadcasts (e.g., news interviews, Freethink reports, CNN segments) and chop them into consecutive contiguous slices across chapters, the film no longer feels like an original documentary. Viewers instantly recognize it as a stolen YouTube upload, complete with foreign logos, out-of-sync talking heads, and repetitive camera angles.
 
-### The Antigravity Advantage
-1. **Zero Token Cost ($0.00)**: Script planning, beat creation, and visual screening are performed directly in-session.
-2. **Superior Creative Direction**: Tailored documentary visual cues (e.g., Seattle overcast weather, Renton street scenes, dental reception offices, modular Pallet villages) rather than generic AI responses.
-3. **Instant Assembly**: Timelines generate in milliseconds rather than waiting 45 seconds for external API JSON streams.
-
----
-
-## 5. Core Production Pipeline Files
-
-| File Path | Description |
-|---|---|
-| [`apps/api/src/services/youtubeSourcing.ts`](file:///C:/Users/karth/Documents/BlokeTuber/apps/api/src/services/youtubeSourcing.ts) | YouTube downloading via `yt-dlp`, FFmpeg 4–8s clip slicing, screenshot extraction, and raw manifest tracking. |
-| [`apps/api/src/services/visualScreening.ts`](file:///C:/Users/karth/Documents/BlokeTuber/apps/api/src/services/visualScreening.ts) | Visual inspection service managing `pending`, `approved`, and `rejected` clip states and screening digests. |
-| [`apps/api/src/services/mediaRegistry.ts`](file:///C:/Users/karth/Documents/BlokeTuber/apps/api/src/services/mediaRegistry.ts) | Strict permanent lockout registry preventing any clip repetition by URL, filename, or MD5 hash across the whole video. |
-| [`apps/api/scripts/direct_ikea_chapters.ts`](file:///C:/Users/karth/Documents/BlokeTuber/apps/api/scripts/direct_ikea_chapters.ts) | Master director beat manifest containing scene beats, visual queries, backup queries, animated callouts, and layout configurations. |
-| [`apps/api/src/services/aiScriptPlanner.ts`](file:///C:/Users/karth/Documents/BlokeTuber/apps/api/src/services/aiScriptPlanner.ts) | Implements `mapPlannedBeatsToTiming`: 3-pass fast-paced subdivider enforcing 1.0s–3.0s baseline cuts and hard 5.0s caps. |
-| [`apps/api/src/services/stockFootage.ts`](file:///C:/Users/karth/Documents/BlokeTuber/apps/api/src/services/stockFootage.ts) | Stock footage search & download engine. Optimized with medium video priority, 10s timeout aborts, and 100MB size guards. |
-| [`apps/api/scripts/enforce_unique_footage.ts`](file:///C:/Users/karth/Documents/BlokeTuber/apps/api/scripts/enforce_unique_footage.ts) | Project-wide deduplication engine. Ensures all 345+ cuts across all chapters use 100% unique video files. |
-| [`apps/api/src/services/remotionRenderer.ts`](file:///C:/Users/karth/Documents/BlokeTuber/apps/api/src/services/remotionRenderer.ts) | Remotion React video rendering engine with built-in HTTP range-streaming server. |
-| [`apps/api/scripts/render_all_chapters_sequential.ts`](file:///C:/Users/karth/Documents/BlokeTuber/apps/api/scripts/render_all_chapters_sequential.ts) | Sequential batch runner rendering chapters one by one to keep RAM usage low. |
+### The Golden Rules of Documentary Sourcing:
+1. **Never Take Consecutive Slices From the Same Source Video**:
+   - Consecutive beats in a scene must **never** come from the same source file.
+   - When a slice from a source video is used on Beat $N$, that source video is locked out for a minimum of 4–5 beats (or permanently across the chapter).
+2. **Strict Broadcast Cleanliness (Zero Artifact Policy)**:
+   - **Zero Watermarks**: No stock agency watermarks (Shutterstock, Getty, iStock, etc.).
+   - **Zero Broadcast Logos / Bugs**: No TV or YouTube channel logos (CNN, MSNBC, Fox News, Freethink, BBC, etc.).
+   - **Zero Burnt-in Chyrons / Subtitles**: No foreign news lower-thirds, headline tickers, or interview name cards.
+   - **Zero Mismatched Talking Heads**: Never show an external person talking with animated lip movements while the documentary narrator is speaking. Talking heads talking over narration creates an uncanny valley effect. Only use silent cinematic B-roll, active listening cutaways, or archival action shots.
+3. **Multi-Source Diversity**:
+   - Each chapter must blend authentic documentary B-roll, high-resolution archival footage/photos (Archive.org, Library of Congress), and crisp curated stock (Pexels, Pixabay) to create a rich, cinematic visual texture.
 
 ---
 
-## 6. Step-by-Step: Antigravity-Driven Production & Rendering Workflow
+## 4. Visual & Audio Verification Protocol: Pre-Render Quality Gates
 
-### Step 1: Ingest & Slice YouTube Source Footage (via Antigravity)
-- Antigravity calls the sourcing service or runs `yt-dlp` to download curated YouTube videos and FFmpeg to slice them into 4–8s B-roll clips with preview screenshots.
+To guarantee that no bad footage slips into the final documentary, Antigravity implements a strict 3-tier pre-render verification gate.
 
-### Step 2: Visual Screening & Beat Cross-Checking (via Antigravity)
-- Antigravity directly inspects candidate screenshots in `uploads/raw/:projectId/screenshots/` using `view_file`.
-- Applies the **1-Sentence Visual Match Rule** against each spoken narration sentence.
-- Saves `approved` clips with contextual tags and `rejected` clips with reasons into `manifest.json`.
-
-### Step 3: Define Chapter Beats & Narration Audio
-- Antigravity aligns Whisper word timestamps with the voiceover audio.
-- Maps approved real YouTube clips and raw footage to the narrative beats; fills remaining gaps with stock queries.
-
-### Step 4: Assemble Storyboard (Stage 1)
-- The subdivider enforces 1.0s–3.0s baseline cuts and 5.0s caps.
-- Generates `timeline.json` without video rendering yet.
-- Chapter status transitions to `📋 STORYBOARD STAGED & READY FOR REVIEW`.
-
-### Step 5: Web Dashboard Review & Fast Swapping (Optional Manual Check)
-- Open `http://localhost:3000/project/:projectId/chapter/:chapterId` if desired to hover-preview clips or swap assets. All swaps are instantly locked in `mediaRegistry.json`.
-
-### Step 6: Project-Wide Deduplication (via Antigravity)
-- Antigravity runs deduplication to guarantee 100% unique footage:
-  ```bash
-  npx tsx scripts/enforce_unique_footage.ts
-  ```
-
-### Step 7: Sequential Remotion Rendering (Stage 2 - via Antigravity)
-- Antigravity triggers sequential rendering to avoid memory spikes:
-  ```bash
-  npx tsx scripts/render_all_chapters_sequential.ts
-  ```
-- Verifies output `final_video.mp4` on disk with clean 16:9 framing, film grain, and muted B-roll audio.
-
----
-
-## 7. Media Download Optimization Rules
-
-When downloading stock media or YouTube assets:
-1. **Prefer `medium` or `small` video streams** in Pixabay / Pexels (3–6MB, crystal clear 1080p, 0.5s download) rather than 150MB 4K files.
-2. **Always include a download timeout**:
-   ```typescript
-   fetch(video.url, { signal: AbortSignal.timeout(10000) });
-   ```
-3. **Filter out multi-gigabyte or non-CDN files**:
-   Reject any file where `Content-Length > 100MB` to avoid Node Buffer allocation crashes (`RangeError: ERR_OUT_OF_RANGE`).
-4. **Fast stream copy with ffmpeg**:
+### Tier 1: Automated QA Scanners (FFmpeg Filters)
+Before rendering any chapter:
+1. **Freeze Frame Detection (`freezedetect`)**:
    ```bash
-   ffmpeg -nostdin -y -i input.mp4 -c copy -movflags +faststart output.mp4
+   ffmpeg -i "pool_cfr30/<clip>.mp4" -vf "freezedetect=n=-60dB:d=0.5" -an -f null -
    ```
-   Avoids CPU re-encoding during download so asset saves finish in milliseconds.
+   **Threshold**: Exactly **0 freeze frames** allowed. Any clip that freezes before its beat ends is automatically rejected.
+2. **Black Frame Detection (`blackdetect`)**:
+   ```bash
+   ffmpeg -i "pool_cfr30/<clip>.mp4" -vf "blackdetect=d=0.3:pix_th=0.10" -an -f null -
+   ```
+   **Threshold**: Exactly **0 black frames** allowed. Eliminates stock footage opening/closing black fades.
+3. **Constant Frame Rate 30.00 fps Verification**:
+   Every clip must be encoded with `-r 30 -fps_mode cfr -g 30 -keyint_min 30` to prevent browser compositor micro-stutters.
+
+### Tier 2: The 50% Timestamp Snapshot Protocol
+1. **Automated Snapshot Extraction**:
+   For every beat in each chapter timeline, FFmpeg extracts a high-resolution JPEG frame at exactly 50% of the beat's duration:
+   ```bash
+   ffmpeg -ss <midpoint_seconds> -i <clip_path> -vframes 1 -q:v 2 "uploads/beat_snapshots/ch<XX>/beat_<YY>.jpg"
+   ```
+2. **In-Session Agent Audit**:
+   Antigravity inspects the generated snapshot frames using `read_file` / image inspection.
+3. **The 1-Sentence Visual Match Rule**:
+   Antigravity must be able to state in **one clear sentence** why the visual directly supports the current spoken sentence.
+4. **Immediate Replacement Trigger**:
+   If a snapshot reveals a foreign logo, blurry resolution, burnt-in text, or mismatched subject, the clip is swapped with a verified alternative before rendering begins.
+
+### Tier 3: Beat-by-Beat Inspection Sheet
+Antigravity generates a human-readable inspection manifest containing:
+- Spoken words for the beat.
+- Start and end timestamps (verified $\le 5.0$s).
+- Video duration (verified $\ge$ beat duration $+ 1.0$s).
+- Snapshot image path.
+- Callout text and styling theme.
 
 ---
 
-## 8. Summary Checklist Before Final Video Rendering
+## 5. Dedicated Project Output Architecture
 
-1. [ ] **100% Antigravity Orchestrated**: All downloading, slicing, visual screening, timeline assembly, and rendering driven directly by Antigravity in-session.
-2. [ ] **Source Relevance Priority**: Authentic documentary YouTube and local raw B-roll used first, with Archive.org, Pexels, Pixabay, and other usable sources added when they better match the exact narration beat.
-3. [ ] **Beat Cross-Check (1-Sentence Rule)**: Every beat verified against candidate screenshots or stills; visual directly and clearly supports the spoken narration line.
-4. [ ] **Acceptance Checklist Passed**: Verified age/character demographic match, action/state, setting/era accuracy, homelessness-context relevance when applicable, zero channel watermarks/news tickers, and zero talking heads.
-5. [ ] **Source Audio Muted**: All external clips verified muted (`volume: 0`); narration audio is the only sound track.
-6. [ ] **4-Beat Cooldown**: Every local clip has $\ge 4$ non-local beats separating it from any other local clip.
-7. [ ] **Pacing Enforced**: Minimum beat duration $\ge 3.0\text{s}$, maximum beat duration $\le 6.0\text{s}$ (with 1.0s–3.0s fast visual cuts where appropriate).
-8. [ ] **Zero-Repeat Lockout**: No beat repeats any video clip, still image, source URL, filename, source segment, or MD5 hash anywhere across all chapters.
-9. [ ] **Images Allowed When Stronger**: Still images are allowed when they are more relevant, factual, or emotionally accurate than available footage.
-10. [ ] **Valid Assets on Disk**: All referenced MP4 and image files verified to exist on disk with valid 1920x1080 dimensions.
+> [!IMPORTANT]
+> **Always render into a dedicated, project-specific directory.**  
+> Never dump rendered MP4s into generic root folders or shared directories where files can be overwritten or mixed up.
+
+### Standard Output Directory Structure:
+```
+output/
+  └── <project_name>_rendered/             # Dedicated Project Folder (e.g. steeldoor_rendered)
+        ├── chapter_01.mp4                 # Individual rendered chapter 1080p
+        ├── chapter_02.mp4
+        ├── ...
+        ├── chapter_11.mp4
+        ├── concat_list.txt                # FFmpeg concat file list
+        └── master_documentary_<slug>.mp4  # Stitched full-length master video (1.3GB+, 1080p)
+```
+
+---
+
+## 6. Sequential Rendering, Memory Reclamation & Process Isolation
+
+### The Concurrency Pitfall: Why Parallel Rendering Fails
+Remotion relies on headless Chromium browser instances via Puppeteer to render React compositions frame-by-frame. Running 2 or more chapters concurrently consumes **8GB–16GB+ of RAM**, causing:
+- Chromium browser crashes (`Target closed`, `Out of Memory`)
+- Node.js heap exhaustion (`JavaScript heap out of memory`)
+- Frame dropping and audio desynchronization
+
+### The Isolated Process Sequential Architecture:
+1. **Strictly One Chapter at a Time**:
+   All multi-chapter documentaries must render sequentially via an orchestrator script (e.g., `render_steeldoor_sequential.ts`).
+2. **Process Isolation (`execSync` / Child Process)**:
+   Each chapter render is launched as an isolated child process:
+   ```bash
+   npx tsx render.ts "uploads/timelines/<ch>_final.json" "output/<project>_rendered/chapter_XX.mp4"
+   ```
+   Configured with Node memory ceilings:
+   ```bash
+   NODE_OPTIONS="--max-old-space-size=6144"
+   ```
+   When the child process exits, **100% of Node.js and Chromium memory buffers are reclaimed by the OS**.
+3. **Mandatory Memory Cooldown Delay**:
+   A 3-second to 5-second asynchronous pause is enforced between chapters:
+   ```typescript
+   console.log('⏳ Cooldown 3s for memory reclamation...');
+   await new Promise((resolve) => setTimeout(resolve, 3000));
+   ```
+4. **Idempotent Skip / Resume Logic**:
+   Before initiating a chapter render, the script checks if `chapter_XX.mp4` already exists and is valid (`size > 1MB`). If valid:
+   ```typescript
+   console.log(`⏩ Chapter ${num} already rendered (${sizeMb} MB) — Skipping`);
+   ```
+   The runner logs the cached video and seamlessly proceeds to the next chapter.
+
+---
+
+## 7. Windows File Locking & `fs.rename` EPERM Self-Healing
+
+On Windows, Remotion renders video frames to a temporary file `<target>.mp4.remotion-in-progress` and moves it via `fs.rename`. Windows file locks cause `EPERM` errors.
+
+### The Two-Tier Solution Implemented in `remotionRenderer.ts`:
+1. **Pre-Render Unlink**:
+   ```typescript
+   if (fs.existsSync(outputVideoPath)) {
+     try { fs.unlinkSync(outputVideoPath); } catch {}
+   }
+   ```
+2. **Defensive Catch & Stream-Copy Fallback**:
+   If Remotion throws during rename, search the target directory for `.remotion-in-progress` files, copy the file to the destination path using `fs.copyFileSync`, then clean up.
+
+---
+
+## 8. Instant Lossless Master Stitching (FFmpeg Concat)
+
+Because all chapters are rendered with matching composition specifications (1080p, 30.00 fps CFR, H.264 High Profile, AAC stereo 48kHz), FFmpeg's concat demuxer can assemble the entire film losslessly in **seconds** without re-encoding quality loss:
+
+```bash
+ffmpeg -y -f concat -safe 0 -i "concat_list.txt" -c copy "master_documentary_<slug>.mp4"
+```
+
+---
+
+## 9. Summary Checklist Before Final Video Delivery
+
+1. [ ] **Hard Beat Ceiling Verified**: Every single beat is $\le 5.00$ seconds (target: 2.5s – 4.5s). Zero beats exceed 5.0s.
+2. [ ] **Zero Freezing Verified**: Every clip duration is $\ge$ beat duration $+ 1.0$s. No video freezes on the last frame.
+3. [ ] **Word-Level Audio Sync**: Visual subject literally matches the spoken words at that exact timestamp.
+4. [ ] **Per-Beat Uniqueness**: Zero repeated clips across the entire documentary (100% unique footage).
+5. [ ] **Anti-YouTube Dump Guard**: Zero consecutive slices from the same external video; multi-source diversity across all beats.
+6. [ ] **Broadcast Cleanliness**: Zero channel watermarks, zero news bugs, zero burnt-in chyrons/subtitles, zero talking heads with out-of-sync lip movements.
+7. [ ] **Automated QA Passed**: `freezedetect` reports 0 freeze frames; `blackdetect` reports 0 black frames.
+8. [ ] **Beat Snapshots Audited**: High-res snapshots extracted at 50% timestamp for every beat and audited.
+9. [ ] **Constant Frame Rate 30.00 fps**: All clips pre-standardized to CFR 30.00 fps with 1s GOP (`-g 30 -keyint_min 30`).
+10. [ ] **Source Audio Muted**: External clip audio muted (`volume: 0`); master voiceover narration audio is the only sound track.
+11. [ ] **Isolated Sequential Rendering**: Chapters rendered 1 at a time in child processes with `--max-old-space-size=6144` and 3s cooldowns.
+12. [ ] **Lossless Master Stitching**: Final documentary assembled via FFmpeg concat demuxer (`-c copy`) without re-encoding loss.
+13. [ ] **Dual Store Synchronized**: Both API store and root store updated with `status: "completed"` and valid video paths for real-time dashboard playback.

@@ -309,46 +309,65 @@ export async function renderTimelineVideo(
     } as any,
   });
 
-  await renderMedia({
-    composition: {
-      ...composition,
-      durationInFrames,
-      fps,
-    },
-    serveUrl: bundleUrl,
-    codec: 'h264',
-    outputLocation: finalOut,
-    timeoutInMilliseconds: 600000,
-    enforceAudioTrack: true,
-    inputProps: {
-      timeline: resolvedTimeline,
-      width: 1920,
-      height: 1080,
-      fps,
-      durationInFrames,
-      durationInSeconds,
-    },
-    onProgress: ({ renderedFrames, totalFrames }: any) => {
-      const safeTotal = totalFrames || durationInFrames || 1;
-      const percent = Math.min(100, Math.round((renderedFrames / safeTotal) * 100));
-      const currentBeat = Math.min(
-        resolvedTimeline.clips.length,
-        Math.max(1, Math.floor((renderedFrames / safeTotal) * resolvedTimeline.clips.length) + 1)
-      );
-      if (renderedFrames % Math.round(fps * 2) === 0 || renderedFrames === safeTotal) {
-        console.log(`  ⚡ [Remotion] Rendering frame progress: ${percent}% (Beat ${currentBeat}/${resolvedTimeline.clips.length} | Frame ${renderedFrames}/${safeTotal})`);
-        if (onProgress) onProgress(currentBeat, resolvedTimeline.clips.length);
+  if (fs.existsSync(finalOut)) {
+    try { fs.unlinkSync(finalOut); } catch {}
+  }
+
+  try {
+    await renderMedia({
+      composition: {
+        ...composition,
+        durationInFrames,
+        fps,
+      },
+      serveUrl: bundleUrl,
+      codec: 'h264',
+      outputLocation: finalOut,
+      timeoutInMilliseconds: 600000,
+      enforceAudioTrack: true,
+      inputProps: {
+        timeline: resolvedTimeline,
+        width: 1920,
+        height: 1080,
+        fps,
+        durationInFrames,
+        durationInSeconds,
+      },
+      onProgress: ({ renderedFrames, totalFrames }: any) => {
+        const safeTotal = totalFrames || durationInFrames || 1;
+        const percent = Math.min(100, Math.round((renderedFrames / safeTotal) * 100));
+        const currentBeat = Math.min(
+          resolvedTimeline.clips.length,
+          Math.max(1, Math.floor((renderedFrames / safeTotal) * resolvedTimeline.clips.length) + 1)
+        );
+        if (renderedFrames % Math.round(fps * 2) === 0 || renderedFrames === safeTotal) {
+          console.log(`  ⚡ [Remotion] Rendering frame progress: ${percent}% (Beat ${currentBeat}/${resolvedTimeline.clips.length} | Frame ${renderedFrames}/${safeTotal})`);
+          if (onProgress) onProgress(currentBeat, resolvedTimeline.clips.length);
+        }
+      },
+      chromiumOptions: {
+        args: [
+          '--allow-file-access-from-files',
+          '--disable-web-security',
+          '--disable-features=IsolateOrigins,site-per-process',
+          '--autoplay-policy=no-user-gesture-required',
+        ],
+      } as any,
+    });
+  } catch (err: any) {
+    const inProgressFiles = fs.readdirSync(outDir).filter(f => f.startsWith(path.basename(finalOut)) && f.endsWith('.remotion-in-progress'));
+    if (inProgressFiles.length > 0) {
+      const inProgPath = path.join(outDir, inProgressFiles[0]);
+      console.log(`⚠️ Remotion rename caught: Recovering from in-progress file ${inProgPath}`);
+      if (fs.existsSync(finalOut)) {
+        try { fs.unlinkSync(finalOut); } catch {}
       }
-    },
-    chromiumOptions: {
-      args: [
-        '--allow-file-access-from-files',
-        '--disable-web-security',
-        '--disable-features=IsolateOrigins,site-per-process',
-        '--autoplay-policy=no-user-gesture-required',
-      ],
-    } as any,
-  });
+      fs.copyFileSync(inProgPath, finalOut);
+      try { fs.unlinkSync(inProgPath); } catch {}
+    } else {
+      throw err;
+    }
+  }
 
   if (localMediaServer) {
     try {

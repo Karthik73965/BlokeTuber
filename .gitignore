@@ -48,3 +48,6 @@ __pycache__/
 tmp/
 scratch_*
 
+
+temp_*/
+

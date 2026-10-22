@@ -7,7 +7,7 @@ const PROJECT_ID = 'proj_dome_villages';
 const REPO_ROOT = path.resolve(__dirname, '../../..');
 const rootApiDir = path.resolve(__dirname, '..');
 const TIMELINES_DIR = path.resolve(REPO_ROOT, 'uploads/timelines/dome');
-const OUTPUT_DIR = path.resolve(REPO_ROOT, 'output/dome_villages');
+const OUTPUT_DIR = path.resolve(REPO_ROOT, 'output/dome_villages_rendered');
 
 fs.mkdirSync(OUTPUT_DIR, { recursive: true });
 
@@ -86,6 +86,9 @@ async function renderDomeSequential() {
     const chStartTime = Date.now();
 
     try {
+      if (fs.existsSync(outputVideoPath)) {
+        try { fs.unlinkSync(outputVideoPath); } catch {}
+      }
       const renderScript = path.resolve(__dirname, 'render.ts');
       const cmd = `npx tsx "${renderScript}" "${timelinePath}" "${outputVideoPath}"`;
 
