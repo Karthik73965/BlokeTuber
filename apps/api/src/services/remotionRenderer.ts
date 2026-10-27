@@ -198,6 +198,25 @@ export async function getRemotionBundle(): Promise<string> {
   return bundleUrl;
 }
 
+
+const DEFAULT_TRANSITION_SFX: Record<string, string> = {
+  whip_pan_left: 'uploads/sfx/whoosh_air.mp3',
+  whip_pan_right: 'uploads/sfx/whoosh_air.mp3',
+  film_burn: 'uploads/sfx/whoosh_cinematic.mp3',
+  shutter_flash: 'uploads/sfx/camera_shutter.mp3',
+  zoom_punch: 'uploads/sfx/subtle_hit.mp3',
+};
+
+const DEFAULT_CALLOUT_SFX: Record<string, string> = {
+  editorial_lower_third: 'uploads/sfx/paper_slide.mp3',
+  newspaper_headline: 'uploads/sfx/camera_shutter.mp3',
+  odometer_stat: 'uploads/sfx/stat_click.mp3',
+  forensic_data_card: 'uploads/sfx/paper_slide.mp3',
+  police_crime_sheet: 'uploads/sfx/subtle_hit.mp3',
+  redacted_dossier: 'uploads/sfx/paper_slide.mp3',
+  typewriter_paper: 'uploads/sfx/paper_slide.mp3',
+};
+
 export async function renderTimelineVideo(
   timelineJsonPath: string,
   outputVideoPath: string,
@@ -262,15 +281,36 @@ export async function renderTimelineVideo(
   const resolvedTimeline: Timeline = {
     ...rawTimeline,
     masterAudioPath: resolvedMasterAudio,
-    clips: rawTimeline.clips.map((clip) => ({
-      ...clip,
-      clipPath: resolveMediaUrl(clip.clipPath, timelineDir, streamPort),
-      secondaryClipPath: resolveMediaUrl(clip.secondaryClipPath, timelineDir, streamPort),
-      additionalClipPaths: (clip.additionalClipPaths || [])
-        .map((p) => resolveMediaUrl(p, timelineDir, streamPort))
-        .filter(Boolean) as string[],
-      sfxPath: resolveMediaUrl(clip.sfxPath, timelineDir, streamPort),
-    })),
+    clips: rawTimeline.clips.map((clip) => {
+      let rawSfx = clip.sfxPath;
+      if (!rawSfx && clip.transitionType && DEFAULT_TRANSITION_SFX[clip.transitionType]) {
+        rawSfx = DEFAULT_TRANSITION_SFX[clip.transitionType];
+      }
+
+      let rawCalloutSfx = clip.callout?.sfxPath || clip.calloutSfxPath;
+      if (!rawCalloutSfx && clip.callout?.type && DEFAULT_CALLOUT_SFX[clip.callout.type]) {
+        rawCalloutSfx = DEFAULT_CALLOUT_SFX[clip.callout.type];
+      }
+
+      const resolvedCallout = clip.callout
+        ? {
+            ...clip.callout,
+            sfxPath: rawCalloutSfx ? resolveMediaUrl(rawCalloutSfx, timelineDir, streamPort) : null,
+          }
+        : null;
+
+      return {
+        ...clip,
+        clipPath: resolveMediaUrl(clip.clipPath, timelineDir, streamPort),
+        secondaryClipPath: resolveMediaUrl(clip.secondaryClipPath, timelineDir, streamPort),
+        additionalClipPaths: (clip.additionalClipPaths || [])
+          .map((p) => resolveMediaUrl(p, timelineDir, streamPort))
+          .filter(Boolean) as string[],
+        sfxPath: rawSfx ? resolveMediaUrl(rawSfx, timelineDir, streamPort) : null,
+        callout: resolvedCallout,
+        calloutSfxPath: rawCalloutSfx ? resolveMediaUrl(rawCalloutSfx, timelineDir, streamPort) : null,
+      };
+    }),
   };
 
   const finalOut = path.resolve(outputVideoPath);

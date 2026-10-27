@@ -56,30 +56,46 @@ export const DocumentaryVideo: React.FC<DocumentaryVideoProps> = ({ timeline }) 
       }}
     >
       {/* ── VIDEO SEQUENCES WITH MULTI-LAYOUT SCENE DIRECTOR & OVERLAYS ── */}
-      {sequences.map(({ clip, index, startFrame, durationInFrames, durationInSeconds }) => (
-        <Sequence
-          key={`seq_${index}_${clip.beatIndex}`}
-          from={startFrame}
-          durationInFrames={durationInFrames}
-          name={`Beat ${clip.beatIndex + 1} (${durationInSeconds.toFixed(1)}s)`}
-        >
-          <SceneLayoutDirector
-            clip={clip}
-            clipIndex={index}
+      {sequences.map(({ clip, index, startFrame, durationInFrames, durationInSeconds }) => {
+        const calloutStartFrame = clip.callout
+          ? Math.max(0, Math.round((clip.callout.startTime ?? 0.05) * fps))
+          : 0;
+        const calloutSfx = clip.callout?.sfxPath || clip.calloutSfxPath;
+        const calloutSfxDuration = Math.min(60, Math.max(15, durationInFrames - calloutStartFrame));
+
+        return (
+          <Sequence
+            key={seq__}
+            from={startFrame}
             durationInFrames={durationInFrames}
-            durationInSeconds={durationInSeconds}
-          />
-          {clip.overlay && <OverlayDirector overlay={clip.overlay} />}
-          <SceneTransitionDirector
-            transitionType={clip.transitionType}
-            clipIndex={index}
-            durationInFrames={durationInFrames}
-          />
-          {clip.sfxPath && (
-            <Audio src={clip.sfxPath} volume={clip.sfxVolume ?? 0.18} />
-          )}
-        </Sequence>
-      ))}
+            name={Beat  (s)}
+          >
+            <SceneLayoutDirector
+              clip={clip}
+              clipIndex={index}
+              durationInFrames={durationInFrames}
+              durationInSeconds={durationInSeconds}
+            />
+            {clip.overlay && <OverlayDirector overlay={clip.overlay} />}
+            <SceneTransitionDirector
+              transitionType={clip.transitionType}
+              clipIndex={index}
+              durationInFrames={durationInFrames}
+            />
+            {clip.sfxPath && (
+              <Audio src={clip.sfxPath} volume={clip.sfxVolume ?? 0.18} />
+            )}
+            {calloutSfx && (
+              <Sequence from={calloutStartFrame} durationInFrames={calloutSfxDuration}>
+                <Audio
+                  src={calloutSfx}
+                  volume={clip.callout?.sfxVolume ?? clip.calloutSfxVolume ?? 0.14}
+                />
+              </Sequence>
+            )}
+          </Sequence>
+        );
+      })}
 
       {/* ── GLOBAL TIMELINE OVERLAYS (e.g. 35mm Grain, Vignette) ──────── */}
       {timeline.globalOverlays && (

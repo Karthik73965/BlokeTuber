@@ -12,7 +12,7 @@ This guide documents the complete end-to-end production pipeline developed with 
 
 ### Core Tenets:
 1. **Zero Third-Party Vision / LLM API Fees ($0.00)**:
-   - Visual screening of extracted keyframes and beat snapshots is performed directly by Antigravity using `view_file` on local `.jpg` images. No OpenAI Vision or Claude Vision API keys are required.
+   - Visual screening of extracted keyframes and beat snapshots is performed directly by Antigravity using `read_file` on local `.jpg` images. No OpenAI Vision or Claude Vision API keys are required.
    - Script directing and beat subdivision are written directly into structured TypeScript beat definitions, eliminating OpenRouter token limits and `402 Out-of-Credits` failures.
 2. **Autonomous Tool & CLI Execution**:
    - Antigravity directly operates `yt-dlp`, FFmpeg, local Whisper transcription, database syncs, Remotion render CLI commands, and FFmpeg concat tools via PowerShell.
@@ -29,7 +29,8 @@ This guide documents the complete end-to-end production pipeline developed with 
 flowchart TD
     AGENT[🤖 Antigravity Agent\nIn-Session Autonomous Orchestrator] --> AUDIO
     AGENT --> SOURCING
-    AGENT --> SNAPSHOTS
+    AGENT --> TRANSITIONS
+    AGENT --> CALLOUTS
     AGENT --> QA_AUDIT
     AGENT --> RENDER
     AGENT --> MASTER
@@ -45,21 +46,28 @@ flowchart TD
         DIVERSITY --> CLEANLINESS[Broadcast Cleanliness Filter\nZero Watermarks / Logos / Chyrons]
     end
 
-    subgraph VERIFICATION["3. Visual & Audio Inspection Gate"]
+    subgraph AUDIO_VISUAL_DESIGN["3. Transitions, Whooshes & Grounded Callouts"]
+        TRANSITIONS[Cinematic Transitions & Whooshes\nEvery 3-5 Beats: Whip Pan, Film Burn, Shutter]
+        CALLOUTS[Verbatim Grounded Callouts\n100% Sourced from Spoken Words + Entrance SFX]
+    end
+
+    subgraph VERIFICATION["4. Visual & Audio Inspection Gate"]
         CLEANLINESS --> TIMELINE[Timeline Assembly\nchapter_XX_final.json]
+        TRANSITIONS --> TIMELINE
+        CALLOUTS --> TIMELINE
         TIMELINE --> SNAPSHOTS[Beat Snapshot Extraction\nbeat_XX.jpg at 50% Timestamp]
-        SNAPSHOTS --> QA_AUDIT[Automated QA Gate\nfreezedetect + blackdetect + 100% Literal Match]
+        SNAPSHOTS --> QA_AUDIT[Automated QA Gate\nfreezedetect + blackdetect + Callout Word-Match]
         QA_AUDIT -->|Approved| STAGE[Staged & Verified Timeline]
     end
 
-    subgraph SEQUENTIAL_RENDER["4. Isolated Sequential Rendering"]
+    subgraph SEQUENTIAL_RENDER["5. Isolated Sequential Rendering"]
         STAGE --> DEDICATED[Dedicated Project Folder\noutput/:project_name_rendered/]
         DEDICATED --> ISOLATED[Isolated Child Process Render\nnpx tsx render.ts per Chapter]
         ISOLATED --> COOLDOWN[Memory Cooldown 3s-5s\n100% RAM & Chromium Reclamation]
         COOLDOWN --> MP4S[Rendered Chapter MP4s\nchapter_01.mp4 ... chapter_NN.mp4]
     end
 
-    subgraph ASSEMBLY["5. Lossless Master Assembly & Sync"]
+    subgraph ASSEMBLY["6. Lossless Master Assembly & Sync"]
         MP4S --> CONCAT[FFmpeg Lossless Concat Demuxer\n-c copy concat_list.txt]
         CONCAT --> MASTER[Master Documentary Video\nmaster_documentary_:project.mp4]
         MASTER --> STORE[Dual Store Synchronization\nAPI Store + Root Store]
@@ -72,8 +80,8 @@ flowchart TD
 ## 2. The Golden Rules of Beat Pacing & Audio-Visual Alignment
 
 > [!CAUTION]
-> **Violating beat pacing destroys viewer retention.**  
-> Never let beats drag beyond 5.0 seconds. Never allow static frames or audio-visual disconnects.
+> **Violating beat pacing and audio alignment destroys viewer retention.**  
+> Never let beats drag beyond 5.0 seconds. Never allow static frames, audio-visual disconnects, or hallucinated text callouts.
 
 ### Rule 1: The Hard 5.0-Second Beat Ceiling
 - **Absolute Maximum Beat Duration: $\le 5.00$ seconds** (Strictly enforced in code and scripts).
@@ -93,6 +101,52 @@ flowchart TD
   - *Bad*: Spoken words: *"Her rent was $850 a month, leaving her with $190."* Visual: Dollar General shelves of canned soup (out of sync).
   - *Good*: Spoken words: *"Her rent was $850 a month"* $\rightarrow$ Residential apartment building / eviction notice. Spoken words: *"leaving her with $190"* $\rightarrow$ Cash counting / empty wallet / payroll check.
 - **Timestamp Precision**: Use Faster-Whisper word timestamps (`start`, `end`) to cut precisely when the narrator transitions to the next concept.
+
+### Rule 4: Cinematic Transitions & Whoosh Choreography (Every 3–5 Beats)
+Documentary pacing demands dynamic rhythm without turning into a chaotic music video. Maintain a balance of clean hard cuts and styled transitions:
+- **Pacing Ratio**: **65%–75% Hard Cuts** (`transitionType: "cut"`) / **25%–35% Dynamic Transitions**.
+- **Transition-to-Sound Pairing Table**:
+  | Transition Type | Visual Style | Paired SFX (`sfxPath`) | Volume | Best Narrative Moment |
+  |---|---|---|---|---|
+  | **`whip_pan_left` / `whip_pan_right`** | Fast directional camera swipe (0.15s) | `uploads/sfx/whoosh_air.mp3` | `0.16 – 0.20` | Switching locations, moving between subjects, or fast timeline jumps |
+  | **`film_burn`** | 35mm warm light leak flare (0.20s) | `uploads/sfx/whoosh_cinematic.mp3` | `0.18 – 0.22` | Shifting into flashbacks, emotional turning points, or sunset vistas |
+  | **`shutter_flash`** | White exposure bloom / camera flash (0.08s) | `uploads/sfx/camera_shutter.mp3` | `0.20 – 0.25` | Cutting into newspaper headlines, case dossiers, or photo evidence |
+  | **`zoom_punch`** | Snap-zoom scale impact with sub-shockwave (0.18s) | `uploads/sfx/subtle_hit.mp3` | `0.18 – 0.22` | Shocking budget statistics, eviction notices, or critical accusations |
+  | **`film_dip_black`** | Smooth cinematic fade through black (0.25s) | *(Silent or low room tone)* | — | Chapter openings, solemn realizations, or dramatic story pauses |
+  | **`cut`** | Instant frame cut (0.00s) | *(None)* | — | Baseline documentary standard for continuous dialogue & visual flow |
+
+### Rule 5: Strict Callout-to-Voiceover Grounding (Anti-Hallucination & Verbatim Rule)
+> [!WARNING]
+> **Never display text in a callout that contradicts or diverges from what the narrator is speaking.**  
+> Hallucinated numbers, future plot spoilers, or academic buzzwords confuse the viewer and shatter documentary credibility.
+
+1. **The Verbatim Grounding Mandate**:
+   - `callout.line1` and `callout.line2` must extract or quote words, figures, and facts directly present in that exact beat's spoken text.
+   - If the beat mentions an exact dollar amount or number, display that exact number:
+     - Spoken: *"She earns $314 a week before taxes and about $260 after."*
+     - Callout Line 1: `NET WEEKLY PAYROLL: $260.00`
+     - Callout Line 2: `$314.00 GROSS PRE-TAX COMPENSATION`
+2. **Direct Quotes in Quotation Marks**:
+   - When the narration reports someone speaking, enclose the spoken words in quotation marks:
+     - Spoken: *"A man at the gas station tells her she will cook alive inside a metal box by July."*
+     - Callout Line 1: `RURAL SKEPTICISM`
+     - Callout Line 2: `"YOU'LL COOK ALIVE BY JULY"`
+   - *(Never hallucinate external stats like "TEMPERATURE EXCEEDS 140°F" if the narrator never said 140°F!)*
+3. **Zero Future Spoilers**:
+   - Never display technical solutions or future build steps on beats before they are introduced in the narration.
+4. **Purposive Callout Density (25% – 35% of Beats)**:
+   - Callouts must only appear when a beat introduces a **concrete factual anchor**: an exact price, date, location, official record, measurement, or direct spoken quote.
+   - If a beat is purely transitional or reflective, set `"callout": null`. Never force artificial callouts onto empty beats.
+
+### Rule 6: Callout Entrance Audio Accents (Tactile Sound Design)
+Every callout entrance should feel physical and tactile, anchored by a subtle audio accent at `callout.startTime`:
+| Callout Type | Visual Animation | Paired Entrance SFX (`calloutSfxPath`) | Volume |
+|---|---|---|---|
+| **`editorial_lower_third`** | Spring slide-in from left with ochre accent bar | `uploads/sfx/paper_slide.mp3` or `whoosh_air.mp3` | `0.12 – 0.15` |
+| **`newspaper_headline`** | High-impact print press reveal | `uploads/sfx/camera_shutter.mp3` | `0.18 – 0.22` |
+| **`odometer_stat`** | Mechanical number counter spin | `uploads/sfx/stat_click.mp3` | `0.14 – 0.18` |
+| **`forensic_data_card` / `redacted_dossier`** | Manila document drop | `uploads/sfx/paper_slide.mp3` | `0.12 – 0.15` |
+| **`police_crime_sheet`** | Case binder clamp slam | `uploads/sfx/subtle_hit.mp3` | `0.15 – 0.20` |
 
 ---
 
@@ -115,11 +169,11 @@ When automated pipelines pull long external YouTube broadcasts (e.g., news inter
 
 ---
 
-## 4. Visual & Audio Verification Protocol: Pre-Render Quality Gates
+## 4. Visual, Audio & Callout Verification Protocol: Pre-Render Quality Gates
 
-To guarantee that no bad footage slips into the final documentary, Antigravity implements a strict 3-tier pre-render verification gate.
+To guarantee that no bad footage, broken audio, or mismatched callouts slip into the final documentary, Antigravity implements a strict 4-tier pre-render verification gate.
 
-### Tier 1: Automated QA Scanners (FFmpeg Filters)
+### Tier 1: Automated Video QA Scanners (FFmpeg Filters)
 Before rendering any chapter:
 1. **Freeze Frame Detection (`freezedetect`)**:
    ```bash
@@ -134,7 +188,13 @@ Before rendering any chapter:
 3. **Constant Frame Rate 30.00 fps Verification**:
    Every clip must be encoded with `-r 30 -fps_mode cfr -g 30 -keyint_min 30` to prevent browser compositor micro-stutters.
 
-### Tier 2: The 50% Timestamp Snapshot Protocol
+### Tier 2: Automated Callout Semantic Grounding Audit
+Before rendering, run the automated callout verification audit (`python scripts/audit_callout_match.py`):
+- Verifies that all numbers in `line1` and `line2` exist in `beat.text`.
+- Verifies that key nouns and entities have direct lexical overlap with spoken words.
+- Flags and halts rendering if any callout has zero grounding or introduces hallucinated statistics.
+
+### Tier 3: The 50% Timestamp Snapshot Protocol
 1. **Automated Snapshot Extraction**:
    For every beat in each chapter timeline, FFmpeg extracts a high-resolution JPEG frame at exactly 50% of the beat's duration:
    ```bash
@@ -147,13 +207,14 @@ Before rendering any chapter:
 4. **Immediate Replacement Trigger**:
    If a snapshot reveals a foreign logo, blurry resolution, burnt-in text, or mismatched subject, the clip is swapped with a verified alternative before rendering begins.
 
-### Tier 3: Beat-by-Beat Inspection Sheet
+### Tier 4: Beat-by-Beat Inspection Sheet
 Antigravity generates a human-readable inspection manifest containing:
 - Spoken words for the beat.
 - Start and end timestamps (verified $\le 5.0$s).
 - Video duration (verified $\ge$ beat duration $+ 1.0$s).
 - Snapshot image path.
-- Callout text and styling theme.
+- Transition type and paired whoosh SFX.
+- Callout text, style, theme color, and entrance SFX.
 
 ---
 
@@ -244,13 +305,16 @@ ffmpeg -y -f concat -safe 0 -i "concat_list.txt" -c copy "master_documentary_<sl
 1. [ ] **Hard Beat Ceiling Verified**: Every single beat is $\le 5.00$ seconds (target: 2.5s – 4.5s). Zero beats exceed 5.0s.
 2. [ ] **Zero Freezing Verified**: Every clip duration is $\ge$ beat duration $+ 1.0$s. No video freezes on the last frame.
 3. [ ] **Word-Level Audio Sync**: Visual subject literally matches the spoken words at that exact timestamp.
-4. [ ] **Per-Beat Uniqueness**: Zero repeated clips across the entire documentary (100% unique footage).
-5. [ ] **Anti-YouTube Dump Guard**: Zero consecutive slices from the same external video; multi-source diversity across all beats.
-6. [ ] **Broadcast Cleanliness**: Zero channel watermarks, zero news bugs, zero burnt-in chyrons/subtitles, zero talking heads with out-of-sync lip movements.
-7. [ ] **Automated QA Passed**: `freezedetect` reports 0 freeze frames; `blackdetect` reports 0 black frames.
-8. [ ] **Beat Snapshots Audited**: High-res snapshots extracted at 50% timestamp for every beat and audited.
-9. [ ] **Constant Frame Rate 30.00 fps**: All clips pre-standardized to CFR 30.00 fps with 1s GOP (`-g 30 -keyint_min 30`).
-10. [ ] **Source Audio Muted**: External clip audio muted (`volume: 0`); master voiceover narration audio is the only sound track.
-11. [ ] **Isolated Sequential Rendering**: Chapters rendered 1 at a time in child processes with `--max-old-space-size=6144` and 3s cooldowns.
-12. [ ] **Lossless Master Stitching**: Final documentary assembled via FFmpeg concat demuxer (`-c copy`) without re-encoding loss.
-13. [ ] **Dual Store Synchronized**: Both API store and root store updated with `status: "completed"` and valid video paths for real-time dashboard playback.
+4. [ ] **Cinematic Transitions & Whooshes**: Every 3 to 5 beats features a styled transition (`whip_pan`, `film_burn`, `shutter_flash`, `zoom_punch`) with an audible whoosh/shutter SFX.
+5. [ ] **Callout Verbatim Grounding**: Every callout line1/line2 is 100% derived from the spoken words of that beat. Zero hallucinated stats or future spoilers.
+6. [ ] **Callout Sound Design**: Every callout entrance has an audio accent (`paper_slide`, `camera_shutter`, `stat_click`).
+7. [ ] **Per-Beat Uniqueness**: Zero repeated clips across the entire documentary (100% unique footage).
+8. [ ] **Anti-YouTube Dump Guard**: Zero consecutive slices from the same external video; multi-source diversity across all beats.
+9. [ ] **Broadcast Cleanliness**: Zero channel watermarks, zero news bugs, zero burnt-in chyrons/subtitles, zero talking heads with out-of-sync lip movements.
+10. [ ] **Automated QA Passed**: `freezedetect` reports 0 freeze frames; `blackdetect` reports 0 black frames; `audit_callout_match.py` reports 0 mismatches.
+11. [ ] **Beat Snapshots Audited**: High-res snapshots extracted at 50% timestamp for every beat and audited.
+12. [ ] **Constant Frame Rate 30.00 fps**: All clips pre-standardized to CFR 30.00 fps with 1s GOP (`-g 30 -keyint_min 30`).
+13. [ ] **Source Audio Muted**: External clip audio muted (`volume: 0`); master voiceover narration audio is the only sound track.
+14. [ ] **Isolated Sequential Rendering**: Chapters rendered 1 at a time in child processes with `--max-old-space-size=6144` and 3s cooldowns.
+15. [ ] **Lossless Master Stitching**: Final documentary assembled via FFmpeg concat demuxer (`-c copy`) without re-encoding loss.
+16. [ ] **Dual Store Synchronized**: Both API store and root store updated with `status: "completed"` and valid video paths for real-time dashboard playback.

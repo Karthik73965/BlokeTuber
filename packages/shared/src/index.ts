@@ -127,6 +127,8 @@ export interface CalloutOverlay {
   endTime?: number;
   /** Keep the callout fixed on screen instead of animating its entry and exit. */
   staticDisplay?: boolean;
+  sfxPath?: string | null;
+  sfxVolume?: number;
 }
 
 export type SceneLayoutType =
@@ -189,6 +191,8 @@ export interface TimelineClip {
   overlay?: OverlayType | OverlayType[];
   sfxPath?: string | null;
   sfxVolume?: number;
+  calloutSfxPath?: string | null;
+  calloutSfxVolume?: number;
   hideWatermark?: boolean;
   watermarkCrop?: { scale?: number; translateY?: number; translateX?: number };
 }
