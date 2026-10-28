@@ -181,8 +181,12 @@ Every callout entrance should feel physical and tactile, anchored by a subtle au
 
 ### Rule 10: Dynamic Auto-Crop & Zoom-In for Any Logos / Channel Bugs
 > [!IMPORTANT]
-> **No foreign channel logo or news bug may ever appear on screen.**  
-> If an authentic archival news or documentary clip contains a corner logo (e.g. KPIX 5, CBS, CNN, ABC7, Freethink), Antigravity MUST zoom into the clip (1.25x – 1.35x zoom centered or crop-positioned) in such a way that the logo is pushed completely off-screen, or apply a clean bottom/corner crop while re-scaling to 1920x1080 Full HD.
+> **No foreign channel logo, news bug, or chyron may ever appear on screen.**  
+> If an authentic archival news or documentary clip contains a corner logo (e.g. KPIX 5, CBS, CNN, ABC7, Fox, Freethink), Antigravity MUST zoom into the clip (1.25x – 1.35x zoom centered or crop-positioned) in such a way that the logo is pushed completely off-screen, or apply a clean bottom/corner crop while re-scaling to 1920x1080 Full HD.
+> - **Crop Presets**:
+>   - `zoom_128`: Center 1.28x crop (`crop=in_w*0.78:in_h*0.78:(in_w-in_w*0.78)/2:(in_h-in_h*0.78)/2,scale=1920:1080`) — completely removes 4-corner broadcast bugs while retaining core visual center.
+>   - `zoom_135`: Deep 1.35x crop (`crop=in_w*0.74:in_h*0.74:(in_w-in_w*0.74)/2:(in_h-in_h*0.74)/2,scale=1920:1080`) — completely removes large lower/upper station bugs and news ticker banners.
+>   - `crop_chyron`: Bottom chyron removal (`crop=in_w:in_h*0.78:0:in_h*0.04,scale=1920:1080`) — strips out TV news lower-thirds and headline tickers.
 
 ### Rule 11: Dynamic On-Demand Sourcing & Stock Fallback Gate
 > [!IMPORTANT]
@@ -191,14 +195,24 @@ Every callout entrance should feel physical and tactile, anchored by a subtle au
 > 1. If no clip in our current media pool provides a direct, literal, accurate semantic match to the spoken voiceover, Antigravity **MUST NOT** settle for unrelated footage or reuse an earlier clip.
 > 2. Antigravity **MUST IMMEDIATELY** fetch a new targeted YouTube documentary source via `yt-dlp` or download clean stock footage (Pexels, Pixabay, Archive.org) matching that exact spoken concept.
 > 3. Sourcing is continuous throughout production—if 10 new clips are needed to match specific beats, 10 new clips must be sourced on the fly.
+> 4. Slices from the same video MUST NOT overlap. Each slice must be separated by $\Delta t \ge 15.0\text{s}$ so that viewers never see repeating or slightly offset scenes.
 
 ### Rule 12: Exact Audio-Visual Synchronization & Voice Customization
 - Every single cut must be customized to the voice playing in the background at that exact sub-second interval.
-- When the voiceover speaks about mud stomping $\rightarrow$ bare feet stomping wet mud.
-- When the voiceover speaks about blowtorch fire resistance $\rightarrow$ blowtorch flame blasting cob wall.
-- When the voiceover speaks about eviction bulldozers $\rightarrow$ yellow excavators scraping dirt.
-- When the voiceover speaks about Delia's quiet room $\rightarrow$ calm interior sanctuary without talking lips.
+- Each clip must be monitored perfectly and each visual element customized according to the beat voice:
+  - When the voiceover speaks about mud stomping $\rightarrow$ bare feet stomping wet mud.
+  - When the voiceover speaks about blowtorch fire resistance $\rightarrow$ blowtorch flame blasting cob wall.
+  - When the voiceover speaks about eviction bulldozers $\rightarrow$ yellow excavators scraping dirt.
+  - When the voiceover speaks about Delia's quiet room $\rightarrow$ calm interior sanctuary without talking lips.
+  - When the voiceover speaks about community cooking $\rightarrow$ large pots and kitchen food preparation.
 - If a clip has any visual ambiguity, the agent must inspect the 50% midpoint snapshot and verify with certainty before approving it for the timeline.
+
+### Rule 13: Subagent Multi-Perspective Verification
+- Before sequential rendering begins, Antigravity deploys specialized subagents to cross-check all beats across all chapters in parallel:
+  - Verify 0 duplicate hashes and 0 slice overlaps.
+  - Verify 0 talking mouths during narrator voiceover.
+  - Verify 0 visible channel logos or chyrons.
+  - Verify exact semantic match between voiceover text and visual frame.
 
 ---
 
