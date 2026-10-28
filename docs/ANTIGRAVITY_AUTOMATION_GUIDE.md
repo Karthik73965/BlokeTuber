@@ -148,6 +148,58 @@ Every callout entrance should feel physical and tactile, anchored by a subtle au
 | **`forensic_data_card` / `redacted_dossier`** | Manila document drop | `uploads/sfx/paper_slide.mp3` | `0.12 – 0.15` |
 | **`police_crime_sheet`** | Case binder clamp slam | `uploads/sfx/subtle_hit.mp3` | `0.15 – 0.20` |
 
+### Rule 7: The Absolute Clip Uniqueness Mandate (Mathematical Zero-Duplication)
+> [!CAUTION]
+> **Reusing clips across chapters or slicing contiguous overlapping windows destroys original documentary value.**  
+> A documentary must NEVER show the same shot twice, and must NEVER slice overlapping 2-second windows from the same video.
+
+1. **Zero Binary Duplicates**:
+   - Every single beat clip MUST be a completely unique piece of footage. No clip can ever be reused in later chapters (e.g., using Chapter 00 opening B-roll in Chapter 12 is strictly banned).
+   - An automated cryptographic hash audit (`audit_clip_uniqueness.py`) must verify that `len(set(clip_hashes)) == len(clips)`.
+2. **Zero Contiguous Window Overlaps**:
+   - Slicing 7.5s clips every 2.0s or 3.0s from the same source video produces an amateurish stutter where the viewer watches the same continuous shot multiple times with slight offsets.
+   - If a source video is sliced at $t = X$, the next slice from that same source video must be separated by at least **$\Delta t \ge 8.0\text{ seconds}$** (or locked out entirely).
+3. **The Source Footage Minimum Pool Formula**:
+   - Sourcing 2 or 3 YouTube videos for a 20-minute, 280-beat documentary is a structural failure. To guarantee 280 unique non-overlapping beats:
+     $$\text{Unique Sourced Footage Required} \ge \text{Total Beats} \times 8.0\text{s} = 280 \times 8.0\text{s} = 2,240\text{ seconds} \approx 37.5\text{ minutes}$$
+   - Antigravity must source **at least 15 to 25 diverse video sources** (documentary b-roll, drone scans, construction archives, city hearings, silent news b-roll) to guarantee true diversity.
+
+### Rule 8: Absolute Ban on Talking Heads Over Voiceover
+- **The Uncanny Valley Rule**: Never show an external person talking to the camera with animated lip movements while the documentary narrator's voice is playing.
+- It breaks viewer immersion, creates dissonance, and makes the film look like an amateur reaction video or low-effort YouTube repost.
+- When slicing interview footage, **ONLY slice silent cutaways**:
+  - Hands working, typing, or gesturing without showing moving lips
+  - Active listening cutaways (eyes, nodded heads, quiet expressions)
+  - Wide environment and contextual b-roll
+  - If a clip has someone speaking into a microphone, it is **strictly rejected**.
+
+### Rule 9: Broadcast Cleanliness & Chyron Stripping
+- **Zero News Chyrons**: No TV broadcast lower-thirds (e.g., "FATAL ENCAMPMENT FIRE", "BREAKING NEWS", "KPIX 5", "ABC7", "FOX2").
+- If archival news footage contains a chyron or bug at the bottom:
+  - Antigravity must apply an FFmpeg dynamic crop (`-vf "crop=in_w:in_h*0.82:0:0,scale=1920:1080"`) to completely cut out the bottom 18% chyron zone, OR
+  - Replace the clip with clean, unbranded documentary B-roll.
+
+### Rule 10: Dynamic Auto-Crop & Zoom-In for Any Logos / Channel Bugs
+> [!IMPORTANT]
+> **No foreign channel logo or news bug may ever appear on screen.**  
+> If an authentic archival news or documentary clip contains a corner logo (e.g. KPIX 5, CBS, CNN, ABC7, Freethink), Antigravity MUST zoom into the clip (1.25x – 1.35x zoom centered or crop-positioned) in such a way that the logo is pushed completely off-screen, or apply a clean bottom/corner crop while re-scaling to 1920x1080 Full HD.
+
+### Rule 11: Dynamic On-Demand Sourcing & Stock Fallback Gate
+> [!IMPORTANT]
+> **Never force a weak, metaphorical, or poor-fitting clip.**  
+> While screening every beat against the spoken voiceover:
+> 1. If no clip in our current media pool provides a direct, literal, accurate semantic match to the spoken voiceover, Antigravity **MUST NOT** settle for unrelated footage or reuse an earlier clip.
+> 2. Antigravity **MUST IMMEDIATELY** fetch a new targeted YouTube documentary source via `yt-dlp` or download clean stock footage (Pexels, Pixabay, Archive.org) matching that exact spoken concept.
+> 3. Sourcing is continuous throughout production—if 10 new clips are needed to match specific beats, 10 new clips must be sourced on the fly.
+
+### Rule 12: Exact Audio-Visual Synchronization & Voice Customization
+- Every single cut must be customized to the voice playing in the background at that exact sub-second interval.
+- When the voiceover speaks about mud stomping $\rightarrow$ bare feet stomping wet mud.
+- When the voiceover speaks about blowtorch fire resistance $\rightarrow$ blowtorch flame blasting cob wall.
+- When the voiceover speaks about eviction bulldozers $\rightarrow$ yellow excavators scraping dirt.
+- When the voiceover speaks about Delia's quiet room $\rightarrow$ calm interior sanctuary without talking lips.
+- If a clip has any visual ambiguity, the agent must inspect the 50% midpoint snapshot and verify with certainty before approving it for the timeline.
+
 ---
 
 ## 3. The "Anti-YouTube Dump" & Broadcast Cleanliness Mandate
@@ -308,10 +360,12 @@ ffmpeg -y -f concat -safe 0 -i "concat_list.txt" -c copy "master_documentary_<sl
 4. [ ] **Cinematic Transitions & Whooshes**: Every 3 to 5 beats features a styled transition (`whip_pan`, `film_burn`, `shutter_flash`, `zoom_punch`) with an audible whoosh/shutter SFX.
 5. [ ] **Callout Verbatim Grounding**: Every callout line1/line2 is 100% derived from the spoken words of that beat. Zero hallucinated stats or future spoilers.
 6. [ ] **Callout Sound Design**: Every callout entrance has an audio accent (`paper_slide`, `camera_shutter`, `stat_click`).
-7. [ ] **Per-Beat Uniqueness**: Zero repeated clips across the entire documentary (100% unique footage).
-8. [ ] **Anti-YouTube Dump Guard**: Zero consecutive slices from the same external video; multi-source diversity across all beats.
-9. [ ] **Broadcast Cleanliness**: Zero channel watermarks, zero news bugs, zero burnt-in chyrons/subtitles, zero talking heads with out-of-sync lip movements.
-10. [ ] **Automated QA Passed**: `freezedetect` reports 0 freeze frames; `blackdetect` reports 0 black frames; `audit_callout_match.py` reports 0 mismatches.
+7. [ ] **Per-Beat Uniqueness**: Zero repeated clips across the entire documentary (100% unique footage, zero identical binary files, zero overlapping window intervals).
+8. [ ] **Anti-YouTube Dump Guard**: Zero consecutive slices from the same external video; multi-source diversity across all beats (minimum 15–25 distinct source videos).
+9. [ ] **Broadcast Cleanliness & Logo Zoom-In**: Zero channel watermarks, zero news bugs, zero burnt-in chyrons/subtitles; all corner bugs/chyrons zoomed in or cropped out.
+10. [ ] **Zero Lip-Sync Clash**: Zero talking heads speaking into microphones while the narrator is talking; only silent action B-roll, hands working, wide shots, and cutaways.
+11. [ ] **On-Demand Dynamic Sourcing**: If any beat lacks a direct, literal semantic match from the existing bank, new targeted footage was fetched on the fly before approving the timeline.
+12. [ ] **Automated QA Passed**: `freezedetect` reports 0 freeze frames; `blackdetect` reports 0 black frames; `audit_callout_match.py` reports 0 mismatches; `audit_clip_uniqueness.py` reports 0 duplicates.
 11. [ ] **Beat Snapshots Audited**: High-res snapshots extracted at 50% timestamp for every beat and audited.
 12. [ ] **Constant Frame Rate 30.00 fps**: All clips pre-standardized to CFR 30.00 fps with 1s GOP (`-g 30 -keyint_min 30`).
 13. [ ] **Source Audio Muted**: External clip audio muted (`volume: 0`); master voiceover narration audio is the only sound track.
