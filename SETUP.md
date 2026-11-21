@@ -2,6 +2,8 @@
 
 This guide is for a video editor who runs the pipeline **only through the Antigravity agent** (Google Antigravity IDE). You install the tools once. After that, the agent does the work.
 
+> **Antigravity agent:** if the user says "go to SETUP.md and set up", run every step below yourself and post progress about every minute. See `AGENTS.md`.
+
 Run every command in **PowerShell**. After each install step, close PowerShell and open a new one so the PATH changes take effect.
 
 ---
