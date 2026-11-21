@@ -87,7 +87,7 @@ ffmpeg -version
 ffprobe -version
 yt-dlp --version
 python -c "import faster_whisper; print('faster-whisper OK')"
-python -c "import cv2, PIL, numpy,, dotenv, requests; print('python deps OK')"
+python -c "import cv2, dotenv, faster_whisper; print('python deps OK')"
 ```
 
 Every command should print a version or `OK`, with no errors.
