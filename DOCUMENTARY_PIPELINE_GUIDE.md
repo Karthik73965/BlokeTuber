@@ -1,56 +1,83 @@
-# BlokeTuber — Documentary Pipeline Architecture & Testing Guide
+# BlokeTuber — Broadcast Documentary Pipeline Architecture (100k+ Benchmark Standard)
 
-> **Reference Standard**: Quality matching `C:\Users\karth\Videos\AmericanHideaways\AH - ELVIS_Final.mp4`  
-> **Target**: 100% automated and semi-automated production for all future documentary video projects.
+
+> **Rule Zero:** Antigravity is the only AI. No OpenRouter/OpenAI/Groq/stock APIs. See `docs/ANTIGRAVITY_AUTOMATION_GUIDE.md` → Rule Zero, and `SETUP.md` for installation.
+> **Reference Standard**: Broadcast documentary quality matching top-performing investigative channels (e.g. `@BeneaththeBridges` with 476k+ views on viral builds, and our top hit `$450 House for One Woman` with 8.6k views).  
+> **Target**: 100% automated and semi-automated production targeting $\ge 100\text{k}$ views per video.
 
 ---
 
-## 1. Core Principles & Golden Rules
+## 1. The Core 100k Benchmark Principles & Golden Rules
 
-### Rule 1: Strict Zero-Repeat Guarantee ("Never Repeat Anytime Throughout Video")
-- **Persistent Lockout Registry**: [`apps/api/src/services/mediaRegistry.ts`](file:///C:/Users/karth/Documents/BlokeTuber/apps/api/src/services/mediaRegistry.ts) persists to `uploads/registry/:projectId_media_registry.json`.
-- Any video clip, stock asset, local file, or user-swapped media is permanently locked by:
-  1. Source URL / identifier
-  2. Basename filename (e.g. `desert_van_clip_001.mp4`)
-  3. Binary MD5 content hash
-- Once used in **any** beat or chapter, that media asset is permanently forbidden from repeating anywhere in the entire documentary.
+### Rule 1: The 100k Topic & Packaging Gate (Strict Filter Before Production)
+- **High-View Archetype**: Low-cost, ingenious underdog survival engineering with an exact price and time constraint:
+  - *Title Formula*: `What It’s Actually Like Living Inside the $[Price] [Ingenious Mechanism] Built [Time/Condition] for Homeless People`
+  - *Proven High-View Examples*:
+    - `$300 Folding Homes Built in 30 Minutes` (476,000 views)
+    - `$300 Thermal Shelter Built at -40°F` (337,000 views)
+    - `$450 House for One Woman Scaled Nationwide` (8,600 views)
+    - `$500 Tiny Homes on Wheels` (49,000 views)
+- **Banned Topics**: Abstract, depressing disaster lectures (*"When the Power Goes Out"*, *"Homelessness in 2026"*).
 
-### Rule 2: Authentic Sourced B-Roll Over Generic Stock Photos
-- Rather than generic stock photos or unrelated stock clips, the pipeline ingests curated YouTube documentary footage.
-- Downloads top-quality 1080p source videos via `yt-dlp` (`C:\Users\karth\AppData\Local\Programs\Python\Python311\Scripts\yt-dlp.exe`).
-- Automatically slices long videos into 4–8 second narrative B-roll clips via FFmpeg.
-- Extracts 2 keyframe preview screenshots (`_p1.jpg`, `_p2.jpg`) for visual inspection.
+### Rule 2: Real Field Journalism & Soundbite Hooks (No Fictional Composites)
+- **Zero Fictional Framing**: Strictly forbidden from creating fictional composite characters or imaginary cities (*"I built this woman from how these nights actually go"*).
+- **Mandatory Real Anchors**: Every video must feature a real named person, real named location, and real documented build project (e.g. *Denise in Tacoma, Washington* or *Elvis Summers in Los Angeles*).
+- **The First 15-Second Field Soundbite Hook**:
+  - The video **MUST** open (`0:00 - 0:10`) with an authentic, gritty audio soundbite from on-the-ground interview footage (a resident, volunteer, or project founder speaking).
+  - Voiceover enters at `0:15` with the concrete hook, followed by a 4-second musical pause/swell at `0:45` to build immersion.
 
-### Rule 3: In-Session Visual Screening (Antigravity Direct Inspection)
-- **Zero Third-Party Vision API Costs**: Screening is performed directly by the Antigravity agent in-session.
-- Screenshots are saved to `uploads/raw/:projectId/screenshots/`.
-- Screening criteria:
-  - **Subject Match**: Reject if demographic/character age does not match (e.g. young woman walking when script calls for elderly woman).
-  - **Action Match**: Reject if action contradicts narration (e.g. sleeping when script calls for walking).
-  - **Era & Environment**: Reject modern office buildings or luxury vehicles when narrative is set in rural highways or vintage campers.
-- Screening status (`approved`, `pending`, `rejected`) is tracked in `uploads/raw/:projectId/manifest.json`.
+### Rule 3: Scene-Based Storytelling Pacing (6s – 12s Cuts for Build Continuity)
+- **Eliminate the Hyper-Cut Trap**: Moving away from rigid 3-second rapid chopping that breaks viewer focus.
+- **Sustained Visual Continuity**: When the script explains the assembly of a wall panel, roof latch, or insulation layer, the footage must stay on the actual physical mechanism for **6.0 to 12.0 seconds**, allowing the viewer to absorb the space and engineering.
+- **1-to-1 Visual Proof**: What is spoken must match what is seen. If the narrator speaks of turning a deadbolt key, the video must show the door and lock, not generic drone freeway traffic.
 
-### Rule 4: Clean Full-Bleed 16:9 Presentation (Zero Cheesy Gimmicks)
-- **Banned Templates**: Fake newspaper clippings (*The Daily Chronicle*), CRT TV scanline monitors, tilted blueprint tables, floating surveillance matrix HUDs, polaroids.
-- **Enforced Styling**: Clean full-bleed 16:9 cinematic framing with subtle organic film textures:
-  - `micro_film_grain`
-  - `film_dust_scratches`
-- Typography: Minimal, punchy, bold centered callouts (e.g. **SMOKIE**) only when truly necessary.
+### Rule 4: Clean Broadcast Visuals (Banning Sci-Fi HUDs & Telemetry Cards)
+- **Banned Gimmicks**:
+  - Sci-fi telemetry odometers (`DEVICE BATTERY TELEMETRY 9% REMAINING`)
+  - Corporate graphic boxes (`LOCATION: SOUTHEAST METROPOLITAN AREA`)
+  - Artificial forensic cards, scanline HUDs, tilted blueprint tables, CRT monitors
+- **Enforced Styling**:
+  - Full-bleed 16:9 cinematic framing with subtle 35mm film grain (`micro_film_grain`).
+  - **Centered Burned-In Documentary Subtitles**: Clean, high-legibility captions matching broadcast documentary standards.
+  - Minimal journalistic lower-thirds only when introducing a real person, organization, or location for the first time.
 
-### Rule 5: Review Gate (Option A Workflow)
-- **Stage 1 (`/plan-storyboard`)**:
-  - Aligns narration audio with Whisper.
-  - Plans 4–7s beats.
-  - Matches approved sourced raw clips and high-confidence stock.
-  - Assembles `timeline.json` and stages chapter with playable video thumbnails.
-  - **Does NOT render final MP4 yet**.
-- **User Review & Swapping**:
-  - Inspect every beat in the web dashboard.
-  - Hover to play video thumbnails.
-  - Swap any beat via **Online Stock**, **Local Folder**, or **Sourced Raw Footage (YouTube Pool)** tab.
-  - Split beats longer than 5s with one click.
-- **Stage 2 (`/render-storyboard`)**:
-  - Sequentially renders the final Remotion MP4 upon approval.
+### Rule 5: Zero Stock Footage & Strict Zero-Repeat Guarantee
+- **100% Authentic Documentary Sourcing**: 0% Pexels, 0% Pixabay, 0% Shutterstock. Sourced strictly from genuine documentary field footage, municipal hearings, and volunteer build logs.
+- **Persistent Lockout Registry**: [`apps/api/src/services/mediaRegistry.ts`](file:///C:/Users/karth/Documents/BlokeTuber/apps/api/src/services/mediaRegistry.ts) persists to `uploads/registry/:projectId_media_registry.json`. Any asset used in any beat is permanently locked against reuse.
+
+### Rule 6: The Machine-Enforced Semantic Vision Gate & Zero-Modulo Ban
+- **Zero Modulo / Index-Loop Clip Mapping (`i % len(...)` is Fatal)**: No B-roll may be assigned via array index math. Every single beat must be explicitly linked to a verified source clip depicting the exact physical action.
+- **Pre-Render Verification Script (`python scripts/verify_screening_manifest.py`)**:
+  - Before Remotion can render a single chapter, `verify_screening_manifest.py` executes automatically.
+  - It audits 100% of beats: verifies clip existence, duration buffer ($\ge \text{beat} + 1.5$s), 50% midpoint snapshot, and explicit semantic validation (`semanticMatch: true` with physical description).
+  - If any beat has unverified B-roll or modulo reuse, the render script halts immediately with `exit 1`.
+
+### Rule 7: Diegetic Room Tone & Natural Foley Layering
+- **Zero Vacuum Audio**: External B-roll audio must not be completely muted into a dead vacuum.
+- Sourced clips with environmental sound (cutting foam, tearing tape, footsteps on gravel, rain, wind) must be ducked to -20dB to -24dB beneath the master narration to create the tactile presence of an on-the-scene television documentary.
+
+### Rule 8: Burned-In Centered Subtitles on Every Beat
+- Remotion (`DocumentaryVideo.tsx`) must burn in clean, high-contrast, centered captions at the bottom center of the screen (`bottom: 72px`) for every beat.
+- Typography: 44px Inter Bold, white text with dual-layer dark shadow and subtle 45% dark pill backdrop for 100% legibility over any bright background.
+
+### Stage 1: Visual Storyboard Planning (`/plan-storyboard`)
+- Aligns narration audio with Faster-Whisper.
+- Plans 5–9s dual-mode beats.
+- Slices candidate clips into `uploads/raw/:projectId/pool_cfr30/`.
+- Extracts 50% midpoint snapshots into `uploads/beat_snapshots/:projectId/`.
+- Stages chapter timeline and semantic manifest for editor review.
+- **Does NOT render final MP4 yet**.
+
+### Stage 2: Editor Review & Swapping (Web UI / Storyboard)
+- The editor inspects every beat in the web dashboard (`http://localhost:3000`).
+- Views the 50% midpoint snapshot side-by-side with the spoken text.
+- One-click swap for any beat via targeted YouTube search, Archive.org, or local footage.
+- Runs `python scripts/verify_screening_manifest.py` to ensure 100% gate compliance.
+
+### Stage 3: Master Sequential Render (`/render-storyboard`)
+- Sequentially renders each chapter in an isolated process with memory reclamation.
+- Losslessly stitches into `master_documentary_<project>.mp4`.
+- Runs whole-film `freezedetect=n=0.003:d=1.5` to verify 0 freeze frames.
 
 ---
 

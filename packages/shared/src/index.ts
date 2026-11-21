@@ -235,6 +235,8 @@ export interface Timeline {
   clips: TimelineClip[];
   outputPath: string;
   globalOverlays?: OverlayType[];
+  backgroundMusicPath?: string;
+  backgroundMusicVolume?: number;
 }
 
 export interface ApiResponse<T> {

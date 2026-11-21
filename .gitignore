@@ -51,3 +51,14 @@ scratch_*
 
 temp_*/
 
+
+# Never commit media or one-off agent debris at repo root
+/*.jpg
+/*.png
+/*.mp4
+/*.wav
+/*.mp3
+/*.json
+/*.txt
+/*.py
+brain/
