@@ -15,7 +15,6 @@ winget install --id Git.Git -e
 winget install --id OpenJS.NodeJS.LTS -e          # Node 20+ LTS (repo needs node >=18)
 winget install --id Python.Python.3.11 -e         # make sure "Add python.exe to PATH" is on
 winget install --id Gyan.FFmpeg -e                # full build, includes ffprobe
-winget install --id UB-Mannheim.TesseractOCR -e   # used by pytesseract in the QA scripts
 ```
 
 Open a **new** PowerShell window, then run:
@@ -24,12 +23,11 @@ Open a **new** PowerShell window, then run:
 npm install -g npm@11                             # repo pins npm 11.x
 python -m pip install --upgrade pip
 python -m pip install -U yt-dlp faster-whisper
-python -m pip install pillow numpy opencv-python pytesseract python-dotenv requests
+python -m pip install pillow numpy opencv-python python-dotenv requests
 ```
 
 If `python` opens the Microsoft Store, turn off the aliases: Settings > Apps > Advanced app settings > App execution aliases > switch off `python.exe` and `python3.exe`.
 
-If Tesseract is not found, add `C:\Program Files\Tesseract-OCR` to your user PATH.
 
 **Optional: NVIDIA GPU.** faster-whisper uses the CPU by default. To transcribe faster on an NVIDIA GPU, install a current NVIDIA driver plus the CUDA 12 runtime libraries:
 
@@ -89,7 +87,7 @@ ffmpeg -version
 ffprobe -version
 yt-dlp --version
 python -c "import faster_whisper; print('faster-whisper OK')"
-python -c "import cv2, PIL, numpy, pytesseract, dotenv, requests; print('python deps OK')"
+python -c "import cv2, PIL, numpy,, dotenv, requests; print('python deps OK')"
 ```
 
 Every command should print a version or `OK`, with no errors.
