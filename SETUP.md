@@ -23,7 +23,7 @@ Open a **new** PowerShell window, then run:
 npm install -g npm@11                             # repo pins npm 11.x
 python -m pip install --upgrade pip
 python -m pip install -U yt-dlp faster-whisper
-python -m pip install pillow numpy opencv-python python-dotenv requests
+python -m pip install opencv-python python-dotenv
 ```
 
 If `python` opens the Microsoft Store, turn off the aliases: Settings > Apps > Advanced app settings > App execution aliases > switch off `python.exe` and `python3.exe`.
