@@ -38,7 +38,7 @@
   - Artificial forensic cards, scanline HUDs, tilted blueprint tables, CRT monitors
 - **Enforced Styling**:
   - Full-bleed 16:9 cinematic framing with subtle 35mm film grain (`micro_film_grain`).
-  - **Centered Burned-In Documentary Subtitles**: Clean, high-legibility captions matching broadcast documentary standards.
+  - **No Narration Captions**: No burned-in subtitles of the voiceover.
   - Minimal journalistic lower-thirds only when introducing a real person, organization, or location for the first time.
 
 ### Rule 5: Zero Stock Footage & Strict Zero-Repeat Guarantee
@@ -56,9 +56,8 @@
 - **Zero Vacuum Audio**: External B-roll audio must not be completely muted into a dead vacuum.
 - Sourced clips with environmental sound (cutting foam, tearing tape, footsteps on gravel, rain, wind) must be ducked to -20dB to -24dB beneath the master narration to create the tactile presence of an on-the-scene television documentary.
 
-### Rule 8: Burned-In Centered Subtitles on Every Beat
-- Remotion (`DocumentaryVideo.tsx`) must burn in clean, high-contrast, centered captions at the bottom center of the screen (`bottom: 72px`) for every beat.
-- Typography: 44px Inter Bold, white text with dual-layer dark shadow and subtle 45% dark pill backdrop for 100% legibility over any bright background.
+### Rule 8: No Burned-In Captions
+- Remotion (`DocumentaryVideo.tsx`) does not render narration captions. Do not add per-beat `subtitle`/`text` fields to timeline clips.
 
 ### Stage 1: Visual Storyboard Planning (`/plan-storyboard`)
 - Aligns narration audio with Faster-Whisper.

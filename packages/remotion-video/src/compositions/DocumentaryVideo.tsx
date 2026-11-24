@@ -93,43 +93,6 @@ export const DocumentaryVideo: React.FC<DocumentaryVideoProps> = ({ timeline }) 
                 />
               </Sequence>
             )}
-
-            {/* ── BROADCAST DOCUMENTARY SUBTITLE LAYER ── */}
-            {(clip.subtitle || clip.text) && (
-              <div
-                style={{
-                  position: 'absolute',
-                  bottom: '72px',
-                  left: '50%',
-                  transform: 'translateX(-50%)',
-                  maxWidth: '1360px',
-                  width: '92%',
-                  textAlign: 'center',
-                  pointerEvents: 'none',
-                  zIndex: 50,
-                }}
-              >
-                <span
-                  style={{
-                    fontFamily: '"Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
-                    fontSize: '44px',
-                    fontWeight: 700,
-                    color: '#FFFFFF',
-                    letterSpacing: '-0.01em',
-                    lineHeight: 1.35,
-                    textShadow: '0 2px 4px rgba(0,0,0,0.95), 0 0 14px rgba(0,0,0,0.85), 0 0 28px rgba(0,0,0,0.95)',
-                    backgroundColor: 'rgba(0, 0, 0, 0.48)',
-                    padding: '8px 24px',
-                    borderRadius: '8px',
-                    boxDecorationBreak: 'clone',
-                    WebkitBoxDecorationBreak: 'clone',
-                    display: 'inline',
-                  }}
-                >
-                  {clip.subtitle || clip.text}
-                </span>
-              </div>
-            )}
           </Sequence>
         );
       })}

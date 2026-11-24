@@ -57,8 +57,8 @@ The editor only drops audio and asks. The agent must deliver the finished MP4 wi
    - When the script explains the assembly of a wall panel, roof latch, or insulation layer, the footage must stay on the actual physical mechanism for **6.0 to 12.0 seconds**.
    - Rigid 3-second cuts break viewer concentration; sustained scene shots let the viewer see how the structure actually works.
 
-5. **Clean Broadcast Presentation & Burned-In Subtitles**:
-   - **Burned-In Subtitle Mandate**: High-contrast, clean centered subtitles (44px Inter bold, subtle dark pill/shadow) MUST be burned into every frame at bottom center (`bottom: 72px`) matching broadcast documentary style (e.g., *Beneath the Bridges*). Over 50% of documentary viewers watch on mobile or low volume; continuous captions are mandatory for retention.
+5. **Clean Broadcast Presentation (No Captions)**:
+   - **No Narration Captions**: Never burn subtitles/captions of the narration into the video. Do not write per-beat `subtitle` or `text` fields into timelines. The frame stays clean apart from selective lower-thirds and callouts.
    - **Strictly Banned Gimmicks**: Sci-fi telemetry odometers (`DEVICE BATTERY TELEMETRY 9% REMAINING`), corporate infographic boxes (`LOCATION: SOUTHEAST METROPOLITAN AREA`), artificial forensic data cards, scanline HUDs.
 
 6. **The Machine-Enforced Semantic Vision Gate & Zero-Modulo Ban**:
@@ -208,14 +208,13 @@ Documentary pacing demands dynamic rhythm without turning into a chaotic music v
   | **`film_dip_black`** | Smooth cinematic fade through black (0.25s) | *(Silent or low room tone)* | — | Chapter openings, solemn realizations, or dramatic story pauses |
   | **`cut`** | Instant frame cut (0.00s) | *(None)* | — | Baseline documentary standard for continuous dialogue & visual flow |
 
-### Rule 5: Clean Subtitle Captions & Journalistic Lower-Thirds (Eliminating Telemetry Spam)
+### Rule 5: No Captions & Journalistic Lower-Thirds (Eliminating Telemetry Spam)
 > [!WARNING]
 > **Never clutter the screen with artificial sci-fi widgets, fake telemetry monitors, or robotic stat cards.**  
 > Top broadcast channels do not use "DEVICE BATTERY TELEMETRY 9%" boxes or forensic HUD meters. Cluttering the screen every 3 beats creates visual fatigue and destroys immersion.
 
-1. **Centered Burned-In Documentary Subtitles**:
-   - High-contrast, clean centered subtitles at the bottom center of the screen matching broadcast documentary style (e.g., *Beneath the Bridges*).
-   - Word-by-word or phrase-by-phrase timing aligned precisely with Faster-Whisper.
+1. **No Burned-In Narration Subtitles**:
+   - The video carries no running captions of the voiceover. Do not add per-beat `subtitle`/`text` fields to timeline clips.
 2. **Selective Journalistic Lower-Thirds (High-Impact Only)**:
    - Reserved strictly for introducing:
      - Real people and titles (*"Denise — Resident, Tacoma Micro-Village"* or *"Elvis Summers — Founder, Myth Tiny Homes"*)
@@ -689,7 +688,7 @@ This is the standard execution blueprint developed and certified during the prod
 14. [ ] **Automated QA Passed**: `freezedetect` reports 0 freeze frames; `blackdetect` reports 0 black frames; `audit_callout_match.py` reports 0 mismatches; `audit_clip_uniqueness.py` reports 0 duplicates.
 15. [ ] **Constant Frame Rate 30.00 fps**: All clips pre-standardized to CFR 30.00 fps with 1s GOP (`-g 30 -keyint_min 30`).
 16. [ ] **Diegetic Room Tone & Natural Foley Layered**: Real environmental sound / mechanical Foley ducked to -20dB to -24dB underneath the master voiceover; master voiceover normalized to -23 LUFS; ducked score at -22dB.
-17. [ ] **Burned-In Subtitles on 100% of Beats**: Clean, bold centered broadcast subtitles burned into every frame via Remotion (`DocumentaryVideo.tsx`).
+17. [ ] **Zero Narration Captions**: No burned-in subtitles/captions of the voiceover on any beat; timeline clips carry no `subtitle`/`text` fields.
 18. [ ] **Pre-Render Semantic Vision Gate Passed**: `verify_screening_manifest.py` executed and returned exit code `0` (100% of beats semantically verified, zero modulo loops, zero consecutive repeats).
 19. [ ] **Parallel Subagents (Phases 1–4)**: Chapters processed concurrently by dedicated subagents for high velocity.
 20. [ ] **Isolated Sequential Rendering (Phase 5)**: Chapters rendered 1 at a time in child processes with `--max-old-space-size=6144` and 3s cooldowns.
@@ -732,4 +731,4 @@ Once the gate passes, run the sequential renderer:
 ```bash
 npx tsx apps/api/scripts/render_<project_slug>_sequential.ts
 ```
-The renderer executes child processes sequentially, burns in broadcast subtitles, blends ducked music and diegetic Foley, and outputs `master_documentary_<project_slug>.mp4` ready for YouTube upload.
+The renderer executes child processes sequentially, blends ducked music and diegetic Foley, and outputs `master_documentary_<project_slug>.mp4` ready for YouTube upload.
